@@ -142,10 +142,7 @@ func needGPU(j *padv1.TrainingJob) bool {
 }
 
 func isRunning(j *padv1.TrainingJob) bool {
-	if j.Status.Phase == padv1.TrainingJobPhaseRunning || j.Status.Phase == padv1.TrainingJobPhaseScaling {
-		return true
-	}
-	return false
+	return j.Status.Phase == padv1.TrainingJobPhaseRunning || j.Status.Phase == padv1.TrainingJobPhaseScaling
 }
 
 func (a *Autoscaler) totalRunningJob(jobName string) bool {
@@ -299,10 +296,7 @@ func (a *Autoscaler) setAdditional(diff map[string]int32) {
 	a.jobtracker.Range(func(k, v interface{}) bool {
 		key := k.(string)
 		up := v.(*updater.JobUpdater)
-		var additional int32
-		if val, ok := diff[key]; ok {
-			additional = val
-		}
+		additional := diff[key]
 		up.Additional = additional
 		log.Debug("setAdditional", "jobname", key, "additional", additional)
 		a.jobtracker.Store(k, up)
