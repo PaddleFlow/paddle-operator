@@ -141,25 +141,6 @@ func needGPU(j *padv1.TrainingJob) bool {
 	return j.NeedGPU()
 }
 
-func isRunning(j *padv1.TrainingJob) bool {
-	return j.Status.Phase == padv1.TrainingJobPhaseRunning || j.Status.Phase == padv1.TrainingJobPhaseScaling
-}
-
-func (a *Autoscaler) totalRunningJob(jobName string) bool {
-	v, ok := a.jobtracker.Load(jobName)
-	if !ok {
-		return false
-	}
-	up, ok := v.(*updater.JobUpdater)
-	if !ok {
-		return false
-	}
-	job := up.Job
-	totalRunning := job.Status.Phase == padv1.TrainingJobPhaseRunning
-	log.Debug("totalRunningJob", "jobname", jobName, "totalRunning", totalRunning)
-	return totalRunning
-}
-
 // sortedJobs return the names of sorted jobs by fulfillment and
 // tiebreakers in ascending order.
 func sortedJobs(j []*padv1.TrainingJob, filters ...func(*padv1.TrainingJob) bool) []*padv1.TrainingJob {
@@ -427,8 +408,9 @@ func (a *Autoscaler) findTrainingJobsMightBeRescheduled(havePending bool) (js tr
 			return false
 		}
 		job := up.Job
-		if a.totalRunningJob(jn) || havePending {
+		if havePending || job.Status.Phase == padv1.TrainingJobPhaseRunning {
 			js = append(js, job)
+			log.Debug("job might need rescheduling", "jobname", jn)
 		}
 		return true
 	}
