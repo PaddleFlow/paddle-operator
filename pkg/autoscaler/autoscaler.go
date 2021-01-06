@@ -170,8 +170,6 @@ func searchAssignableNode(r *ClusterResource, j *padv1.TrainingJob) string {
 }
 
 func scaleDryRun(r *ClusterResource, j *padv1.TrainingJob, curDiff int32, maxLoadDesired float64, scaleDown bool) (additional int) {
-	additionalGPUInstance := 0
-	additionalCPUInstance := 0
 	cpuRequestMilli := j.TrainerCPURequestMilli()
 	memRequestMega := j.TrainerMemRequestMega()
 	gpuLimit := j.TrainerGPULimit()
@@ -251,21 +249,19 @@ func scaleDryRun(r *ClusterResource, j *padv1.TrainingJob, curDiff int32, maxLoa
 
 	// NOTE: do not scale up to use full cluster resource of CPU
 	//       but we do scale up for GPU.
+	additionalCPUInstance := 0
 	if int64(float64(r.CPUTotalMilli)*maxLoadDesired)-r.CPURequestMilli >= cpuRequestMilli {
 		additionalCPUInstance = 1
 	}
 
+	additionalGPUInstance := 0
 	needGPU := gpuLimit > 0
 	if needGPU && r.GPUTotal-r.GPULimit >= gpuLimit {
 		additionalGPUInstance = 1
 	}
 
-	if needGPU {
-		if additionalGPUInstance < additionalCPUInstance {
-			additional = additionalGPUInstance
-		} else {
-			additional = additionalCPUInstance
-		}
+	if needGPU && additionalGPUInstance < additionalCPUInstance {
+		additional = additionalGPUInstance
 	} else {
 		additional = additionalCPUInstance
 	}
