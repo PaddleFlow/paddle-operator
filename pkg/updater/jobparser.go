@@ -115,6 +115,9 @@ func parseToPserver(job *paddlev1.TrainingJob, extraEnv []corev1.EnvVar, outter 
 		},
 		Spec: appsv1.ReplicaSetSpec{
 			Replicas: &replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{PserverLabel: job.ObjectMeta.Name},
+			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels:      map[string]string{PserverLabel: job.ObjectMeta.Name, "priority": job.Spec.Annotations.Priority},
@@ -299,6 +302,9 @@ func parseToMaster(job *paddlev1.TrainingJob) *appsv1.ReplicaSet {
 		},
 		Spec: appsv1.ReplicaSetSpec{
 			Replicas: &replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{MasterLabel: job.ObjectMeta.Name},
+			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{MasterLabel: job.ObjectMeta.Name,
