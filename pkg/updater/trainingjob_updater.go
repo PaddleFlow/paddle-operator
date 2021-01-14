@@ -153,12 +153,11 @@ func (j *JobUpdater) Reconcile() error {
 		}
 
 		phase, reason, err := j.GetStatus()
-		// FIXME: log seems inappropriate. It may not be an Error.
-		log.Info("Error creating TrainingJob", "job", j.FullName(), "current phase", phase, "reason", reason, "err", err)
 		if err != nil {
 			log.Error("Error get TrainingJob status", "job", j.FullName(), "err", err.Error())
 			return err
 		}
+		log.Info("TrainingJob GetStatus", "job", j.FullName(), "current phase", phase, "reason", reason)
 
 		j.status.Phase = phase
 		j.status.Reason = reason
