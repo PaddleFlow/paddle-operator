@@ -164,8 +164,8 @@ func (j *JobUpdater) Reconcile() error {
 		j.status.Reason = reason
 
 		if phase == paddlev1.TrainingJobPhaseRunning {
-			j.Job.Status.StartTime = v1.NewTime(time.Now())
-			log.Info("Job started", "job", j.FullName(), "time", j.Job.Status.StartTime.Format("2018-01-01 23:00:00"))
+			j.status.StartTime = v1.NewTime(time.Now())
+			log.Info("Job started", "job", j.FullName(), "time", j.status.StartTime)
 		}
 
 		if err := j.updateCRDStatus(released); err != nil {
