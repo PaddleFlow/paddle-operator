@@ -33,14 +33,6 @@ const (
 	schedulerNameVolcano         = "volcano"
 )
 
-func getPaddleJobAlivePods(pdj *pdv1.PaddleJob) int {
-	return len(pdj.Status.PS.Refs) + len(pdj.Status.Worker.Refs)
-}
-
-func getPaddleJobReplicas(pdj *pdv1.PaddleJob) int {
-	return pdj.Spec.PS.Replicas + pdj.Spec.Worker.Replicas
-}
-
 func getPaddleJobPhase(pdj *pdv1.PaddleJob) pdv1.PaddleJobPhase {
 
 	if pdj.Status.Phase == pdv1.Completed {

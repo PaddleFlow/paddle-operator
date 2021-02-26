@@ -195,7 +195,7 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	if getPaddleJobAlivePods(&pdj) == getPaddleJobReplicas(&pdj) {
+	if len(pdj.Status.PS.Refs) == pdj.Spec.PS.Replicas && len(pdj.Status.Worker.Refs) == pdj.Spec.Worker.Replicas {
 		if err := r.Get(ctx, types.NamespacedName{Name: pdj.Name, Namespace: pdj.Namespace}, &corev1.ConfigMap{}); err == nil || !apierrors.IsNotFound(err) {
 			return ctrl.Result{}, err
 		}
