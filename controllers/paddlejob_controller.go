@@ -273,10 +273,9 @@ func (r *PaddleJobReconciler) deleteResource(ctx context.Context, pdj *pdv1.Padd
 	if err := r.Delete(ctx, obj, client.PropagationPolicy(metav1.DeletePropagationBackground)); (err) != nil {
 		r.Recorder.Event(pdj, corev1.EventTypeWarning, "Delete", fmt.Sprintf("delete failed %s %s", tp, obj.GetName()))
 		return err
-	} else {
-		r.Recorder.Event(pdj, corev1.EventTypeNormal, "Deleted", fmt.Sprintf("deleted %s %s", tp, obj.GetName()))
-		return nil
 	}
+	r.Recorder.Event(pdj, corev1.EventTypeNormal, "Deleted", fmt.Sprintf("deleted %s %s", tp, obj.GetName()))
+	return nil
 }
 
 func (r *PaddleJobReconciler) createResource(ctx context.Context, pdj *pdv1.PaddleJob, obj client.Object) error {
@@ -284,10 +283,10 @@ func (r *PaddleJobReconciler) createResource(ctx context.Context, pdj *pdv1.Padd
 	if err := r.Create(ctx, obj); err != nil {
 		r.Recorder.Event(pdj, corev1.EventTypeWarning, "Create", fmt.Sprintf("create failed %s %s", tp, obj.GetName()))
 		return err
-	} else {
-		r.Recorder.Event(pdj, corev1.EventTypeNormal, "Created", fmt.Sprintf("created %s %s", tp, obj.GetName()))
-		return nil
 	}
+	r.Recorder.Event(pdj, corev1.EventTypeNormal, "Created", fmt.Sprintf("created %s %s", tp, obj.GetName()))
+	return nil
+
 }
 
 func (r *PaddleJobReconciler) finalize(ctx context.Context, pdj *pdv1.PaddleJob) error {
