@@ -80,23 +80,23 @@ func constructConfigMap(pdj *pdv1.PaddleJob, childPods corev1.PodList) (cm *core
 	pservers := make([]string, pdj.Spec.PS.Replicas)
 	workers := make([]string, pdj.Spec.Worker.Replicas)
 
-	fmtIPportString := func(pod corev1.Pod) string {
-		ip := pod.Status.PodIP
-		if pdj.Spec.Intranet == pdv1.Service {
-			ip = pod.Name
-		}
-		return fmt.Sprintf("%s:%d", ip, pdv1.PADDLE_PORT)
-	}
-
 	for _, pod := range childPods.Items {
 		if len(strings.Split(pod.Status.PodIP, ".")) != 4 {
 			return nil
 		}
 		resType, idx := extractNameIndex(pod.Name)
 		if resType == pdv1.ResourcePS {
-			pservers[idx] = fmtIPportString(pod)
+			if pdj.Spec.Intranet == pdv1.Service {
+				pservers[idx] = fmt.Sprintf("%s:%d", pod.Name, pdv1.PADDLE_PORT)
+			} else {
+				pservers[idx] = fmt.Sprintf("%s:%d", pod.Status.PodIP, pdv1.PADDLE_PORT)
+			}
 		} else if resType == pdv1.ResourceWorker {
-			workers[idx] = fmtIPportString(pod)
+			if pdj.Spec.Intranet == pdv1.Service {
+				workers[idx] = fmt.Sprintf("%s:%d", pod.Name, pdv1.PADDLE_PORT)
+			} else {
+				workers[idx] = fmt.Sprintf("%s:%d", pod.Status.PodIP, pdv1.PADDLE_PORT)
+			}
 		}
 	}
 	cm = &corev1.ConfigMap{
