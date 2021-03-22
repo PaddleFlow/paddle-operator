@@ -301,3 +301,66 @@ func constructService4Pod(pod corev1.Pod) *corev1.Service {
 	}
 	return svc
 }
+
+type PortPool struct {
+	begin, end int32
+	allocated  map[int32]struct{}
+}
+
+func NewPortPool(begin, end int32) PortPool {
+	return PortPool{
+		begin:     begin,
+		end:       end,
+		allocated: make(map[int32]struct{}),
+	}
+}
+
+func (pool PortPool) allocate() int32 {
+	for i := pool.begin; i < pool.end; i++ {
+		if _, used := pool.allocated[i]; !used {
+			pool.allocated[i] = struct{}{}
+			return i
+		}
+	}
+	return 0
+}
+
+func (pool PortPool) free(i int32) {
+	delete(pool.allocated, i)
+}
+
+func (pool PortPool) empty() bool {
+	return pool.begin >= pool.end || pool.end-pool.begin == int32(len(pool.allocated))
+}
+
+func addHostPort(resource *pdv1.ResourceSpec, hostPort int32) bool {
+	if resource == nil {
+		return false
+	}
+	containerList := resource.Template.Spec.Containers
+	if len(containerList) == 1 && len(containerList[0].Ports) == 0 {
+		containerList[0].Ports = []corev1.ContainerPort{
+			{
+				ContainerPort: pdv1.PADDLE_PORT,
+				HostPort:      hostPort,
+			},
+		}
+		return true
+	}
+	return false
+}
+
+func transformSpec(pdjSpec *pdv1.PaddleJobSpec, pool PortPool) *pdv1.PaddleJobSpec {
+	if pool.empty() {
+		return nil
+	}
+	hostPort := pool.allocate()
+	newSpec := pdjSpec.DeepCopy()
+
+	addHostPort(&newSpec.PS, hostPort)
+	if addHostPort(&newSpec.Worker, hostPort) {
+		return newSpec
+	}
+	pool.free(hostPort)
+	return nil
+}

@@ -49,6 +49,7 @@ type PaddleJobReconciler struct {
 	Log      logr.Logger
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
+	Pool     PortPool
 }
 
 //+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=paddlejobs,verbs=get;list;watch;create;update;patch;delete
@@ -87,6 +88,17 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	var childPods corev1.PodList
 	if err := r.List(ctx, &childPods, client.InNamespace(req.Namespace), client.MatchingFields{ctrlRefKey: req.Name}); err != nil {
 		return ctrl.Result{}, err
+	}
+
+	newSpec := transformSpec(&pdj.Spec, r.Pool)
+	if newSpec != nil && !reflect.DeepEqual(*newSpec, pdj.Spec) {
+		pdj.Spec = *newSpec
+		if err := r.Update(ctx, &pdj); err != nil {
+			if apierrors.IsConflict(err) {
+				return ctrl.Result{Requeue: true}, nil
+			}
+			return ctrl.Result{}, err
+		}
 	}
 
 	newStatus := r.getCurrentStatus(ctx, &pdj, childPods)
