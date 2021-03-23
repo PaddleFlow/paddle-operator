@@ -82,7 +82,7 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	log.Info("Reconcile", "version", pdj.ResourceVersion)
 
-	//r.finalize(ctx, &pdj)
+	r.finalize(ctx, &pdj)
 
 	// List all associated pods
 	var childPods corev1.PodList
@@ -318,6 +318,11 @@ func (r *PaddleJobReconciler) finalize(ctx context.Context, pdj *pdv1.PaddleJob)
 		if containsString(pdj.ObjectMeta.Finalizers, finalizerName) {
 
 			// do before delete
+			for _, c := range pdj.Spec.Worker.Template.Spec.Containers {
+				for _, p := range c.Ports {
+					r.Pool.free(p.HostPort)
+				}
+			}
 
 			pdj.ObjectMeta.Finalizers = removeString(pdj.ObjectMeta.Finalizers, finalizerName)
 			if err := r.Update(ctx, pdj); err != nil {
