@@ -18,7 +18,7 @@ With kubernetes ready, you can install paddle operator with configuration in *de
 
 Create PaddleJob crd,
 ```shell
-kubectl create -f deploy/v1/crd.yaml
+kubectl apply -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/main/deploy/v1/crd.yaml
 ```
 
 A succeed creation leads to result as follows,
@@ -31,7 +31,7 @@ paddlejobs.batch.paddlepaddle.org       2021-02-08T07:43:24Z
 Then deploy controller,
 
 ```shell
-kubectl create -f deploy/v1/operator.yaml
+kubectl apply -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/main/deploy/v1/operator.yaml
 ```
 
 the ready state of controller would be as follow,
@@ -49,7 +49,7 @@ Note that the namespace running operator/controller may different from the one y
 
 Deploy your first paddlejob demo with
 ```shell
-kubectl -n paddle-system create -f deploy/examples/wide_and_deep.yaml
+kubectl -n paddle-system apply -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/main/deploy/examples/wide_and_deep.yaml
 ```
 
 Check pods status by
@@ -68,7 +68,7 @@ Fin, you can play with your own job.
 ### Uninstall
 Simply
 ```shell
-kubectl delete -f deploy/v1/crd.yaml -f deploy/v1/operator.yaml
+kubectl delete -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/main/deploy/v1/crd.yaml -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/main/deploy/v1/operator.yaml
 ```
 ## Advanced usage
 
