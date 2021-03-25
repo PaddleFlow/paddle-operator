@@ -18,11 +18,11 @@ With kubernetes ready, you can install paddle operator with configuration in *de
 
 Create PaddleJob crd,
 ```shell
-kubectl apply -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/main/deploy/v1/crd.yaml
+$ kubectl apply -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/main/deploy/v1/crd.yaml
 ```
 
 A succeed creation leads to result as follows,
-```
+```shell
 $ kubectl get crd
 NAME                                    CREATED AT
 paddlejobs.batch.paddlepaddle.org       2021-02-08T07:43:24Z
@@ -31,12 +31,12 @@ paddlejobs.batch.paddlepaddle.org       2021-02-08T07:43:24Z
 Then deploy controller,
 
 ```shell
-kubectl apply -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/main/deploy/v1/operator.yaml
+$ kubectl apply -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/main/deploy/v1/operator.yaml
 ```
 
 the ready state of controller would be as follow,
-```
-$kubectl -n paddle-system get pods
+```shell
+$ kubectl -n paddle-system get pods
 NAME                                         READY   STATUS    RESTARTS   AGE
 paddle-controller-manager-698dd7b855-n65jr   1/1     Running   0          1m
 ```
@@ -49,17 +49,17 @@ Note that the namespace running operator/controller may different from the one y
 
 Deploy your first paddlejob demo with
 ```shell
-kubectl -n paddle-system apply -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/main/deploy/examples/wide_and_deep.yaml
+$ kubectl -n paddle-system apply -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/main/deploy/examples/wide_and_deep.yaml
 ```
 
 Check pods status by
 ```shell
-kubectl -n paddle-system get pods
+$ kubectl -n paddle-system get pods
 ```
 
 especially,
 ```shell
-kubectl -n paddle-system get pdj
+$ kubectl -n paddle-system get pdj
 ```
 may give you abstract summary of your job.
 
@@ -68,7 +68,7 @@ Fin, you can play with your own job.
 ### Uninstall
 Simply
 ```shell
-kubectl delete -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/main/deploy/v1/crd.yaml -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/main/deploy/v1/operator.yaml
+$ kubectl delete -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/main/deploy/v1/crd.yaml -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/main/deploy/v1/operator.yaml
 ```
 ## Advanced usage
 
