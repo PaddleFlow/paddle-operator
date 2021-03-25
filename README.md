@@ -41,9 +41,9 @@ NAME                                         READY   STATUS    RESTARTS   AGE
 paddle-controller-manager-698dd7b855-n65jr   1/1     Running   0          1m
 ```
 
-> paddle controller configured above to run in namespace *paddle-system* and only job in this namespace will be handled by default,
-if you prefer other namespace, change related setting in operator.yaml before creation.
-Note that the namespace running operator/controller may different from the one your job submit to.
+By default, paddle controller runs in namespace *paddle-system* and only controll jobs in that namespace.
+To run controller in a different namespace or controll jobs in other namespaces, you can edit `charts/paddle-operator/values.yaml` and install the helm chart.
+You can also edit kustomization files or edit `deploy/v1/operator.yaml` directly for that purpose.
 
 ### Run demo paddlejob
 
@@ -52,18 +52,15 @@ Deploy your first paddlejob demo with
 $ kubectl -n paddle-system apply -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/main/deploy/examples/wide_and_deep.yaml
 ```
 
-Check pods status by
+Check pods status
 ```shell
 $ kubectl -n paddle-system get pods
 ```
 
-especially,
+Check paddle job status
 ```shell
 $ kubectl -n paddle-system get pdj
 ```
-may give you abstract summary of your job.
-
-Fin, you can play with your own job.
 
 ### Uninstall
 Simply
