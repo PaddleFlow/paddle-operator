@@ -64,9 +64,9 @@ $ kubectl -n paddle-system get pdj
 
 ### Run demo paddlejob on volcano
 
-Volcano is a batch scheduling system based on kubernetes. Using it for task scheduling results in better performance.Volcano installation, you can refer to [this website](https://volcano.sh/en/docs/installation/).
+Volcano is a batch scheduling system based on kubernetes. Using it for jobs scheduling results in better performance.Volcano installation, you can refer to [this website](https://volcano.sh/en/docs/installation/).
 
-Edit ctr-Volcano. yaml in the node.
+Edit `ctr-Volcano. yaml` in the node.
 
 ```
 apiVersion: batch.volcano.sh/v1alpha1
