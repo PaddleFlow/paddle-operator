@@ -230,7 +230,7 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// Create configmap of global env for all pods after all pods are running
-	if pdj.Spec.Elastic != nil && isAllPodsReady(&pdj) {
+	if pdj.Spec.Elastic == nil && isAllPodsReady(&pdj) {
 		if err := r.Get(ctx, types.NamespacedName{Name: pdj.Name, Namespace: pdj.Namespace}, &corev1.ConfigMap{}); err == nil || !apierrors.IsNotFound(err) {
 			return ctrl.Result{}, err
 		}
