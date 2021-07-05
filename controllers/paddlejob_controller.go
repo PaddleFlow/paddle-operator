@@ -161,6 +161,18 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
+	// sync elastic np to ectd
+	if pdj.Spec.Elastic != nil {
+		if np, err := syncNP(&pdj); err != nil {
+			log.Error(err, "sync np failed")
+			return ctrl.Result{Requeue: true}, nil
+		} else if np != nil {
+			r.Recorder.Event(&pdj, corev1.EventTypeNormal, "Scaled", fmt.Sprintf("scaled replicas to %s", *np))
+			log.Info("Scaled", "new replicas", *np)
+			return ctrl.Result{Requeue: true}, nil
+		}
+	}
+
 	if pdj.Status.Phase == pdv1.Failed {
 		if pdj.Spec.CleanPodPolicy == pdv1.CleanAlways || pdj.Spec.CleanPodPolicy == pdv1.CleanOnFailure {
 			cleanOne()
@@ -218,7 +230,7 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// Create configmap of global env for all pods after all pods are running
-	if isAllPodsReady(&pdj) {
+	if pdj.Spec.Elastic != nil && isAllPodsReady(&pdj) {
 		if err := r.Get(ctx, types.NamespacedName{Name: pdj.Name, Namespace: pdj.Namespace}, &corev1.ConfigMap{}); err == nil || !apierrors.IsNotFound(err) {
 			return ctrl.Result{}, err
 		}
