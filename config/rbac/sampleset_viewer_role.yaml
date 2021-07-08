@@ -1,0 +1,20 @@
+# permissions for end users to view samplesets.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: sampleset-viewer-role
+rules:
+- apiGroups:
+  - batch.paddlepaddle.org
+  resources:
+  - samplesets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - batch.paddlepaddle.org
+  resources:
+  - samplesets/status
+  verbs:
+  - get
