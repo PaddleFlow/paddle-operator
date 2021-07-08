@@ -6,12 +6,10 @@ SAMPLESET_IMG ?= registry.baidubce.com/paddle-operator/sampleset-controller
 CRD_OPTIONS ?= "crd:maxDescLen=0,generateEmbeddedObjectMeta=true,trivialVersions=true,preserveUnknownFields=false"
 
 # Set version and get git tag
-VERSION=v0.3.0
-GIT_COMMIT=$(shell git rev-parse HEAD)
-GIT_TAG=$(shell if [ -z "`git status --porcelain`" ]; then git describe --exact-match --tags HEAD 2>/dev/null; fi)
-GIT_TREE_STATE=$(shell if [ -z "`git status --porcelain`" ]; then echo "clean" ; else echo "dirty"; fi)
-GIT_SHA=$(shell git rev-parse --short HEAD || echo "HEAD")
-GIT_VERSION=${VERSION}-${GIT_SHA}
+VERSION=v0.3-beta
+# GIT_SHA=$(shell git rev-parse --short HEAD || echo "HEAD")
+# GIT_VERSION=${VERSION}-${GIT_SHA}
+GIT_VERSION=${VERSION}
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -20,7 +18,7 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
-all: build gen-deploy
+all: manager gen-deploy
 
 # Run tests
 ENVTEST_ASSETS_DIR=$(shell pwd)/testbin
@@ -28,6 +26,14 @@ test: generate fmt vet manifests
 	mkdir -p ${ENVTEST_ASSETS_DIR}
 	test -f ${ENVTEST_ASSETS_DIR}/setup-envtest.sh || curl -sSLo ${ENVTEST_ASSETS_DIR}/setup-envtest.sh https://raw.githubusercontent.com/kubernetes-sigs/controller-runtime/v0.7.0/hack/setup-envtest.sh
 	source ${ENVTEST_ASSETS_DIR}/setup-envtest.sh; fetch_envtest_tools $(ENVTEST_ASSETS_DIR); setup_envtest_env $(ENVTEST_ASSETS_DIR); go test ./... -coverprofile cover.out
+
+# Build manager binary
+manager: generate fmt vet
+	go build -o bin/manager main.go
+
+# Run against the configured Kubernetes cluster in ~/.kube/config
+run: generate fmt vet manifests
+	go run ./main.go
 
 # Install CRDs into a cluster
 install: manifests kustomize
@@ -49,7 +55,7 @@ gen-deploy: manifests kustomize crd-v1beta1
 
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
 deploy: manifests kustomize
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}:${GIT_VERSION}
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default | kubectl apply -f -
 
 # UnDeploy controller from the configured Kubernetes cluster in ~/.kube/config
@@ -89,37 +95,29 @@ generate: controller-gen
 ##@ Build
 
 # Build all controller manager
-build: build-paddlejob build-sampleset
-
-# Build paddlejob controller manager
-build-paddlejob: generate fmt vet
-	go build -o bin/paddlejob-controller cmd/paddlejob/main.go
+build-all: manager build-sampleset
 
 # Build sampleset controller manager
 build-sampleset: generate fmt vet
 	go build -o bin/sampleset-controller cmd/sampleset/main.go
 
-# Run paddlejob controller against the configured Kubernetes cluster in ~/.kube/config
-run: generate fmt vet manifests
-	go run cmd/paddlejob/main.go
+# Build paddlejob controller image
+docker-build: test
+	docker build . -t ${IMG}:${GIT_VERSION}
 
 # Build all controller manager docker images
-docker-build-all: docker-build-paddlejob docker-build-sampleset
-
-# Build paddlejob controller image
-docker-build-paddlejob: test
-	docker build . -t ${IMG}:${GIT_VERSION}
+docker-build-all: docker-build docker-build-sampleset
 
 # Build sampleset controller image
 docker-build-sampleset: test
 	docker build . -f Dockerfile.sampleset -t ${SAMPLESET_IMG}:${GIT_VERSION}
 
-# Push all docker images
-docker-push-all: docker-push-paddlejob docker-push-sampleset
-
-# Push the paddlejob docker image
-docker-push-paddlejob:
+# Push the docker image
+docker-push:
 	docker push ${IMG}:${GIT_VERSION}
+
+# Push all docker images
+docker-push-all: docker-push docker-push-sampleset
 
 # Push the sampleset docker image
 docker-push-sampleset:
