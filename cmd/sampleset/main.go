@@ -16,14 +16,15 @@ package main
 
 import (
 	"flag"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/ctrls"
+	"go.uber.org/zap/zapcore"
 	"os"
-	"strconv"
-	"strings"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	zapOpt "go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -32,42 +33,49 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	batchv1 "github.com/paddleflow/paddle-operator/api/v1"
-	"github.com/paddleflow/paddle-operator/controllers"
 	//+kubebuilder:scaffold:imports
 )
 
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
+
+	metricsAddr string
+	namespace string
+	development          bool
+	enableLeaderElection bool
+	probeAddr string
 )
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
 	utilruntime.Must(batchv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
-}
 
-func main() {
-	var metricsAddr string
-	var namespace string
-	var enableLeaderElection bool
-	var probeAddr string
-	var hostPortRange string
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&namespace, "namespace", "", "The namespace the controller binds to.")
+	flag.BoolVar(&development, "development", true, "Enable development mode for controller.")
+	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	flag.StringVar(&hostPortRange, "port-range", "35000,65000", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	opts := zap.Options{
-		Development: true,
-	}
-	opts.BindFlags(flag.CommandLine)
+}
+
+func main() {
 	flag.Parse()
 
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	ctrl.SetLogger(zap.New(func(o *zap.Options) {
+		o.Development = development
+	}, func(o *zap.Options) {
+		o.ZapOpts = append(o.ZapOpts, zapOpt.AddCaller())
+	}, func(o *zap.Options) {
+		if !development {
+			encCfg := zapOpt.NewProductionEncoderConfig()
+			encCfg.EncodeLevel = zapcore.CapitalLevelEncoder
+			encCfg.EncodeTime = zapcore.ISO8601TimeEncoder
+			o.Encoder = zapcore.NewConsoleEncoder(encCfg)
+		}
+	}))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -76,41 +84,22 @@ func main() {
 		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "b2a304f2.paddlepaddle.org",
+		LeaderElectionID:       "37987177.paddlepaddle.org",
 	})
 	if err != nil {
-		setupLog.Error(err, "unable to start manager")
+		setupLog.Error(err, "unable to start sampleset-controller-manager")
 		os.Exit(1)
 	}
 
-	hostPosts := strings.Split(hostPortRange, ",")
-	portStart, err := strconv.Atoi(hostPosts[0])
-	if err != nil {
-		setupLog.Error(err, "port should have int type")
-		os.Exit(1)
-	}
-
-	portEnd, err := strconv.Atoi(hostPosts[1])
-	if err != nil {
-		setupLog.Error(err, "port should have int type")
-		os.Exit(1)
-	}
-
-	if err = (&controllers.PaddleJobReconciler{
+	if err = (&ctrls.SampleSetReconciler{
 		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("controllers").WithName("PaddleJob"),
+		Log:      ctrl.Log.WithName("samplesetctl").WithName("SampleSet"),
 		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("paddlejob-controller"),
-		HostPortMap: map[string]int{
-			controllers.HOST_PORT_START: portStart,
-			controllers.HOST_PORT_CUR:   portStart,
-			controllers.HOST_PORT_END:   portEnd,
-		},
+		Recorder: mgr.GetEventRecorderFor("SampleSet"),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "PaddleJob")
+		setupLog.Error(err, "unable to create controller", "controller", "SampleSet")
 		os.Exit(1)
 	}
-	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("health", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
@@ -121,9 +110,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	setupLog.Info("starting manager")
+	setupLog.Info("starting sampleset-controller-manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running manager")
+		setupLog.Error(err, "problem running sampleset-controller-manager")
 		os.Exit(1)
 	}
 }
