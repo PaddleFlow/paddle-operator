@@ -1,7 +1,17 @@
 apiVersion: batch.paddlepaddle.org/v1alpha1
 kind: SampleSet
 metadata:
-  name: sampleset-sample
+  name: imagenet
 spec:
-  # Add fields here
-  foo: bar
+  partitions: 2
+  - mountPoint: bos://<bucket_name>/<bucket_dir>
+    options:
+      endpoint: bj.bcebos.com
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: beta.kubernetes.io/instance-gpu
+              operator: In
+              values:
+                - "true"
