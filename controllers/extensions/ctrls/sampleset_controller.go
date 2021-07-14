@@ -17,11 +17,12 @@ package ctrls
 import (
 	"context"
 	"github.com/go-logr/logr"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/csi"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/utils"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 
-	ssv1alpha1 "github.com/paddleflow/paddle-operator/api/v1alpha1"
+	"github.com/paddleflow/paddle-operator/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -30,17 +31,6 @@ import (
 var (
 	finalizerName = "finalizers.sampleset.paddlepaddle.org"
 )
-
-type ReconcileRequestContext struct {
-	context.Context
-	types.NamespacedName
-	Log logr.Logger
-	Recorder record.EventRecorder
-	client.Client
-	RuntimeType   string
-	FinalizerName string
-	SampleSet ssv1alpha1.SampleSet
-}
 
 // SampleSetReconciler reconciles a SampleSet object
 type SampleSetReconciler struct {
@@ -63,64 +53,68 @@ type SampleSetReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *SampleSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var sampleSet ssv1alpha1.SampleSet
+	var sampleSet v1alpha1.SampleSet
 	if err := r.Get(ctx, req.NamespacedName, &sampleSet); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	rCtx := ReconcileRequestContext{
-		Context: ctx,
-		Log: r.Log.WithValues("SampleSet", req.NamespacedName),
-		NamespacedName: req.NamespacedName,
-		Recorder: r.Recorder,
-		RuntimeType: "juicefs",
-		Client: r.Client,
-		FinalizerName: finalizerName,
-		SampleSet: sampleSet,
-	}
 
-	// 1. Check if need to delete sampleset
-	if utils.HasDeletionTimestamp(sampleSet.ObjectMeta) {
-		return r.reconcileDeletion(rCtx)
-	}
 
-	// 2. Add finalizer and requeue
-	if utils.ContainsString(sampleSet.ObjectMeta.GetFinalizers(), finalizerName) {
-		return r.addFinalizerAndRequeue(rCtx)
-	}
+	//RCtx = common.ReconcileContext{
+	//	Context: ctx,
+	//	Client: r.Client,
+	//	Log: r.Log,
+	//	Scheme: r.Scheme,
+	//	Recorder: r.Recorder,
+	//	SampleSet: &sampleSet,
+	//	SampleJob: nil,
+	//	Driver: juicefs,
+	//}
 
-	switch sampleSet.Status.Phase {
-	case ssv1alpha1.Unknown:
-		return r.reconcileUnknown(rCtx)
-	case ssv1alpha1.Bound:
-		return r.reconcileBound(rCtx)
-	default:
-		rCtx.Log.Info("")
-	}
 
-	return ctrl.Result{}, nil
+	//if utils.HasDeletionTimestamp(sampleSet.ObjectMeta) {
+	//	return r.DeleteResource()
+	//}
+	//
+	//if !utils.ContainsString(sampleSet.ObjectMeta.GetFinalizers(), finalizerName) {
+	//	return r.AddFinalizer()
+	//}
+	//
+	//return r.ReconcilePhase()
 }
-
-func (r *SampleSetReconciler) addFinalizerAndRequeue(ctx ReconcileRequestContext) (ctrl.Result, error) {
-	return ctrl.Result{}, nil
-}
-
-func (r *SampleSetReconciler) reconcileDeletion(ctx ReconcileRequestContext) (ctrl.Result, error) {
-	return ctrl.Result{}, nil
-}
-
-func (r *SampleSetReconciler) reconcileUnknown(ctx ReconcileRequestContext) (ctrl.Result, error) {
-	return ctrl.Result{}, nil
-}
-
-func (r *SampleSetReconciler) reconcileBound(ctx ReconcileRequestContext) (ctrl.Result, error) {
-	return ctrl.Result{}, nil
-}
-
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *SampleSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&ssv1alpha1.SampleSet{}).
+		For(&v1alpha1.SampleSet{}).
 		Complete(r)
 }
+
+type SampleSetReconcilePhase struct {
+	common.ReconcileContext
+	*v1alpha1.SampleJob
+}
+
+
+
+//func (r *SampleSetReconciler) DeleteResource() (ctrl.Result, error) {
+//	return ctrl.Result{}, nil
+//}
+//
+//func (r *SampleSetReconciler) AddFinalizer() (ctrl.Result, error) {
+//	return ctrl.Result{}, nil
+//}
+//
+//func (r *SampleSetReconciler) ReconcilePhase() (ctrl.Result, error) {
+//	//switch sampleSet.Status.Phase {
+//	//case ssv1alpha1.Unknown:
+//	//	return r.reconcileUnknown(rCtx)
+//	//case ssv1alpha1.Bound:
+//	//	return r.reconcileBound(rCtx)
+//	//default:
+//	//	rCtx.Log.Info("")
+//	//}
+//	return ctrl.Result{}, nil
+//}
+
+

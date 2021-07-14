@@ -1,0 +1,20 @@
+# permissions for end users to view samplejobs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: samplejob-viewer-role
+rules:
+- apiGroups:
+  - batch.paddlepaddle.org
+  resources:
+  - samplejobs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - batch.paddlepaddle.org
+  resources:
+  - samplejobs/status
+  verbs:
+  - get

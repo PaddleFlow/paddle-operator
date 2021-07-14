@@ -34,38 +34,38 @@ type CacheStateName string
 // CacheStateList is a set of (resource name, quantity) pairs.
 type CacheStateList map[CacheStateName]string
 
-type SecretKeySelector struct {
-	// The name of required secret
-	// +required
-	Name string `json:"name,omitempty"`
+//type SecretKeySelector struct {
+//	// The name of required secret
+//	// +required
+//	Name string `json:"name,omitempty"`
+//
+//	// The required key in the secret
+//	// +optional
+//	Key string `json:"key,omitempty"`
+//}
 
-	// The required key in the secret
-	// +optional
-	Key string `json:"key,omitempty"`
-}
+//type EncryptOptionSource struct {
+//	// The encryptInfo obtained from secret
+//	// +optional
+//	SecretKeyRef SecretKeySelector `json:"secretKeyRef,omitempty"`
+//}
 
-type EncryptOptionSource struct {
-	// The encryptInfo obtained from secret
-	// +optional
-	SecretKeyRef SecretKeySelector `json:"secretKeyRef,omitempty"`
-}
-
-type EncryptOption struct {
-	// The name of encryptOption
-	// +required
-	Name string `json:"name,omitempty"`
-
-	// The valueFrom of encryptOption
-	// +optional
-	ValueFrom EncryptOptionSource `json:"valueFrom,omitempty"`
-}
+//type EncryptOption struct {
+//	// The name of encryptOption
+//	// +required
+//	Name string `json:"name,omitempty"`
+//
+//	// The valueFrom of encryptOption
+//	// +optional
+//	ValueFrom EncryptOptionSource `json:"valueFrom,omitempty"`
+//}
 
 // Mount describes a mounting. <br>
-type Mount struct {
+type Source struct {
 	// MountPoint is the mount point of source.
 	// +kubebuilder:validation:MinLength=10
 	// +required
-	MountPoint string `json:"mountPoint,omitempty"`
+	URI string `json:"uri,omitempty"`
 
 	// The Mount Options. <br>
 	// Refer to <a href="https://docs.alluxio.io/os/user/stable/en/reference/Properties-List.html">Mount Options</a>.  <br>
@@ -87,13 +87,9 @@ type Mount struct {
 	// +optional
 	ReadOnly bool `json:"readOnly,omitempty"`
 
-	// Optional: Defaults to false (shared).
-	// +optional
-	Shared bool `json:"shared,omitempty"`
-
 	// The secret information
 	// +optional
-	EncryptOptions []EncryptOption `json:"encryptOptions,omitempty"`
+	//EncryptOptions []EncryptOption `json:"encryptOptions,omitempty"`
 }
 
 // CacheableNodeAffinity defines constraints that limit what nodes this dataset can be cached to.
@@ -102,20 +98,20 @@ type CacheableNodeAffinity struct {
 	Required *corev1.NodeSelector `json:"required,omitempty"`
 }
 
-// Runtime describes a runtime to be used to support dataset
-type Runtime struct {
-
+// CSI describes a runtime to be used to support dataset
+type CSI struct {
 	// Name of the runtime object
-	Name string `json:"name,omitempty"`
+	Driver string `json:"driver,omitempty"`
+
+	//
+	Storage string `json:"storage,omitempty"`
+
+	//
+	Bucket string  `json:"bucket,omitempty"`
 
 	// Namespace of the runtime object
-	Namespace string `json:"namespace,omitempty"`
+	MountOptions string `json:"namespace,omitempty"`
 
-	// Category the runtime object belongs to (e.g. Accelerate)
-	//Category common.Category `json:"category,omitempty"`
-
-	// Runtime object's type (e.g. Alluxio)
-	Type string `json:"type,omitempty"`
 }
 
 // Level describes configurations a tier needs. <br>
@@ -175,11 +171,12 @@ type SampleSetSpec struct {
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:UniqueItems=false
 	// +required
-	Mounts []Mount `json:"mounts,omitempty"`
+	Sources []Source `json:"sources,omitempty"`
 
 	// Runtimes for supporting dataset (e.g. AlluxioRuntime)
 	// +optional
-	Runtime *Runtime `json:"runtime,omitempty"`
+	CSI *CSI `json:"driver,omitempty"`
+	//CSI *corev1.CSIPersistentVolumeSource `json:"driver,omitempty"`
 
 	// Tiered storage used by Alluxio
 	// +optional
