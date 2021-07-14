@@ -91,13 +91,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&ctrls.SampleSetReconciler{
+	if err = (&ctrls.SampleJobReconciler{
 		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("SampleSetCtrl"),
+		Log:      ctrl.Log.WithName("samplejobctrl"),
 		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("SampleSet"),
+		Recorder: mgr.GetEventRecorderFor("SampleJob"),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "SampleSet")
+		setupLog.Error(err, "unable to create controller", "controller", "SampleJob")
 		os.Exit(1)
 	}
 

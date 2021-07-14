@@ -1,0 +1,24 @@
+# permissions for end users to edit samplejobs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: samplejob-editor-role
+rules:
+- apiGroups:
+  - batch.paddlepaddle.org
+  resources:
+  - samplejobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - batch.paddlepaddle.org
+  resources:
+  - samplejobs/status
+  verbs:
+  - get
