@@ -18,6 +18,7 @@ import (
 	"flag"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/ctrls"
 	"go.uber.org/zap/zapcore"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -27,12 +28,12 @@ import (
 	zapOpt "go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	batchv1 "github.com/paddleflow/paddle-operator/api/v1"
+	v1 "github.com/paddleflow/paddle-operator/api/v1"
+	v1alpha1 "github.com/paddleflow/paddle-operator/api/v1alpha1"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -40,16 +41,17 @@ var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
 
-	metricsAddr string
-	namespace string
+	metricsAddr          string
+	namespace            string
 	development          bool
 	enableLeaderElection bool
-	probeAddr string
+	probeAddr            string
 )
 
 func init() {
+	utilruntime.Must(v1.AddToScheme(scheme))
+	utilruntime.Must(v1alpha1.AddToScheme(scheme))
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(batchv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 
 	flag.StringVar(&namespace, "namespace", "", "The namespace the controller binds to.")
@@ -84,7 +86,7 @@ func main() {
 		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "37987177.paddlepaddle.org",
+		LeaderElectionID:       "778668173.batch.paddlepaddle.org",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start sampleset-controller-manager")

@@ -26,70 +26,19 @@ type SampleSetPhase string
 // MediumType store medium type
 type MediumType string
 
-type RuntimeRole string
-
-// CacheStateName is the name identifying various cacheStateName in a CacheStateNameList.
-type CacheStateName string
-
-// CacheStateList is a set of (resource name, quantity) pairs.
-type CacheStateList map[CacheStateName]string
-
-//type SecretKeySelector struct {
-//	// The name of required secret
-//	// +required
-//	Name string `json:"name,omitempty"`
-//
-//	// The required key in the secret
-//	// +optional
-//	Key string `json:"key,omitempty"`
-//}
-
-//type EncryptOptionSource struct {
-//	// The encryptInfo obtained from secret
-//	// +optional
-//	SecretKeyRef SecretKeySelector `json:"secretKeyRef,omitempty"`
-//}
-
-//type EncryptOption struct {
-//	// The name of encryptOption
-//	// +required
-//	Name string `json:"name,omitempty"`
-//
-//	// The valueFrom of encryptOption
-//	// +optional
-//	ValueFrom EncryptOptionSource `json:"valueFrom,omitempty"`
-//}
-
-// Mount describes a mounting. <br>
+// Source describes a mounting. <br>
 type Source struct {
 	// MountPoint is the mount point of source.
 	// +kubebuilder:validation:MinLength=10
 	// +required
 	URI string `json:"uri,omitempty"`
-
-	// The Mount Options. <br>
-	// Refer to <a href="https://docs.alluxio.io/os/user/stable/en/reference/Properties-List.html">Mount Options</a>.  <br>
-	// The option has Prefix 'fs.' And you can Learn more from
-	// <a href="https://docs.alluxio.io/os/user/stable/en/ufs/S3.html">The Storage Integrations</a>
-	// +optional
-	Options map[string]string `json:"options,omitempty"`
-
 	// The name of mount
 	// +kubebuilder:validation:MinLength=0
 	// +required
 	Name string `json:"name,omitempty"`
-
 	// The path of mount, if not set will be /{Name}
 	// +optional
 	Path string `json:"path,omitempty"`
-
-	// Optional: Defaults to false (read-write).
-	// +optional
-	ReadOnly bool `json:"readOnly,omitempty"`
-
-	// The secret information
-	// +optional
-	//EncryptOptions []EncryptOption `json:"encryptOptions,omitempty"`
 }
 
 // CacheableNodeAffinity defines constraints that limit what nodes this dataset can be cached to.
@@ -100,118 +49,93 @@ type CacheableNodeAffinity struct {
 
 // CSI describes a runtime to be used to support dataset
 type CSI struct {
-	// Name of the runtime object
+	// Name of cache runtime driver, now only support juicefs.
+	// +kubebuilder:validation:Enum=juicefs
+	// +kubebuilder:default=juicefs
+	// +required
 	Driver string `json:"driver,omitempty"`
-
-	//
-	Storage string `json:"storage,omitempty"`
-
-	//
-	Bucket string  `json:"bucket,omitempty"`
-
 	// Namespace of the runtime object
-	MountOptions string `json:"namespace,omitempty"`
-
+	// +optional
+	MountOptions string `json:"mountOptions,omitempty"`
 }
 
-// Level describes configurations a tier needs. <br>
-// Refer to <a href="https://docs.alluxio.io/os/user/stable/en/core-services/Caching.html#configuring-tiered-storage">Configuring Tiered Storage</a> for more info
-type Level struct {
-	// Alias string `json:"alias,omitempty"`
-
+// CacheLevel describes configurations a tier needs.
+type CacheLevel struct {
 	// Medium Type of the tier. One of the three types: `MEM`, `SSD`, `HDD`
 	// +kubebuilder:validation:Enum=MEM;SSD;HDD
 	// +required
-	MediumType MediumType `json:"mediumtype"`
-
-	// File paths to be used for the tier. Multiple paths are supported.
-	// Multiple paths should be separated with comma. For example: "/mnt/cache1,/mnt/cache2".
+	MediumType MediumType `json:"mediumType,omitempty"`
+	// directory paths of local cache, use colon to separate multiple paths
+	// For example: "/dev/shm/cache1:/dev/ssd/cache2:/mnt/cache3".
 	// +kubebuilder:validation:MinLength=1
 	// +required
 	Path string `json:"path,omitempty"`
-
-	// Quota for the whole tier. (e.g. 100Gi)
-	// Please note that if there're multiple paths used for this tierstore,
-	// the quota will be equally divided into these paths. If you'd like to
-	// set quota for each, path, see QuotaList for more information.
+	// Quota . (e.g. 100Gi) use to define max size of cached objects
+	// If multiple paths used for this, the quota will be equally divided into these paths.
 	// +optional
 	Quota *resource.Quantity `json:"quota,omitempty"`
-
-	// QuotaList are quotas used to set quota on multiple paths. Quotas should be separated with comma.
-	// Quotas in this list will be set to paths with the same order in Path.
-	// For example, with Path defined with "/mnt/cache1,/mnt/cache2" and QuotaList set to "100Gi, 50Gi",
-	// then we get 100GiB cache storage under "/mnt/cache1" and 50GiB under "/mnt/cache2".
-	// Also note that num of quotas must be consistent with the num of paths defined in Path.
-	// +optional
-	// +kubebuilder:validation:Pattern:="^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?,((\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?)+$"
-	QuotaList string `json:"quotaList,omitempty"`
-
-	// StorageType common.CacheStoreType `json:"storageType,omitempty"`
-	// float64 is not supported, https://github.com/kubernetes-sigs/controller-tools/issues/245
-
-	// Ratio of high watermark of the tier (e.g. 0.9)
-	High string `json:"high,omitempty"`
-
-	// Ratio of low watermark of the tier (e.g. 0.7)
-	Low string `json:"low,omitempty"`
 }
 
-// Tieredstore is a description of the tiered store
-type Tieredstore struct {
-	// configurations for multiple tiers
-	Levels []Level `json:"levels,omitempty"`
+// Cache is used to describe how cache data store
+type Cache struct {
+	// configurations for multiple storage tier
+	Levels []CacheLevel `json:"levels,omitempty"`
 }
 
 // SampleSetSpec defines the desired state of SampleSet
 type SampleSetSpec struct {
 	// The Partitions of the SimpleSet, need to be specified
-	Partitions int32 `json:"Partitions,omitempty"`
-
-	// Mount Points to be mounted on JuiceFS.
+	Partitions int32 `json:"partitions,omitempty"`
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:UniqueItems=false
 	// +required
 	Sources []Source `json:"sources,omitempty"`
-
+	// SecretRef is reference to the authentication secret for source storage and cache engine.
+	// +required
+	SecretRef *corev1.LocalObjectReference `json:"secretRef,omitempty"`
 	// Runtimes for supporting dataset (e.g. AlluxioRuntime)
 	// +optional
-	CSI *CSI `json:"driver,omitempty"`
-	//CSI *corev1.CSIPersistentVolumeSource `json:"driver,omitempty"`
-
-	// Tiered storage used by Alluxio
+	CSI *CSI `json:"csi,omitempty"`
+	// cache options used by cache runtime engine
 	// +optional
-	Tieredstore Tieredstore `json:"tieredstore,omitempty"`
-
-	// NodeAffinity defines constraints that limit what nodes this dataset can be cached to.
+	Cache *Cache `json:"cache,omitempty"`
+	// NodeAffinity defines constraints that limit what nodes this SampleSet can be cached to.
 	// This field influences the scheduling of pods that use the cached dataset.
 	// +optional
 	NodeAffinity *CacheableNodeAffinity `json:"nodeAffinity,omitempty"`
-
 	// If specified, the pod's tolerations.
 	// +optional
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
-
-	// AccessModes contains all ways the volume backing the PVC can be mounted
-	// +optional
-	AccessModes []corev1.PersistentVolumeAccessMode `json:"accessModes,omitempty"`
 }
 
 // SampleSetStatus defines the observed state of SampleSet
 type SampleSetStatus struct {
-	// Total in GB of dataset in the cluster
-	TotalSize string `json:"TotalSize,omitempty"`
-
+	// TotalSize in GB of the SampleSet in the cluster
+	TotalSize string `json:"totalSize,omitempty"`
+	// TotalFiles represents the file numbers of the SampleSet
+	TotalFiles string `json:"totalFiles,omitempty"`
+	// CachedSize
+	CachedSize string `json:"cachedSize,omitempty"`
+	// CachedSize
+	CacheCapacity string `json:"cacheCapacity,omitempty"`
+	// CachedSize
+	CachedPercentage string `json:"cachedPercentage,omitempty"`
 	// Dataset Phase. One of the four phases: `Pending`, `Bound`, `NotBound` and `Failed`
 	Phase SampleSetPhase `json:"phase,omitempty"`
-
-	// CacheStatus represents the total resources of the dataset.
-	CacheStates CacheStateList `json:"cacheStates,omitempty"`
+	// SampleJobRef specifies the running SampleJob that manager this SampleSet
+	SampleJobRef string `json:"sampleJobRef,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="TOTAL SIZE",type="string",JSONPath=`.status.totalSize`
+//+kubebuilder:printcolumn:name="CACHED SIZE",type="string",JSONPath=`.status.cachedSize`
+//+kubebuilder:printcolumn:name="CACHE CAPACITY",type="string",JSONPath=`.status.cacheCapacity`
+//+kubebuilder:printcolumn:name="CACHED PERCENTAGE",type="string",JSONPath=`.status.cachedPercentage`
+//+kubebuilder:printcolumn:name="PHASE",type="string",JSONPath=`.status.phase`
+//+kubebuilder:printcolumn:name="AGE",type="date",JSONPath=`.metadata.creationTimestamp`
 
-// SampleSet is the Schema for the samplesets API
+// SampleSet is the Schema for the SampleSets API
 type SampleSet struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
