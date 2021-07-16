@@ -31,6 +31,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	volcano "volcano.sh/apis/pkg/apis/scheduling/v1beta1"
+
 	batchv1 "github.com/paddleflow/paddle-operator/api/v1"
 	"github.com/paddleflow/paddle-operator/controllers"
 	//+kubebuilder:scaffold:imports
@@ -45,6 +47,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(batchv1.AddToScheme(scheme))
+	utilruntime.Must(volcano.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -52,6 +55,7 @@ func main() {
 	var metricsAddr string
 	var namespace string
 	var enableLeaderElection bool
+	var scheduling string
 	var probeAddr string
 	var hostPortRange string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
@@ -61,6 +65,7 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
+	flag.StringVar(&scheduling, "scheduling", "", "The scheduler to take, e.g. volcano")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -97,10 +102,11 @@ func main() {
 	}
 
 	if err = (&controllers.PaddleJobReconciler{
-		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("controllers").WithName("PaddleJob"),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("paddlejob-controller"),
+		Client:     mgr.GetClient(),
+		Log:        ctrl.Log.WithName("controllers").WithName("PaddleJob"),
+		Scheme:     mgr.GetScheme(),
+		Recorder:   mgr.GetEventRecorderFor("paddlejob-controller"),
+		Scheduling: scheduling,
 		HostPortMap: map[string]int{
 			controllers.HOST_PORT_START: portStart,
 			controllers.HOST_PORT_CUR:   portStart,

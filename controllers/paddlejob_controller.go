@@ -33,6 +33,9 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	volcanoBatch "volcano.sh/apis/pkg/apis/batch/v1alpha1"
+	volcano "volcano.sh/apis/pkg/apis/scheduling/v1beta1"
+
 	pdv1 "github.com/paddleflow/paddle-operator/api/v1"
 )
 
@@ -57,6 +60,7 @@ type PaddleJobReconciler struct {
 	Log         logr.Logger
 	Scheme      *runtime.Scheme
 	Recorder    record.EventRecorder
+	Scheduling  string
 	HostPortMap map[string]int
 }
 
@@ -69,6 +73,8 @@ type PaddleJobReconciler struct {
 //+kubebuilder:rbac:groups="",resources=services/status,verbs=get
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=configmaps/status,verbs=get
+//+kubebuilder:rbac:groups=scheduling.volcano.sh,resources=podgroups,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=scheduling.volcano.sh,resources=podgroups/status,verbs=get;update;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -111,6 +117,26 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
+	// scheduling with volcano
+	if r.Scheduling == schedulerNameVolcano && !withoutVolcano(&pdj) {
+		pg := &volcano.PodGroup{}
+		if err := r.Get(ctx, client.ObjectKeyFromObject(&pdj), pg); err != nil {
+			if apierrors.IsNotFound(err) {
+				pg = constructPodGroup(&pdj)
+				if err = ctrl.SetControllerReference(&pdj, pg, r.Scheme); err != nil {
+					log.Error(err, "make reference failed")
+					return ctrl.Result{Requeue: true}, nil
+				}
+				if err = r.createResource(ctx, &pdj, pg); err != nil {
+					log.Error(err, "create podgroup failed")
+				}
+			}
+			return ctrl.Result{Requeue: true}, nil
+		} else if pg.Status.Phase != volcano.PodGroupRunning && pg.Status.Phase != volcano.PodGroupInqueue {
+			return ctrl.Result{Requeue: true}, nil
+		}
+	}
+
 	// clean pod unnecessary
 	for i, pod := range childPods.Items {
 		resType, idx := extractNameIndex(pod.Name)
@@ -133,11 +159,11 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		// Ensure service for running pod
 		for _, pod := range childPods.Items {
 			svc := constructService4Pod(pod)
-			if err := ctrl.SetControllerReference(&pdj, svc, r.Scheme); err != nil {
-				log.Error(err, "make reference failed")
+			if err := r.Get(ctx, client.ObjectKeyFromObject(svc), &corev1.Service{}); err == nil {
 				continue
 			}
-			if err := r.Get(ctx, client.ObjectKeyFromObject(svc), &corev1.Service{}); err == nil {
+			if err := ctrl.SetControllerReference(&pdj, svc, r.Scheme); err != nil {
+				log.Error(err, "make reference failed")
 				continue
 			}
 			err := r.createResource(ctx, &pdj, svc)
@@ -192,6 +218,20 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return false
 		}
 		pod := constructPod(&pdj, resType, idx)
+
+		if r.Scheduling == schedulerNameVolcano && !withoutVolcano(&pdj) {
+			pod.Spec.SchedulerName = schedulerNameVolcano
+			pod.ObjectMeta.Annotations[schedulingPodGroupAnnotation] = pdj.Name
+			pod.ObjectMeta.Annotations[volcanoBatch.TaskSpecKey] = resType
+			pod.ObjectMeta.Annotations[volcanoBatch.JobNameKey] = pdj.Name
+			pod.ObjectMeta.Annotations[volcanoBatch.JobVersion] = fmt.Sprintf("%d", pdj.Status.ObservedGeneration)
+			if pdj.Spec.SchedulingPolicy != nil {
+				pod.ObjectMeta.Annotations[volcanoBatch.QueueNameKey] = pdj.Spec.SchedulingPolicy.Queue
+			} else {
+				pod.ObjectMeta.Annotations[volcanoBatch.QueueNameKey] = ""
+			}
+		}
+
 		if err := ctrl.SetControllerReference(&pdj, pod, r.Scheme); err != nil {
 			log.Error(err, "make reference failed")
 			return false
@@ -456,10 +496,20 @@ func (r *PaddleJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	return ctrl.NewControllerManagedBy(mgr).
+	builder := ctrl.NewControllerManagedBy(mgr).
 		For(&pdv1.PaddleJob{}).
 		Owns(&corev1.Pod{}).
 		Owns(&corev1.Service{}).
-		Owns(&corev1.ConfigMap{}).
-		Complete(r)
+		Owns(&corev1.ConfigMap{})
+
+	if r.Scheduling == schedulerNameVolcano {
+		// index volcano pogGroup
+		if err := mgr.GetFieldIndexer().
+			IndexField(context.Background(), &volcano.PodGroup{}, ctrlRefKey, indexerFunc); err != nil {
+			return err
+		}
+		return builder.Owns(&volcano.PodGroup{}).Complete(r)
+	}
+
+	return builder.Complete(r)
 }
