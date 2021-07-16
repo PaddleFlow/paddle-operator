@@ -4,14 +4,24 @@ metadata:
   name: imagenet
 spec:
   partitions: 2
-  - mountPoint: bos://<bucket_name>/<bucket_dir>
-    options:
-      endpoint: bj.bcebos.com
+  sources:
+    - uri: https://imagenet.bj.bcebos.com/juicefs
+      name: imagenet
+#  csi:
+#    driver: juicefs
+#  cache:
+#    levels:
+#      - mediumType: MEM
+#        path: /dev/shm/imagenet
+#        quota: 100Mi
+#      - mediumType: HDD
+#        path: /data/imagenet
+#        quota: 100Gi
   nodeAffinity:
     required:
       nodeSelectorTerms:
         - matchExpressions:
-            - key: beta.kubernetes.io/instance-gpu
+            - key: sampleset
               operator: In
               values:
-                - "true"
+                - "imagenet"

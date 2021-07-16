@@ -7,6 +7,7 @@ require (
 	github.com/onsi/ginkgo v1.14.1
 	github.com/onsi/gomega v1.10.2
 	go.etcd.io/etcd/client/v3 v3.5.0
+	github.com/spf13/cobra v1.0.0
 	go.uber.org/zap v1.15.0
 	k8s.io/api v0.19.2
 	k8s.io/apimachinery v0.19.2

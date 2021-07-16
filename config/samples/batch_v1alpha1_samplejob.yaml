@@ -3,5 +3,10 @@ kind: SampleJob
 metadata:
   name: samplejob-sample
 spec:
-  # Add fields here
-  foo: bar
+  type: sync
+  # schedule: "* */1 * * *"
+  sampleset:
+    name: imagenet
+    namespace: default
+#  syncOptions:
+#    bwlimit: 50Mbps

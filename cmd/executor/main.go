@@ -15,17 +15,17 @@
 package main
 
 import (
+	"github.com/paddleflow/paddle-operator/controllers/extensions/executor"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	"github.com/spf13/cobra"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"os"
-
 	//+kubebuilder:scaffold:imports
 )
 
 var (
-	source string
+	syncJobOption executor.SyncJobOptions
 )
 
 var cmd = &cobra.Command{
@@ -66,15 +66,13 @@ var RunCmd = &cobra.Command{
 	},
 }
 
-
 func init() {
 
 	//
-	SyncCmd.Flags().StringVarP(&source, "SRC", "", "", "")
+	SyncCmd.Flags().StringVarP(&syncJobOption.Source, "SRC", "", "", "")
 
 	cmd.AddCommand(SyncCmd)
 }
-
 
 func main() {
 	if err := cmd.Execute(); err != nil {
