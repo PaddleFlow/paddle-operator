@@ -7,21 +7,24 @@ spec:
   sources:
     - uri: https://imagenet.bj.bcebos.com/juicefs
       name: imagenet
+  secretRef:
+    name: imagenet
 #  csi:
 #    driver: juicefs
+#    juiceFSMountOptions:
 #  cache:
 #    levels:
 #      - mediumType: MEM
 #        path: /dev/shm/imagenet
-#        quota: 100Mi
+#        cacheSize: 1024
 #      - mediumType: HDD
 #        path: /data/imagenet
-#        quota: 100Gi
-  nodeAffinity:
-    required:
-      nodeSelectorTerms:
-        - matchExpressions:
-            - key: sampleset
-              operator: In
-              values:
-                - "imagenet"
+#        cacheSize: 1024
+#  nodeAffinity:
+#    required:
+#      nodeSelectorTerms:
+#        - matchExpressions:
+#            - key: sampleset
+#              operator: In
+#              values:
+#                - "imagenet"

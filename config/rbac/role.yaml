@@ -94,6 +94,58 @@ rules:
   - patch
   - update
 - apiGroups:
+  - batch.paddlepaddle.org
+  resources:
+  - samplejobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - batch.paddlepaddle.org
+  resources:
+  - samplejobs/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - batch.paddlepaddle.org
+  resources:
+  - samplejobs/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - batch.paddlepaddle.org
+  resources:
+  - samplesets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - batch.paddlepaddle.org
+  resources:
+  - samplesets/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - batch.paddlepaddle.org
+  resources:
+  - samplesets/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - scheduling.volcano.sh
   resources:
   - podgroups

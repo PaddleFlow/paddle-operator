@@ -15,7 +15,6 @@
 package v1alpha1
 
 import (
-	"github.com/paddleflow/paddle-operator/controllers/extensions/executor"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,16 +27,16 @@ type SampleJobPhase string
 type JobOptions struct {
 	//
 	// +optional
-	SyncOptions *executor.SyncJobOptions `json:"syncOptions,omitempty"`
+	SyncOptions *SyncJobOptions `json:"syncOptions,omitempty"`
 	//
 	// +optional
-	WarmupOptions *executor.WarmupJobOptions `json:"warmupOptions,omitempty"`
+	WarmupOptions *WarmupJobOptions `json:"warmupOptions,omitempty"`
 	//
 	// +optional
-	RmrOptions *executor.RmrJobOptions `json:"rmrOptions,omitempty"`
+	RmrOptions *RmrJobOptions `json:"rmrOptions,omitempty"`
 	//
 	// +optional
-	ClearOptions *executor.ClearJobOptions `json:"clearOptions,omitempty"`
+	ClearOptions *ClearJobOptions `json:"clearOptions,omitempty"`
 }
 
 

@@ -38,18 +38,14 @@ spec:
                   start:
                     type: string
                 type: object
-              sampleSet:
+              sampleset:
                 minLength: 0
                 type: string
               schedule:
                 type: string
               syncOptions:
                 properties:
-                  end:
-                    type: string
                   source:
-                    type: string
-                  start:
                     type: string
                 type: object
               type:

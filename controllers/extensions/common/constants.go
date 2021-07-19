@@ -12,17 +12,19 @@ const (
 )
 
 const (
-	// SampleSetPending Bound to runtime, can't be deleted
-	SampleSetPending v1alpha1.SampleSetPhase = "Pending"
-	// SampleSetBound to dataset, can't be released
+	// SampleSetNone After create SampleSet CR, before create PV/PVC
+	SampleSetNone   v1alpha1.SampleSetPhase = ""
+	// SampleSetBound After create PV/PVC, before create runtime daemon set
 	SampleSetBound v1alpha1.SampleSetPhase = "Bound"
-	// SampleSetReady can't be deleted
+	// SampleSetMount After create runtime daemon set, before data sync finish
+	SampleSetMount v1alpha1.SampleSetPhase = "Mount"
+	// SampleSetReady After data sync finish and SampleSet is ready to be use
 	SampleSetReady v1alpha1.SampleSetPhase = "Ready"
-	// SampleSetPartialReady Not bound to runtime, can be deleted
-	SampleSetPartialReady v1alpha1.SampleSetPhase = "PartialReady"
 	// SampleSetFailed Not bound to runtime, can be deleted
 	SampleSetFailed v1alpha1.SampleSetPhase = "Failed"
-	SampleSetNone   v1alpha1.SampleSetPhase = ""
+	// SampleSetScaling a
+	SampleSetScaling v1alpha1.SampleSetPhase = "Scaling"
+
 )
 
 const (
@@ -49,13 +51,20 @@ const (
 const (
 	ErrorSecretNotExists = "ErrorSecretNotExists"
 
-	ErrorCreatePersistentVolume = "ErrorCreatePersistentVolume"
+	ErrorPVAlreadyExists = "ErrorPersistentVolumeAlreadyExists"
+
+	ErrorCreatePV = "ErrorCreatePersistentVolume"
+
+	ErrorPVCAlreadyExists = "ErrorPersistentVolumeClaimAlreadyExists"
+
+	ErrorCreatePVC = "ErrorCreatePersistentVolumeClaim"
+
 
 
 )
 
 const (
-	StorageClassName = "paddle-operator"
+	ResourceStorage = "10Pi"
 )
 
 const (

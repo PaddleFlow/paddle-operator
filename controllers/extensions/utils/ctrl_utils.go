@@ -1,8 +1,11 @@
 package utils
 
 import (
+	"encoding/base64"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"reflect"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"strings"
 	"time"
 )
 
@@ -11,8 +14,8 @@ func HasDeletionTimestamp(obj metav1.ObjectMeta) bool {
 	return !obj.GetDeletionTimestamp().IsZero()
 }
 
-// HasNotFinalizer check
-func HasNotFinalizer(obj metav1.ObjectMeta, finalizer string) bool {
+// HasFinalizer check
+func HasFinalizer(obj metav1.ObjectMeta, finalizer string) bool {
 	return ContainsString(obj.GetFinalizers(), finalizer)
 }
 
@@ -53,6 +56,22 @@ func RemoveString(slice []string, s string) (result []string) {
 	return
 }
 
-func IsEmpty() bool {
-	return false
+func NoZeroOptionToMap(optionMap map[string]reflect.Value, i interface{}) {
+	elem := reflect.ValueOf(i).Elem()
+	for i := 0; i < elem.NumField(); i++ {
+		value := elem.Field(i)
+		if value.IsZero() {
+			continue
+		}
+		field := elem.Type().Field(i)
+		tag := field.Tag.Get("json")
+		option := strings.Split(tag, ",")[0]
+		optionMap[option] = value
+	}
 }
+
+func Base64Decode(data []byte) (string, error) {
+	s, err := base64.StdEncoding.DecodeString(string(data))
+	return string(s), err
+}
+
