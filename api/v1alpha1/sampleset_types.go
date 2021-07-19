@@ -16,7 +16,6 @@ package v1alpha1
 
 import (
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -25,6 +24,9 @@ type SampleSetPhase string
 
 // MediumType store medium type
 type MediumType string
+
+// DriverName a
+type DriverName string
 
 // Source describes a mounting. <br>
 type Source struct {
@@ -41,10 +43,11 @@ type Source struct {
 	Path string `json:"path,omitempty"`
 }
 
-// CacheableNodeAffinity defines constraints that limit what nodes this dataset can be cached to.
-type CacheableNodeAffinity struct {
-	// Required specifies hard node constraints that must be met.
-	Required *corev1.NodeSelector `json:"required,omitempty"`
+// MountOptions aa
+type MountOptions struct {
+	// JuiceFSMountOptions
+	// +optional
+	JuiceFSMountOptions *JuiceFSMountOptions `json:"juiceFSMountOptions,omitempty"`
 }
 
 // CSI describes a runtime to be used to support dataset
@@ -53,10 +56,10 @@ type CSI struct {
 	// +kubebuilder:validation:Enum=juicefs
 	// +kubebuilder:default=juicefs
 	// +required
-	Driver string `json:"driver,omitempty"`
+	Driver DriverName `json:"driver,omitempty"`
 	// Namespace of the runtime object
 	// +optional
-	MountOptions string `json:"mountOptions,omitempty"`
+	MountOptions `json:",inline,omitempty"`
 }
 
 // CacheLevel describes configurations a tier needs.
@@ -70,13 +73,13 @@ type CacheLevel struct {
 	// +kubebuilder:validation:MinLength=1
 	// +required
 	Path string `json:"path,omitempty"`
-	// Quota . (e.g. 100Gi) use to define max size of cached objects
-	// If multiple paths used for this, the quota will be equally divided into these paths.
+	// CacheSize size of cached objects in MiB
+	// If multiple paths used for this, the cache size is total amount of cache objects in all paths
 	// +optional
-	Quota *resource.Quantity `json:"quota,omitempty"`
+	CacheSize int `json:"cacheSize,omitempty"`
 }
 
-// Cache is used to describe how cache data store
+// Cache used to describe how cache data store
 type Cache struct {
 	// configurations for multiple storage tier
 	Levels []CacheLevel `json:"levels,omitempty"`
@@ -98,11 +101,11 @@ type SampleSetSpec struct {
 	CSI *CSI `json:"csi,omitempty"`
 	// cache options used by cache runtime engine
 	// +optional
-	Cache *Cache `json:"cache,omitempty"`
+	Cache Cache `json:"cache,omitempty"`
 	// NodeAffinity defines constraints that limit what nodes this SampleSet can be cached to.
 	// This field influences the scheduling of pods that use the cached dataset.
 	// +optional
-	NodeAffinity *CacheableNodeAffinity `json:"nodeAffinity,omitempty"`
+	NodeAffinity *corev1.VolumeNodeAffinity `json:"nodeAffinity,omitempty"`
 	// If specified, the pod's tolerations.
 	// +optional
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`

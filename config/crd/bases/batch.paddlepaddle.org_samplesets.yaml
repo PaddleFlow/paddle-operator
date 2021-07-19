@@ -52,6 +52,8 @@ spec:
                   levels:
                     items:
                       properties:
+                        cacheSize:
+                          type: integer
                         mediumType:
                           enum:
                           - MEM
@@ -61,12 +63,6 @@ spec:
                         path:
                           minLength: 1
                           type: string
-                        quota:
-                          anyOf:
-                          - type: integer
-                          - type: string
-                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                          x-kubernetes-int-or-string: true
                       type: object
                     type: array
                 type: object
@@ -77,8 +73,45 @@ spec:
                     enum:
                     - juicefs
                     type: string
-                  mountOptions:
-                    type: string
+                  juiceFSMountOptions:
+                    properties:
+                      attr-cache:
+                        type: integer
+                      buffer-size:
+                        type: integer
+                      cache-dir:
+                        type: string
+                      cache-partial-only:
+                        type: boolean
+                      cache-size:
+                        type: integer
+                      dir-entry-cache:
+                        type: integer
+                      enable-xattr:
+                        type: boolean
+                      entry-cache:
+                        type: integer
+                      free-space-ratio:
+                        type: string
+                      get-timeout:
+                        type: integer
+                      io-retries:
+                        type: integer
+                      max-uploads:
+                        type: integer
+                      metrics:
+                        type: string
+                      open-cache:
+                        type: integer
+                      prefetch:
+                        type: integer
+                      put-timeout:
+                        type: integer
+                      sub-dir:
+                        type: string
+                      writeback:
+                        type: boolean
+                    type: object
                 type: object
               nodeAffinity:
                 properties:
