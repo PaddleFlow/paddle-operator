@@ -264,12 +264,6 @@ func constructPod(pdj *pdv1.PaddleJob, resType string, idx int) (pod *corev1.Pod
 	pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, envIP, envRank, envRole, envRole2)
 
 	if pdj.Spec.Elastic != nil {
-		envEtcd := corev1.EnvVar{
-			Name: "PADDLE_ELASTIC_SERVER",
-		}
-		if etcdHost != "" || etcdPort != "" {
-			envEtcd.Value = fmt.Sprintf("%s:%s", etcdHost, etcdPort)
-		}
 		envJobID := corev1.EnvVar{
 			Name:  "PADDLE_ELASTIC_JOB_ID",
 			Value: fmt.Sprintf("%s-%s", pdj.Namespace, pdj.Name),
@@ -283,7 +277,7 @@ func constructPod(pdj *pdv1.PaddleJob, resType string, idx int) (pod *corev1.Pod
 			Value: "60",
 		}
 
-		pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, envEtcd, envJobID, envNP, envTimeout)
+		pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, envJobID, envNP, envTimeout)
 	} else {
 		envF := corev1.EnvFromSource{
 			ConfigMapRef: &corev1.ConfigMapEnvSource{

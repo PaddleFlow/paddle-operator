@@ -17,7 +17,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -25,53 +24,28 @@ import (
 	pdv1 "github.com/paddleflow/paddle-operator/api/v1"
 )
 
-var etcdctl *clientv3.Client
-
-var etcdHost = os.Getenv("PADDLE_ELASTIC_ETCD_SERVICE_HOST")
-var etcdPort = os.Getenv("PADDLE_ELASTIC_ETCD_SERVICE_PORT")
-
-func initClient() error {
-	etcd, err := clientv3.New(clientv3.Config{
-		Endpoints:   []string{fmt.Sprintf("http://%s:%s", etcdHost, etcdPort)},
-		DialTimeout: 2 * time.Second,
-	})
-	if err == nil {
-		etcdctl = etcd
-		return nil
-	} else {
-		return err
-	}
-}
-
-func syncEtcd(ctx context.Context, path string, np string) (error, bool) {
-	if etcdctl == nil {
-		err := initClient()
-		if err != nil {
-			return err, false
-		}
-	}
-
-	if resp, err := etcdctl.Get(ctx, path); err != nil {
+func syncEtcd(ctx context.Context, etcdCli *clientv3.Client, path string, np string) (error, bool) {
+	if resp, err := etcdCli.Get(ctx, path); err != nil {
 		return err, false
 	} else if len(resp.Kvs) != 1 || string(resp.Kvs[0].Value) == np {
 		return nil, false
 	}
 
-	if _, err := etcdctl.Put(ctx, path, np); err != nil {
+	if _, err := etcdCli.Put(ctx, path, np); err != nil {
 		return err, false
 	} else {
 		return nil, true
 	}
 }
 
-func syncNP(pdj *pdv1.PaddleJob) (*string, error) {
+func syncNP(etcdCli *clientv3.Client, pdj *pdv1.PaddleJob) (*string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	if pdj.Status.Mode == pdv1.PaddleJobModeCollective {
 		path := fmt.Sprintf("/paddle/%s-%s/np", pdj.Namespace, pdj.Name)
 		np := fmt.Sprintf("%d", pdj.Spec.Worker.Replicas)
-		if err, updated := syncEtcd(ctx, path, np); updated {
+		if err, updated := syncEtcd(ctx, etcdCli, path, np); updated {
 			return &np, err
 		} else {
 			return nil, err

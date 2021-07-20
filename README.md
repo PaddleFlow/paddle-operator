@@ -69,13 +69,22 @@ Enable volcano before installation, add the following args in *deploy/v1/operato
 containers:
 - args:
   - --leader-elect
-  - --namespace=paddle-system # watch this ns only
-  - --scheduling=volcano      # enable volcano
+  - --namespace=paddle-system  # watch this ns only
+  - --scheduling=volcano       # enable volcano
   command:
   - /manager
 ```
 
 then, job as in *deploy/examples/wide_and_deep_volcano.yaml* can be handled correctly.
+
+### Elastic Trainning
+
+Elastic feature depend on etcd present, which should be set for controller as args,
+```
+  --etcd-server=paddle-elastic-etcd.paddle-system.svc.cluster.local      # enable elastic
+```
+
+then, job as in *deploy/elastic/resnet.yaml* can be handled correctly.
 
 ### Uninstall
 Simply

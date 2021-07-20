@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -33,6 +34,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	clientv3 "go.etcd.io/etcd/client/v3"
 	volcanoBatch "volcano.sh/apis/pkg/apis/batch/v1alpha1"
 	volcano "volcano.sh/apis/pkg/apis/scheduling/v1beta1"
 
@@ -62,6 +64,7 @@ type PaddleJobReconciler struct {
 	Recorder    record.EventRecorder
 	Scheduling  string
 	HostPortMap map[string]int
+	EtcdCli     *clientv3.Client
 }
 
 //+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=paddlejobs,verbs=get;list;watch;create;update;patch;delete
@@ -188,8 +191,8 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// sync elastic np to ectd
-	if pdj.Spec.Elastic != nil {
-		if np, err := syncNP(&pdj); err != nil {
+	if pdj.Spec.Elastic != nil && r.EtcdCli != nil {
+		if np, err := syncNP(r.EtcdCli, &pdj); err != nil {
 			log.Error(err, "sync np failed")
 			return ctrl.Result{Requeue: true}, nil
 		} else if np != nil {
@@ -230,6 +233,14 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			} else {
 				pod.ObjectMeta.Annotations[volcanoBatch.QueueNameKey] = ""
 			}
+		}
+
+		if pdj.Spec.Elastic != nil && r.EtcdCli != nil {
+			envEtcd := corev1.EnvVar{
+				Name:  "PADDLE_ELASTIC_SERVER",
+				Value: strings.Join(r.EtcdCli.Endpoints(), ","),
+			}
+			pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, envEtcd)
 		}
 
 		if err := ctrl.SetControllerReference(&pdj, pod, r.Scheme); err != nil {
