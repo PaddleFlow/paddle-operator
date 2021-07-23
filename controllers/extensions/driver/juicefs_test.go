@@ -1,3 +1,17 @@
+// Copyright 2021 The Kubeflow Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package driver
 
 import (
@@ -8,38 +22,7 @@ import (
 	"testing"
 )
 
-
-//func TestBase64(t *testing.T) {
-//	s := "aHR0cHM6Ly96aG91dGktbWNwLWVkZ2UuZ3ouYmNlYm9zLmNvbS9pbWFnZW5ldC1qZnM="
-//	decodeString, err := base64.StdEncoding.DecodeString(s)
-//	if err != nil {
-//		t.Errorf("==err: %s", err.Error())
-//	}
-//	t.Log("decodeString== ", string(decodeString))
-//
-//}
-
-//func TestGetVolumeHandle(t *testing.T) {
-//	secret := &corev1.Secret{
-//		ObjectMeta: metav1.ObjectMeta{
-//			Name: "imagenet",
-//			Namespace: "paddle-system",
-//		},
-//		Data: map[string][]byte{
-//
-//		},
-//
-//		Type: corev1.SecretTypeOpaque,
-//	}
-//	driver := NewJuiceFSDriver()
-//	volumeHandle, err := driver.getVolumeHandle(secret)
-//	if err != nil {
-//		t.Errorf("test getVolumeHandle error: %s", err.Error())
-//	}
-//	t.Log(volumeHandle)
-//}
-
-
+// TestGetMountOptions
 func TestGetMountOptions(t *testing.T) {
 	mountOptions := v1alpha1.MountOptions{
 		JuiceFSMountOptions: &v1alpha1.JuiceFSMountOptions{
@@ -113,4 +96,33 @@ func TestGetMountOptions(t *testing.T) {
 		t.Errorf("test getMountOptions error: %s", err.Error())
 	}
 	t.Log("mountOptions: ", options)
+}
+
+// TestGetVolumeInfo
+func TestGetVolumeInfo(t *testing.T) {
+	mountOptions := "dir-entry-cache=7200,buffer-size=1024,prefetch=1,cache-dir=/dev/shm/imagenet:/data/imagenet:/dev/ssd/imagenet,cache-size=1048576"
+	pv := &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "imagenet",
+		},
+		Spec: corev1.PersistentVolumeSpec{
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				CSI: &corev1.CSIPersistentVolumeSource{
+					VolumeAttributes: map[string]string{
+						"mountOptions": mountOptions,
+					},
+				},
+			},
+		},
+	}
+
+	driver := NewJuiceFSDriver()
+	volumes, volumeMounts, err := driver.getVolumeInfo(pv)
+	if err != nil {
+		t.Error(err)
+	}
+	if len(volumes) != 4 || len(volumeMounts) != 4 {
+		t.Errorf("len of volumes or volumeMounts not right \n")
+	}
+
 }

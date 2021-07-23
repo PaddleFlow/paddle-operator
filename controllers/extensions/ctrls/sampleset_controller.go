@@ -23,16 +23,14 @@ import (
 	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/driver"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/utils"
+	appv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"strings"
 	"time"
-)
-
-var (
-	FINALIZER = "finalizer.sampleset.paddlepaddle.org"
 )
 
 // SampleSetReconciler reconciles a SampleSet object
@@ -56,18 +54,20 @@ type SampleSetReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *SampleSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	r.Log.V(1).Info("trigger by ","object" , req.NamespacedName.String())
+	r.Log.WithValues("SampleSet", req.NamespacedName)
+	r.Log.V(1).Info("===============  Reconcile  ==============")
 
-	// 1. Get SampleSet Object
+	// 1. Get sampleset object
 	var sampleSet v1alpha1.SampleSet
 	if err := r.Get(ctx, req.NamespacedName, &sampleSet); err != nil {
-		r.Log.V(1).Info("sampleset not find", "sampleset", req.NamespacedName.String())
-		return utils.NoRequeueWithError(err)
+		e := fmt.Errorf("get sampleset %s error: %s", req.NamespacedName, err.Error())
+		return utils.RequeueWithError(e)
 	}
 
-	// 2. Add Finalizer
-	if r.finalizer(ctx, &sampleSet) {
-		return utils.RequeueImmediately()
+	// 2. If have not finalizer, add finalizer and requeue
+	if !utils.HasFinalizer(&sampleSet.ObjectMeta, GetSampleSetFinalizer(req.Name)) {
+		r.Log.V(1).Info("add finalizer successfully")
+		return r.AddFinalizer(ctx, &sampleSet)
 	}
 
 	// 3. Get Driver and construct reconcile context
@@ -79,7 +79,9 @@ func (r *SampleSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 	CSIDriver, err := driver.GetDriver(driverName)
 	if err != nil {
-		return utils.NoRequeueWithError(nil)
+		r.Recorder.Event(&sampleSet, v1.EventTypeWarning,
+			common.ErrorDriverNotExist, err.Error())
+		return utils.NoRequeue()
 	}
 
 	// 4.
@@ -93,8 +95,8 @@ func (r *SampleSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	//
-	if utils.HasDeletionTimestamp(sampleSet.ObjectMeta) {
-		return r.deleteSampleSet(&RCtx, &sampleSet)
+	if utils.HasDeletionTimestamp(&sampleSet.ObjectMeta) {
+		return r.deleteResource(&RCtx, &sampleSet)
 	}
 
 	ssrp := SampleSetReconcilePhase{&RCtx, &sampleSet, CSIDriver}
@@ -102,39 +104,59 @@ func (r *SampleSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return ssrp.reconcilePhase()
 }
 
-func (r *SampleSetReconciler) finalizer(ctx context.Context, sampleSet *v1alpha1.SampleSet) bool {
-	if utils.HasFinalizer(sampleSet.ObjectMeta, FINALIZER) { return false }
-	if utils.HasDeletionTimestamp(sampleSet.ObjectMeta) { return false }
-
-	sampleSet.ObjectMeta.Finalizers = append(sampleSet.ObjectMeta.Finalizers, FINALIZER)
-	if err := r.Update(ctx, sampleSet); err != nil {
-		r.Log.Error(err, "update sampleset error when add finalizer")
-		return false
+func (r *SampleSetReconciler) AddFinalizer (ctx context.Context, sampleSet *v1alpha1.SampleSet) (ctrl.Result, error) {
+	if utils.HasDeletionTimestamp(&sampleSet.ObjectMeta) {
+		return utils.NoRequeue()
 	}
-	return true
+	sampleSetFinalizer := GetSampleSetFinalizer(sampleSet.Name)
+	sampleSet.Finalizers = append(sampleSet.Finalizers, sampleSetFinalizer)
+	if err := r.Update(ctx, sampleSet); err != nil {
+		return utils.RequeueWithError(err)
+	}
+	return utils.RequeueImmediately()
 }
 
-func (r *SampleSetReconciler) deleteSampleSet(
+func (r *SampleSetReconciler) deleteResource(
 	ctx *common.ReconcileContext,
 	sampleSet *v1alpha1.SampleSet) (ctrl.Result, error) {
 
+	//sampleSetName := sampleSet.ObjectMeta.Name
+	//pvcFinalizer := GetPVCFinalizer(sampleSetName)
+	//if utils.HasFinalizer(sampleSet.ObjectMeta, pvcFinalizer) {
+	//	r.deletePVC()
+	//}
+
+
 	// 判断是否有PaddleJob运行
 
-	// 1. 终止正在运行的SampleJob任务, 提交SampleJob deleteCache 任务, 并禁止提交其他的
-
-	// 2. 等待deleteCache任务完成以后, 删除缓存节点上的Labels, 删除 Runtime DaemonSet
-
-	// 3. 删除pvc / pv 等资源
+	// 1. 等待正在运行的PaddleJob 和 SampleJob任务完成
+	// 2. 提交SampleJob deleteCache 任务, 并禁止提交其他的SampleJob
+	// 3. 等待deleteCache任务完成以后, 删除缓存节点上的Labels
+	// 4. 删除 Runtime DaemonSet
+	// 5. 删除pvc
+	// 6. 删除pv资源
 
 	return utils.NoRequeue()
+}
+
+func (r *SampleSetReconciler) deletePVC() {
+
 }
 
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *SampleSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1.Event{},
+		common.EventIndexerKey,
+		EventIndexerFunc); err != nil {
+		return err
+	}
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.SampleSet{}).
-		Complete(r)
+			For(&v1alpha1.SampleSet{}).
+			Owns(&v1.Event{}).
+			Complete(r)
 }
 
 type SampleSetReconcilePhase struct {
@@ -146,6 +168,10 @@ type SampleSetReconcilePhase struct {
 	driver.Driver
 }
 
+//func NewSampleSetReconcilePhase() {
+//	return
+//}
+
 func (s *SampleSetReconcilePhase) reconcilePhase() (ctrl.Result, error) {
 	switch s.SampleSet.Status.Phase {
 	case common.SampleSetNone:
@@ -156,6 +182,8 @@ func (s *SampleSetReconcilePhase) reconcilePhase() (ctrl.Result, error) {
 		return s.reconcileMount()
 	case common.SampleSetReady:
 		return s.reconcileReady()
+	//default:
+	//	return utils.NoRequeue()
 	}
 	return utils.NoRequeue()
 }
@@ -163,46 +191,47 @@ func (s *SampleSetReconcilePhase) reconcilePhase() (ctrl.Result, error) {
 // reconcileNone After user create SampleSet CR then create PV and PVC automatically
 func (s *SampleSetReconcilePhase) reconcileNone() (ctrl.Result, error) {
 	s.Log.WithName("reconcileNone")
-	volumeKey := client.ObjectKey{Name: s.Req.Name}
-	volumeName := volumeKey.String()
+	volumeName := s.Req.Name
+	label := s.GetLabel(volumeName)
+	volumeKey := client.ObjectKey{Name: volumeName}
 
-	// 1. check if persistent volume is already exists which have same name as SampleSet
+	// 1. check if persistent volume is already exist which have same name as SampleSet
 	pv := &v1.PersistentVolume{}
 	err := s.Get(s.Ctx, volumeKey, pv)
-	if client.IgnoreNotFound(err) != nil {
-		err := fmt.Errorf("get pv %s error: %s", volumeName, err.Error())
-		return utils.NoRequeueWithError(err)
-	}
-	s.Log.V(1).Info("========error: ", "err", err)
 	if err == nil {
-		label := s.GetLabel(s.SampleSet.ObjectMeta.Name)
-		if _, exist := pv.ObjectMeta.Labels[label]; !exist {
-			exitsErr := fmt.Errorf("pv %s is already exists", volumeName)
-			s.Recorder.Eventf(s.SampleSet, v1.EventTypeWarning, common.ErrorPVAlreadyExists, exitsErr.Error())
-			return utils.NoRequeueWithError(exitsErr)
+		// if the pv not created by paddle-operator then return error
+		if _, exist := pv.Labels[label]; !exist {
+			e := fmt.Errorf("pv %s is already exist", volumeName)
+			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorPVAlreadyExist, e.Error())
+			return utils.RequeueWithError(e)
 		}
+
 		// if pv is already create by paddle-operator
 		if pv.Status.Phase != v1.VolumeBound {
-			s.Log.V(1).Info("requeue and wait pv Bound", "pv", volumeKey)
+			s.Log.V(1).Info("requeue and wait pv bound")
 			return utils.RequeueAfter(1 * time.Second)
 		}
-		// if pv is bounded then update the sampleset's phase
+
+		// if pv is bounded then update the phase of SampleSet to Bound
 		s.SampleSet.Status.Phase = common.SampleSetBound
 		if upErr := s.Status().Update(s.Ctx, s.SampleSet); upErr != nil {
-			return utils.NoRequeueWithError(upErr)
+			return utils.RequeueWithError(upErr)
 		}
-		s.Log.V(1).Info("update SampleSet phase to Bound", "SampleSet", volumeKey)
-		return utils.RequeueAfter(1 * time.Second)
+		s.Log.V(1).Info("update sampleset phase to bound")
+		return utils.RequeueImmediately()
 	}
-	s.Log.V(1).Info("pv is not exists", "pv", volumeKey)
+	if client.IgnoreNotFound(err) != nil {
+		e := fmt.Errorf("get pv %s error: %s", volumeName, err.Error())
+		return utils.RequeueWithError(e)
+	}
+	s.Log.V(1).Info("pv is not exist")
 
-	// 2. check if secret name is none or secret not exists
+	// 2. check if secret name is none or secret not exist
 	if s.SampleSet.Spec.SecretRef == nil {
-		err := errors.New("secretRef is empty")
-		s.Recorder.Eventf(s.SampleSet, v1.EventTypeWarning, common.ErrorSecretNotExists, err.Error())
-		return utils.NoRequeueWithError(err)
+		e := errors.New("secretRef is empty")
+		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorSecretNotExist, e.Error())
+		return utils.NoRequeue()
 	}
-
 	secret := &v1.Secret{}
 	if secretName := s.SampleSet.Spec.SecretRef.Name; secretName != "" {
 		key := client.ObjectKey{
@@ -211,78 +240,255 @@ func (s *SampleSetReconcilePhase) reconcileNone() (ctrl.Result, error) {
 		}
 		if err := s.Get(s.Ctx, key, secret); err != nil {
 			e := fmt.Errorf("get secret %s error: %s", secretName, err.Error())
-			s.Recorder.Eventf(s.SampleSet, v1.EventTypeWarning, common.ErrorSecretNotExists, e.Error())
-			return utils.NoRequeueWithError(e)
+			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorSecretNotExist, e.Error())
+			return utils.RequeueWithError(e)
 		}
 	} else {
 		err := errors.New("secretRef name is not set")
-		s.Recorder.Eventf(s.SampleSet, v1.EventTypeWarning, common.ErrorSecretNotExists, err.Error())
-		return utils.NoRequeueWithError(err)
+		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorSecretNotExist, err.Error())
+		return utils.NoRequeue()
 	}
-	s.Log.V(1).Info("secret is find", "secret", secret.ObjectMeta.Name)
+	s.Log.V(1).Info("secret is find", "secret", secret.Name)
 
 	// construct request context
-	rc := common.RequestContext{Log: s.Log, Req: s.Req,
-		SampleSet: s.SampleSet, Secret: secret}
+	rc := common.RequestContext{Req: s.Req, SampleSet: s.SampleSet, Secret: secret}
 
 	// 3. create persistent volume and set its name as the SampleSet
 	if err := s.CreatePV(pv, rc); err != nil {
-		e := fmt.Errorf("create pv %s error: %s", volumeKey, err.Error())
-		s.Recorder.Eventf(s.SampleSet, v1.EventTypeWarning, common.ErrorCreatePV, e.Error())
-		return utils.NoRequeueWithError(e)
+		e := fmt.Errorf("create pv %s error: %s", volumeName, err.Error())
+		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorCreatePV, e.Error())
+		return utils.NoRequeue()
 	}
 	if err := s.Create(s.Ctx, pv); err != nil {
-		e := fmt.Errorf("create pv %s error: %s", volumeKey, err.Error())
-		s.Recorder.Eventf(s.SampleSet, v1.EventTypeWarning, common.ErrorCreatePV, e.Error())
-		return utils.NoRequeueWithError(e)
+		e := fmt.Errorf("create pv %s error: %s", volumeName, err.Error())
+		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorCreatePV, e.Error())
+		return utils.RequeueWithError(e)
 	}
-	s.Log.V(1).Info("create pv successfully", "pv", volumeKey)
+	s.SampleSet.Finalizers = append(s.SampleSet.Finalizers, GetPVFinalizer(volumeName))
+	s.Log.V(1).Info("create pv successfully")
 
-	// 4. check if persistent volume claim is exists and have same name as SampleSet
+	// 4. check if persistent volume claim is exist and have same name as the SampleSet
 	pvc := &v1.PersistentVolumeClaim{}
 	err = s.Get(s.Ctx, volumeKey, pvc)
 	if client.IgnoreNotFound(err) != nil {
 		e := fmt.Errorf("get pvc error: %s", err.Error())
-		return utils.NoRequeueWithError(e)
+		return utils.RequeueWithError(e)
 	}
 	if err == nil {
-		label := s.GetLabel(s.SampleSet.ObjectMeta.Name)
-		if _, exists := pvc.ObjectMeta.Labels[label]; !exists {
-			e := fmt.Errorf("pvc %s is already exists", volumeKey)
-			s.Recorder.Eventf(s.SampleSet, v1.EventTypeWarning, common.ErrorPVCAlreadyExists, e.Error())
-			return utils.NoRequeueWithError(e)
+		if _, exist := pvc.Labels[label]; !exist {
+			e := fmt.Errorf("pvc %s is already exist", volumeName)
+			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorPVCAlreadyExist, e.Error())
+			return utils.RequeueWithError(e)
 		}
 		return utils.RequeueAfter(1 * time.Second)
 	}
-	s.Log.V(1).Info("pvc is not exists", "pvc", volumeKey)
+	s.Log.V(1).Info("pvc is not exist")
 
 	// 5. create persistent volume claim and set its name as the SampleSet
 	if err := s.CreatePVC(pvc, rc); err != nil {
-		e := fmt.Errorf("create pvc %s error: %s", volumeKey, err.Error())
-		s.Recorder.Eventf(s.SampleSet, v1.EventTypeWarning, common.ErrorCreatePVC, e.Error())
-		return utils.NoRequeueWithError(e)
+		e := fmt.Errorf("create pvc %s error: %s", volumeName, err.Error())
+		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorCreatePVC, e.Error())
+		return utils.NoRequeue()
 	}
 	if err := s.Create(s.Ctx, pvc); err != nil {
-		e := fmt.Errorf("create pvc %s error: %s", volumeKey, err.Error())
-		s.Recorder.Eventf(s.SampleSet, v1.EventTypeWarning, common.ErrorCreatePV, e.Error())
-		return utils.NoRequeueWithError(e)
+		e := fmt.Errorf("create pvc %s error: %s", volumeName, err.Error())
+		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorCreatePV, e.Error())
+		return utils.RequeueWithError(e)
 	}
+	s.SampleSet.Finalizers = append(s.SampleSet.Finalizers, GetPVCFinalizer(volumeName))
+	s.Log.V(1).Info("create pvc successfully")
 
-	s.Log.V(1).Info("create pvc successfully and requeue", "pvc", volumeKey)
-	s.Recorder.Eventf(s.SampleSet, v1.EventTypeNormal, "", "create pv and pvc successfully")
+	// 6. update the finalizers of SampleSet
+	namespacedName := s.Req.NamespacedName
+	if err := s.Update(s.Ctx, s.SampleSet); err != nil {
+		e := fmt.Errorf("update sampleset %s error: %s", namespacedName, err.Error())
+		return utils.RequeueWithError(e)
+	}
+	s.Log.V(1).Info("update sampleset finalizer successfully")
+
+	s.Recorder.Event(s.SampleSet, v1.EventTypeNormal, "", "create pv and pvc successfully")
 	return utils.RequeueAfter(1 * time.Second)
 }
 
+// reconcileBound After create PV/PVC then create runtime StatefulSet
 func (s *SampleSetReconcilePhase) reconcileBound() (ctrl.Result, error) {
-	s.Log.Info("*****************")
-	return utils.NoRequeue()
-	//return utils.RequeueAfter(1 * time.Second)
+	s.Log.WithName("reconcileBound")
+	runtimeName := s.GetRuntimeName(s.Req.Name)
+	runtimeKey := client.ObjectKey{
+		Name: runtimeName,
+		Namespace: s.Req.Namespace,
+	}
+	statefulSetName := runtimeKey.String()
+
+	// 1. check if StatefulSet is already exist
+	statefulSet := &appv1.StatefulSet{}
+	err := s.Get(s.Ctx, runtimeKey, statefulSet)
+	if err == nil {
+		label := s.GetLabel(s.Req.Name)
+		// if the StatefulSet not created by paddle-operator then return already exist error
+		if _, exist := statefulSet.Labels[label]; !exist {
+			e := fmt.Errorf("statefulset %s is already exist", statefulSetName)
+			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorSSAlreadyExist, e.Error())
+			return utils.RequeueWithError(e)
+		}
+
+		// if SampleSet partitions is changed then update StatefulSet replicas
+		if *statefulSet.Spec.Replicas != s.SampleSet.Spec.Partitions {
+			replicas := s.SampleSet.Spec.Partitions
+			statefulSet.Spec.Replicas = &replicas
+			if err := s.Update(s.Ctx, statefulSet); err != nil {
+				e := fmt.Errorf("update statefulset %s error: %s", statefulSetName, err.Error())
+				return utils.RequeueWithError(e)
+			}
+			s.Log.V(1).Info("update statefulset replicas")
+			return utils.RequeueAfter(5 * time.Second)
+		}
+
+		// wait util at least one replica ready and update the phase of SampleSet to Mount
+		if statefulSet.Status.ReadyReplicas > 0 {
+			s.SampleSet.Status.Phase = common.SampleSetMount
+			if err := s.Status().Update(s.Ctx, s.SampleSet); err != nil {
+				return utils.RequeueWithError(err)
+			}
+			s.Log.V(1).Info("update sampleset phase to mount")
+			return utils.RequeueImmediately()
+		}
+
+		// check if the pod created by StatefulSet is work properly
+		var eventList v1.EventList
+		values := []string{"Pod", s.Req.Namespace, runtimeName+"-0", "Warning"}
+		fOpt:= client.MatchingFields{
+			common.EventIndexerKey: strings.Join(values, "-"),
+		}
+		nOpt := client.InNamespace(s.Req.Namespace)
+		lOpt := client.Limit(1)
+		if err := s.List(s.Ctx, &eventList, fOpt, nOpt, lOpt); err != nil {
+			e := fmt.Errorf("list event error: %s", err.Error())
+			return utils.RequeueWithError(e)
+		}
+		eventLen := len(eventList.Items)
+		if eventLen == 0 {
+			s.Log.V(1).Info("wait at least one replica ready")
+			return utils.RequeueAfter(5 * time.Second)
+		}
+
+		event := eventList.Items[0]
+		// if the pod created by StatefulSet is not work properly then recorder event
+		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, event.Reason, event.Message)
+		return utils.RequeueWithError(errors.New(event.Message))
+	}
+	if client.IgnoreNotFound(err) != nil {
+		e := fmt.Errorf("get statefulset %s error: %s", statefulSetName, err.Error())
+		return utils.RequeueWithError(e)
+	}
+
+	// 2. get pv info and construct request context
+	pv := &v1.PersistentVolume{}
+	volumeName := s.Req.Name
+	volumeKey := client.ObjectKey{Name: volumeName}
+	if err := s.Get(s.Ctx, volumeKey, pv); err != nil {
+		e := fmt.Errorf("get pv %s error: %s", volumeName, err.Error())
+		return utils.RequeueWithError(e)
+	}
+	rc := common.RequestContext{Req: s.Req, SampleSet: s.SampleSet, PV: pv}
+
+	// 3. create runtime StatefulSet
+	if err := s.CreateRuntime(statefulSet, rc); err != nil {
+		e := fmt.Errorf("create runtime %s error: %s", statefulSetName, err.Error())
+		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorCreateRuntime, e.Error())
+		return utils.NoRequeue()
+	}
+	if err := s.Create(s.Ctx, statefulSet); err != nil {
+		e := fmt.Errorf("create runtime %s error: %s", statefulSetName, err.Error())
+		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorCreateRuntime, e.Error())
+		return utils.RequeueWithError(e)
+	}
+	s.Log.V(1).Info("create runtime successfully")
+
+	// 4. add runtime finalizer to SampleSet and update SampleSet
+	s.SampleSet.Finalizers = append(s.SampleSet.Finalizers, GetRuntimeFinalizer(volumeName))
+	if err := s.Update(s.Ctx, s.SampleSet); err != nil {
+		e := fmt.Errorf("update sampleset %s error: %s", statefulSetName, err.Error())
+		return utils.RequeueWithError(e)
+	}
+	s.Log.V(1).Info("update sampleset finalizer successfully")
+
+	s.Recorder.Event(s.SampleSet, v1.EventTypeNormal, "", "create runtime successfully")
+	return utils.RequeueAfter(30 * time.Second)
 }
 
+// reconcileMount After create runtime daemon set, before data sync finish
 func (s *SampleSetReconcilePhase) reconcileMount() (ctrl.Result, error) {
+	s.Log.Info("************")
 	return utils.RequeueAfter(20 * time.Second)
 }
 
+// reconcileReady
 func (s *SampleSetReconcilePhase) reconcileReady() (ctrl.Result, error) {
 	return utils.NoRequeue()
+}
+
+//func (s *SampleSetReconcilePhase) labelNodes(statefulSet *appv1.StatefulSet) error {
+//	podList := &v1.PodList{}
+//	label := s.GetLabel(s.Req.Name)
+//	prefix := s.GetRuntimeName(s.Req.Name)
+//	listOption :=  client.MatchingLabels{
+//		label: "true",
+//		"name": prefix,
+//	}
+//	if err := s.List(s.Ctx, podList, listOption); err != nil {
+//		return fmt.Errorf("list pods by label %s error: %s", label, err.Error())
+//	}
+//	nodePodMap := make(map[string]v1.Pod)
+//	for _, pod := range podList.Items {
+//		if !strings.HasPrefix(pod.Name, prefix) {
+//			continue
+//		}
+//		if pod.Spec.NodeName == "" {
+//			continue
+//		}
+//		nodePodMap[pod.Spec.NodeName] = pod
+//	}
+//	if len(nodePodMap) != int(s.SampleSet.Spec.Partitions) {
+//		return fmt.Errorf("the options of list statefulset pods is not valid")
+//	}
+//
+//	// update the label of cache nodes and update pod nodeAffinity
+//	for nodeName, podName := range nodePodMap {
+//		node := &v1.Node{}
+//		nodeKey := client.ObjectKey{Name: nodeName}
+//		if err := s.Get(s.Ctx, nodeKey, node); err != nil {
+//			return fmt.Errorf("get node %s error: %s", nodeName, err.Error())
+//		}
+//		index := strings.TrimPrefix(podName, prefix+"-")
+//	}
+//}
+
+func GetSampleSetFinalizer(name string) string {
+	return common.PaddleLabel + "/" + "sampleset-" + name
+}
+
+func GetPVFinalizer(name string) string {
+	return common.PaddleLabel + "/" + "pv-" + name
+}
+
+func GetPVCFinalizer(name string) string {
+	return common.PaddleLabel + "/" + "pvc-" + name
+}
+
+func GetRuntimeFinalizer(name string) string {
+	return common.PaddleLabel + "/" + "runtime-" + name
+}
+
+// EventIndexerFunc index
+func EventIndexerFunc(obj client.Object) []string {
+	event := obj.(*v1.Event)
+	keys := []string{
+		event.InvolvedObject.Kind,
+		event.InvolvedObject.Namespace,
+		event.InvolvedObject.Name,
+		event.Type,
+	}
+	keyStr := strings.Join(keys, "-")
+	return []string{keyStr}
 }

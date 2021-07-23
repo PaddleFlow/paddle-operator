@@ -160,6 +160,7 @@ spec:
                 type: object
               partitions:
                 format: int32
+                minimum: 1
                 type: integer
               secretRef:
                 properties:

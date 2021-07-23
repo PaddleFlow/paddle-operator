@@ -95,7 +95,7 @@ func main() {
 
 	if err = (&ctrls.SampleSetReconciler{
 		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("SampleSetCtrl"),
+		Log:      ctrl.Log.WithName("samplesetctrl"),
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("SampleSet"),
 	}).SetupWithManager(mgr); err != nil {

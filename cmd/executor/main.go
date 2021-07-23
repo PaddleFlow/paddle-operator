@@ -15,7 +15,7 @@
 package main
 
 import (
-	"github.com/paddleflow/paddle-operator/controllers/extensions/executor"
+	"github.com/paddleflow/paddle-operator/api/v1alpha1"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	"github.com/spf13/cobra"
@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	syncJobOption executor.SyncJobOptions
+	syncJobOption v1alpha1.SyncJobOptions
 )
 
 var cmd = &cobra.Command{

@@ -87,7 +87,9 @@ type Cache struct {
 
 // SampleSetSpec defines the desired state of SampleSet
 type SampleSetSpec struct {
-	// The Partitions of the SimpleSet, need to be specified
+	// Partitions is the number of SampleSet partitions, partition means cache node.
+	// +kubebuilder:validation:Minimum=1
+	// +required
 	Partitions int32 `json:"partitions,omitempty"`
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:UniqueItems=false
