@@ -20,11 +20,11 @@ spec:
 #      - mediumType: HDD
 #        path: /data/imagenet
 #        cacheSize: 1024
-#  nodeAffinity:
-#    required:
-#      nodeSelectorTerms:
-#        - matchExpressions:
-#            - key: sampleset
-#              operator: In
-#              values:
-#                - "imagenet"
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: sampleset
+              operator: In
+              values:
+                - "imagenet"

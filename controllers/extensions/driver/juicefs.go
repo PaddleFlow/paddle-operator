@@ -1,3 +1,17 @@
+// Copyright 2021 The Kubeflow Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package driver
 
 import (
@@ -6,6 +20,7 @@ import (
 	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/utils"
 	_ "github.com/paddleflow/paddle-operator/controllers/extensions/utils"
+	appv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -78,12 +93,11 @@ func NewJuiceFSDriver() *JuiceFS {
 // CreatePV create JuiceFS persistent volume with mount options.
 // How to set parameters of pv can refer to https://github.com/juicedata/juicefs-csi-driver/tree/master/examples/static-provisioning-mount-options
 func (j *JuiceFS) CreatePV(pv *v1.PersistentVolume, ctx common.RequestContext) error {
-	ctx.Log.V(1).WithName("CreatePV")
 	if !j.isSecretValid(ctx.Secret) {
-		return fmt.Errorf("secret %s is not valid", ctx.Secret.ObjectMeta.Name)
+		return fmt.Errorf("secret %s is not valid", ctx.Secret.Name)
 	}
 
-	label := j.GetLabel(ctx.SampleSet.ObjectMeta.Name)
+	label := j.GetLabel(ctx.Req.Name)
 	objectMeta := metav1.ObjectMeta{
 		Name: ctx.Req.Name,
 		Namespace: ctx.Req.Namespace,
@@ -99,10 +113,15 @@ func (j *JuiceFS) CreatePV(pv *v1.PersistentVolume, ctx common.RequestContext) e
 	volumeMode := v1.PersistentVolumeFilesystem
 	mountOptions, err := j.getMountOptions(ctx.SampleSet)
 	if err != nil {
-		ctx.Log.V(1).Error(err, "get getMountOptions error")
 		return err
 	}
 
+	secretReference := &v1.SecretReference{
+		Name: ctx.Secret.Name,
+		Namespace: ctx.Secret.Namespace,
+	}
+	namespacedName := ctx.Req.NamespacedName.String()
+	volumeHandle := strings.ReplaceAll(namespacedName, "/", "-")
 	spec := v1.PersistentVolumeSpec{
 		AccessModes: []v1.PersistentVolumeAccessMode{
 			v1.ReadWriteMany,
@@ -115,13 +134,15 @@ func (j *JuiceFS) CreatePV(pv *v1.PersistentVolume, ctx common.RequestContext) e
 			CSI: &v1.CSIPersistentVolumeSource{
 				Driver: JuiceFSCSIDriverName,
 				FSType: string(JuiceFSDriver),
-				VolumeHandle: label,  // use label as VolumeHandle
+				VolumeHandle: volumeHandle,
 				VolumeAttributes: map[string]string{
 					"mountOptions": mountOptions,
 				},
+				NodePublishSecretRef: secretReference,
 			},
 		},
 		PersistentVolumeReclaimPolicy: v1.PersistentVolumeReclaimRetain,
+		NodeAffinity: ctx.SampleSet.Spec.NodeAffinity.DeepCopy(),
 		VolumeMode: &volumeMode,
 	}
 	pv.Spec = spec
@@ -129,7 +150,7 @@ func (j *JuiceFS) CreatePV(pv *v1.PersistentVolume, ctx common.RequestContext) e
 	return nil
 }
 
-// isSecretValid check if the secret created by user is valid for juicefs csi driver
+// isSecretValid check if the secret created by user is valid for JuiceFS csi driver
 func (j *JuiceFS) isSecretValid(secret *v1.Secret) bool {
 	for _, key := range JuiceFSSecretDataKeys {
 		if _, exists := secret.Data[key]; !exists {
@@ -139,7 +160,7 @@ func (j *JuiceFS) isSecretValid(secret *v1.Secret) bool {
 	return true
 }
 
-// GetMountOptions get the juicefs mount command options set by user
+// GetMountOptions get the JuiceFS mount command options set by user
 func (j *JuiceFS) getMountOptions(sampleSet *v1alpha1.SampleSet) (string, error) {
 	optionMap := make(map[string]reflect.Value)
 	// get default mount options and values
@@ -158,13 +179,13 @@ func (j *JuiceFS) getMountOptions(sampleSet *v1alpha1.SampleSet) (string, error)
 	}
 
 	// check if free-space-ratio is valid
-	if ratioStr, exists := optionMap["free-space-ratio"]; exists {
+	if ratioStr, exist := optionMap["free-space-ratio"]; exist {
 		ratio, err := strconv.ParseFloat(ratioStr.String(), 64)
 		if err != nil {
-			return "", fmt.Errorf("parse free-space-ratio:{%s} error", ratioStr)
+			return "", fmt.Errorf("parse free-space-ratio:%s error", ratioStr)
 		}
 		if ratio >= 1.0 || ratio < 0.0 {
-			return "", fmt.Errorf("free-space-ratio:{%s} is not valid", ratioStr)
+			return "", fmt.Errorf("free-space-ratio:%s is not valid", ratioStr)
 		}
 	}
 
@@ -191,7 +212,7 @@ func (j *JuiceFS) getMountOptions(sampleSet *v1alpha1.SampleSet) (string, error)
 				cacheDirs := strings.Join(cacheDir, ":")
 				cacheDirOption = JuiceFSCacheDirOption + "=" + cacheDirs
 			} else {
-				sampleSetName := strings.ToLower(sampleSet.ObjectMeta.Name)
+				sampleSetName := strings.ToLower(sampleSet.Name)
 				cacheDirOption = option + "=" + value.String() + sampleSetName
 			}
 			optionSlice = append(optionSlice, cacheDirOption)
@@ -213,3 +234,177 @@ func (j *JuiceFS) getMountOptions(sampleSet *v1alpha1.SampleSet) (string, error)
 	return strings.Join(optionSlice, ","), nil
 }
 
+func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx common.RequestContext) error {
+	label := j.GetLabel(ctx.Req.Name)
+	runtimeName := j.GetRuntimeName(ctx.Req.Name)
+
+	objectMeta := metav1.ObjectMeta{
+		Name: runtimeName,
+		Namespace: ctx.Req.Namespace,
+		Labels: map[string]string{
+			label: "true",
+		},
+		Annotations: map[string]string{
+			"CreatedBy": common.PaddleOperatorLabel,
+		},
+	}
+	ds.ObjectMeta = objectMeta
+
+	volumes, volumeMounts, err := j.getVolumeInfo(ctx.PV)
+	if err != nil {
+		return fmt.Errorf("getVolumeInfo error: %s", err.Error())
+	}
+
+	//
+	//image, err := utils.GetRuntimeImage()
+	//if err != nil {
+	//	return err
+	//}
+
+	labelSelector := metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			label: "true",
+			"name": runtimeName,
+		},
+	}
+	podAffinityTerm := v1.PodAffinityTerm{
+		LabelSelector: &labelSelector,
+		Namespaces: []string{ctx.Req.Namespace},
+		TopologyKey: "kubernetes.io/hostname",
+	}
+	podAntiAffinity := v1.PodAntiAffinity{
+		RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
+			podAffinityTerm,
+		},
+	}
+
+	container := v1.Container{
+		Name: RuntimeContainerName,
+		Image: "nginx:1.9.1",
+		Ports: []v1.ContainerPort{
+			{
+				Name: ctx.Req.Name,
+				ContainerPort: 80,
+			},
+		},
+		//Command: []string{
+		//
+		//},
+		//Args: []string{
+		//
+		//},
+		//WorkingDir: "",
+
+		VolumeMounts: volumeMounts,
+	}
+
+	var terminationGracePeriodSeconds int64 = 5
+	template := v1.PodTemplateSpec{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				label: "true",
+				"name": runtimeName,
+			},
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
+				container,
+			},
+			Volumes: volumes,
+			Affinity: &v1.Affinity{
+				PodAntiAffinity: &podAntiAffinity,
+			},
+			TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
+		},
+	}
+
+	selector := metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			label: "true",
+			"name": runtimeName,
+		},
+	}
+	// construct StatefulSetSpec
+	replicas := ctx.SampleSet.Spec.Partitions
+	spec := appv1.StatefulSetSpec{
+		Replicas: &replicas,
+		Selector: &selector,
+		Template: template,
+		PodManagementPolicy: appv1.ParallelPodManagement,
+	}
+	ds.Spec = spec
+
+	return nil
+}
+
+func (j *JuiceFS) getVolumeInfo(pv *v1.PersistentVolume) ([]v1.Volume, []v1.VolumeMount, error) {
+	// Get cache dir configuration from PV
+	if pv.Spec.CSI == nil || pv.Spec.CSI.VolumeAttributes == nil {
+		return nil, nil, fmt.Errorf("pv csi field %s is not valid", pv.Name)
+	}
+	if _, exits := pv.Spec.CSI.VolumeAttributes["mountOptions"]; !exits {
+		return nil, nil, fmt.Errorf("pv mountOptions %s is not exist", pv.Name)
+	}
+	mountOptions := pv.Spec.CSI.VolumeAttributes["mountOptions"]
+	optionList := strings.Split(mountOptions, ",")
+
+	var cacheDirList []string
+	for _, option := range optionList {
+		if !strings.HasPrefix(option, JuiceFSCacheDirOption) {
+			continue
+		}
+		cacheDir := strings.Split(option, "=")[1]
+		cacheDirList = strings.Split(cacheDir, ":")
+	}
+	if len(cacheDirList) == 0 {
+		return nil, nil, fmt.Errorf("cache-dir is not valid")
+	}
+
+	var volumes []v1.Volume
+	var volumeMounts []v1.VolumeMount
+	// construct cache host path volume
+	for _, path := range cacheDirList {
+		pathTrimPrefix := strings.TrimPrefix(path, "/")
+		name := strings.ReplaceAll(pathTrimPrefix, "/", "-")
+
+		hostPathType := v1.HostPathDirectoryOrCreate
+		hostPath := v1.HostPathVolumeSource{
+			Path: path,
+			Type: &hostPathType,
+		}
+		hostPathVolume := v1.Volume{
+			Name: name,
+			VolumeSource: v1.VolumeSource{
+				HostPath: &hostPath,
+			},
+		}
+		volumes = append(volumes, hostPathVolume)
+		mountPath := j.getRuntimeCacheMountPath(name)
+		volumeMount := v1.VolumeMount{
+			Name: name,
+			MountPath: mountPath,
+		}
+		volumeMounts = append(volumeMounts, volumeMount)
+	}
+
+	// construct data persistent volume claim source
+	pvcs := v1.PersistentVolumeClaimVolumeSource{
+		ClaimName: pv.Name,
+	}
+	volume := v1.Volume{
+		Name: pv.Name,
+		VolumeSource: v1.VolumeSource{
+			PersistentVolumeClaim: &pvcs,
+		},
+	}
+	volumes = append(volumes, volume)
+
+	mountPath := j.getRuntimeDataMountPath(pv.Name)
+	volumeMount := v1.VolumeMount{
+		Name: pv.Name,
+		MountPath: mountPath,
+	}
+	volumeMounts = append(volumeMounts, volumeMount)
+
+	return volumes, volumeMounts, nil
+}

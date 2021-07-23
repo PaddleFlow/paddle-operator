@@ -1,3 +1,17 @@
+// Copyright 2021 The Kubeflow Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package common
 
 import "github.com/paddleflow/paddle-operator/api/v1alpha1"
@@ -18,6 +32,8 @@ const (
 	SampleSetBound v1alpha1.SampleSetPhase = "Bound"
 	// SampleSetMount After create runtime daemon set, before data sync finish
 	SampleSetMount v1alpha1.SampleSetPhase = "Mount"
+	// SampleSetPartialReady means
+	SampleSetPartialReady v1alpha1.SampleSetPhase = "PartialReady"
 	// SampleSetReady After data sync finish and SampleSet is ready to be use
 	SampleSetReady v1alpha1.SampleSetPhase = "Ready"
 	// SampleSetFailed Not bound to runtime, can be deleted
@@ -49,17 +65,21 @@ const (
 )
 
 const (
-	ErrorSecretNotExists = "ErrorSecretNotExists"
+	ErrorDriverNotExist = "ErrorDriverNotExist"
 
-	ErrorPVAlreadyExists = "ErrorPersistentVolumeAlreadyExists"
+	ErrorSecretNotExist = "ErrorSecretNotExist"
+
+	ErrorPVAlreadyExist = "ErrorPersistentVolumeAlreadyExist"
 
 	ErrorCreatePV = "ErrorCreatePersistentVolume"
 
-	ErrorPVCAlreadyExists = "ErrorPersistentVolumeClaimAlreadyExists"
+	ErrorPVCAlreadyExist = "ErrorPersistentVolumeClaimAlreadyExist"
 
 	ErrorCreatePVC = "ErrorCreatePersistentVolumeClaim"
 
+	ErrorSSAlreadyExist = "ErrorStatefulSetAlreadyExist"
 
+	ErrorCreateRuntime = "ErrorCreateRuntime"
 
 )
 
@@ -70,4 +90,10 @@ const (
 const (
 	PaddleLabel = "paddlepaddle.org"
 	PaddleOperatorLabel = "paddle-operator"
+)
+
+const (
+	EventIndexerKey = "eventIndexerKey"
+	NodeIndexerKey = "nodeIndexerKey"
+	RuntimeIndexerKey = "runtimeIndexerKey"
 )
