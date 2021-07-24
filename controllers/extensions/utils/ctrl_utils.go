@@ -35,6 +35,11 @@ func HasFinalizer(obj *metav1.ObjectMeta, finalizer string) bool {
 	return ContainsString(obj.GetFinalizers(), finalizer)
 }
 
+func RemoveFinalizer(obj *metav1.ObjectMeta, finalizer string) {
+	finalizers := RemoveString(obj.Finalizers, finalizer)
+	obj.Finalizers = finalizers
+}
+
 func NoRequeue() (ctrl.Result, error) {
 	return ctrl.Result{}, nil
 }
