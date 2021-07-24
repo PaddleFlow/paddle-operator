@@ -279,7 +279,7 @@ func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx common.RequestContext
 	}
 
 	container := v1.Container{
-		Name: RuntimeContainerName,
+		Name: common.RuntimeContainerName,
 		Image: "nginx:1.9.1",
 		Ports: []v1.ContainerPort{
 			{
@@ -298,7 +298,7 @@ func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx common.RequestContext
 		VolumeMounts: volumeMounts,
 	}
 
-	var terminationGracePeriodSeconds int64 = 5
+	var terminationGracePeriodSeconds int64 = 2
 	template := v1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{

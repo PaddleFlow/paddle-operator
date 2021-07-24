@@ -26,9 +26,6 @@ import (
 
 const (
 	DefaultDriver = JuiceFSDriver
-	RuntimeContainerName = "runtime"
-	RuntimeCacheMountPath = "/cache"
-	RuntimeDateMountPath = "/mount"
 )
 
 var (
@@ -117,13 +114,13 @@ func (d *BaseDriver) GetLabel(sampleSetName string) string {
 }
 
 func (d *BaseDriver) GetRuntimeName(sampleSetName string) string {
-	return sampleSetName + "-" + RuntimeContainerName
+	return sampleSetName + "-" + common.RuntimeContainerName
 }
 
 func (d *BaseDriver) getRuntimeCacheMountPath(name string) string {
-	return RuntimeCacheMountPath + "/" + name
+	return common.RuntimeCacheMountPath + "/" + name
 }
 
 func (d *BaseDriver) getRuntimeDataMountPath(name string) string {
-	return RuntimeDateMountPath + "/" + name
+	return common.RuntimeDateMountPath + "/" + name
 }

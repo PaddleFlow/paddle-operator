@@ -16,6 +16,8 @@ package common
 
 import "github.com/paddleflow/paddle-operator/api/v1alpha1"
 
+const PVCPROTECTION = "kubernetes.io/pvc-protection"
+
 const (
 	// Memory use
 	Memory v1alpha1.MediumType = "MEM"
@@ -65,6 +67,12 @@ const (
 )
 
 const (
+	NormalCreate = "SuccessfulCreate"
+)
+
+const (
+
+
 	ErrorDriverNotExist = "ErrorDriverNotExist"
 
 	ErrorSecretNotExist = "ErrorSecretNotExist"
@@ -81,6 +89,10 @@ const (
 
 	ErrorCreateRuntime = "ErrorCreateRuntime"
 
+	ErrorDeleteRuntime = "ErrorDeleteRuntime"
+	ErrorDeletePVC = "ErrorDeletePersistentVolumeClaim"
+	ErrorDeletePV = "ErrorDeletePersistentVolume"
+	ErrorDeleteSampleSet = "ErrorDeleteSampleSet"
 )
 
 const (
@@ -96,4 +108,10 @@ const (
 	EventIndexerKey = "eventIndexerKey"
 	NodeIndexerKey = "nodeIndexerKey"
 	RuntimeIndexerKey = "runtimeIndexerKey"
+)
+
+const (
+	RuntimeContainerName = "runtime"
+	RuntimeCacheMountPath = "/cache"
+	RuntimeDateMountPath = "/mnt"
 )

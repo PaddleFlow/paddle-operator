@@ -20,14 +20,14 @@ spec:
     - jsonPath: .status.totalSize
       name: TOTAL SIZE
       type: string
-    - jsonPath: .status.cachedSize
+    - jsonPath: .status.cacheStatus.cachedSize
       name: CACHED SIZE
       type: string
-    - jsonPath: .status.cacheCapacity
+    - jsonPath: .status.cacheStatus.cacheCapacity
       name: CACHE CAPACITY
       type: string
-    - jsonPath: .status.cachedPercentage
-      name: CACHED PERCENTAGE
+    - jsonPath: .status.runtimeStatus.runtimeReady
+      name: Runtime
       type: string
     - jsonPath: .status.phase
       name: PHASE
@@ -200,14 +200,28 @@ spec:
             type: object
           status:
             properties:
-              cacheCapacity:
-                type: string
-              cachedPercentage:
-                type: string
-              cachedSize:
-                type: string
+              cacheStatus:
+                properties:
+                  cacheCapacity:
+                    type: string
+                  cachedPercentage:
+                    type: string
+                  cachedSize:
+                    type: string
+                type: object
               phase:
                 type: string
+              runtimeStatus:
+                properties:
+                  readyReplicas:
+                    format: int32
+                    type: integer
+                  runtimeReady:
+                    type: string
+                  specReplicas:
+                    format: int32
+                    type: integer
+                type: object
               sampleJobRef:
                 type: string
               totalFiles:
