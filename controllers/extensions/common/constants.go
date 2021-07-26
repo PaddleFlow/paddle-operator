@@ -16,8 +16,6 @@ package common
 
 import "github.com/paddleflow/paddle-operator/api/v1alpha1"
 
-const PVCPROTECTION = "kubernetes.io/pvc-protection"
-
 const (
 	// Memory use
 	Memory v1alpha1.MediumType = "MEM"
@@ -114,4 +112,18 @@ const (
 	RuntimeContainerName = "runtime"
 	RuntimeCacheMountPath = "/cache"
 	RuntimeDateMountPath = "/mnt"
+)
+
+const (
+	ServerCmd = "server"
+
+	// SyncJobCmd defined the command to sync data and metadata
+	// from source to destination for job or cronjob
+	SyncJobCmd = "sync"
+	// WarmupJobCmd the
+	WarmupJobCmd = "warmup"
+	// RmrJobCmd
+	RmrJobCmd = "rmr"
+	// ClearJobCmd
+	ClearJobCmd = "clear"
 )

@@ -60,20 +60,99 @@ type JuiceFSMountOptions struct {
 	SubDir string `json:"sub-dir,omitempty"`
 }
 
+// JuiceFSSyncOptions describes the JuiceFS sync options which user can set by SampleSet
+type JuiceFSSyncOptions struct {
+	// the first KEY to sync
+	// +optional
+	Start string `json:"start,omitempty"`
+	// the last KEY to sync
+	// +optional
+	End string `json:"end,omitempty"`
+	// number of concurrent threads (default: 10)
+	// +optional
+	Threads int `json:"threads,omitempty"`
+	// HTTP PORT to listen to (default: 6070)
+	// +optional
+	HttpPort int `json:"http-port,omitempty"`
+	// update existing file if the source is newer (default: false)
+	// +optional
+	Update bool `json:"update,omitempty"`
+	// always update existing file (default: false)
+	// +optional
+	ForceUpdate bool `json:"force-update,omitempty"`
+	// preserve permissions (default: false)
+	// +optional
+	Perms bool `json:"perms,omitempty"`
+	// Sync directories or holders (default: false)
+	// +optional
+	Dirs bool `json:"dirs,omitempty"`
+	// Don't copy file (default: false)
+	// +optional
+	Dry bool `json:"dry,omitempty"`
+	// delete objects from source after synced (default: false)
+	// +optional
+	DeleteSrc bool `json:"delete-src,omitempty"`
+	// delete extraneous objects from destination (default: false)
+	// +optional
+	DeleteDst bool `json:"delete-dst,omitempty"`
+	// exclude keys containing PATTERN (POSIX regular expressions)
+	// +optional
+	Exclude string `json:"exclude,omitempty"`
+	// only include keys containing PATTERN (POSIX regular expressions)
+	// +optional
+	Include string `json:"include,omitempty"`
+	// manager address
+	// +optional
+	Manager string `json:"manager,omitempty"`
+	// hosts (seperated by comma) to launch worker
+	// +optional
+	Worker string `json:"worker,omitempty"`
+	// limit bandwidth in Mbps (0 means unlimited) (default: 0)
+	// +optional
+	BWLimit int `json:"bwlimit,omitempty"`
+	// do not use HTTPS (default: false)
+	NoHttps bool `json:"no-https,omitempty"`
+}
+
+// JuiceFSWarmupOptions describes the JuiceFS warmup options which user can set by SampleSet
+type JuiceFSWarmupOptions struct {
+	// file containing a list of paths
+	// +optional
+	File string `json:"file,omitempty"`
+	// number of concurrent workers (default: 50)
+	// +optional
+	Threads int `json:"threads,omitempty"`
+}
+
+//
 type SyncJobOptions struct {
-	//
+	// data source that need sync to cache engine
 	// +optional
 	Source string `json:"source,omitempty"`
+	//
+	// +option
+	Destination string `json:"destination,omitempty"`
+	//
+	// +optional
+	JuiceFSSyncOptions `json:",inline"`
 }
 
+// WarmupJobOptions the options for warmup date to local host
 type WarmupJobOptions struct {
-	Path string `json:"start,omitempty"`
+	// A list of paths need to build cache
+	// +optional
+	Path []string `json:"path,omitempty"`
+	//
+	// +optional
+	JuiceFSWarmupOptions `json:",inline"`
 }
 
+// RmrJobOptions the options for remove data from cache engine
 type RmrJobOptions struct {
-	Path string `json:"start,omitempty"`
+	Path string `json:"path,omitempty"`
 }
 
+// ClearJobOptions the options for clear cache from local host
 type ClearJobOptions struct {
 	Path string `json:"start,omitempty"`
 }

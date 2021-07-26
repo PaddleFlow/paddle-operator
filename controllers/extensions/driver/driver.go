@@ -55,6 +55,8 @@ type Driver interface {
 
 	// GetRuntimeName a
 	GetRuntimeName(sampleSetName string) string
+
+	CreateSyncJob(job *v1alpha1.SampleJob, ctx common.RequestContext) error
 }
 
 // GetDriver get csi driver by name, return error if not found

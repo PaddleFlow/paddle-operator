@@ -58,3 +58,14 @@ type RequestContext struct {
 	//
 	PV *v1.PersistentVolume
 }
+
+// RootCmdOptions the
+type RootCmdOptions struct {
+	Driver string `json:"driver,omitempty"`
+}
+
+
+// RuntimeServerOptions the options of runtime server
+type RuntimeServerOptions struct {
+
+}

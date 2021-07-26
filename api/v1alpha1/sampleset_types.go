@@ -145,8 +145,10 @@ type SampleSetStatus struct {
 	CacheStatus *CacheStates `json:"cacheStatus,omitempty"`
 	// RuntimeStatus
 	RuntimeStatus *RuntimeStates `json:"runtimeStatus,omitempty"`
-	// SampleJobRef specifies the running SampleJob that manager this SampleSet
-	SampleJobRef string `json:"sampleJobRef,omitempty"`
+	// InitSyncJob
+	InitSyncJob string `json:"initSyncJob,omitempty"`
+	// InitWarmupJob
+	InitWarmupJob string `json:"initWarmupJob,omitempty"`
 }
 
 //+kubebuilder:object:root=true
