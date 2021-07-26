@@ -408,3 +408,8 @@ func (j *JuiceFS) getVolumeInfo(pv *v1.PersistentVolume) ([]v1.Volume, []v1.Volu
 
 	return volumes, volumeMounts, nil
 }
+
+// CreateSyncJob create
+func (j *JuiceFS) CreateSyncJob(job *v1alpha1.SampleJob, ctx common.RequestContext) error {
+	return nil
+}

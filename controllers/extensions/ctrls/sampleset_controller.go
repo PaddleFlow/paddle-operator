@@ -215,7 +215,7 @@ func (s *SampleSetReconcilePhase) deleteResource() (ctrl.Result, error) {
 		return utils.RequeueAfter(5 * time.Second)
 	}
 
-	// 5. remove pvc protection and wait util pvc deleted
+	// 5. delete pvc
 	pvcFinalizer := GetPVCFinalizer(sampleSetName)
 	if utils.HasFinalizer(&s.SampleSet.ObjectMeta, pvcFinalizer) {
 		pvc := &v1.PersistentVolumeClaim{}
@@ -516,6 +516,8 @@ func (s *SampleSetReconcilePhase) reconcileBound() (ctrl.Result, error) {
 
 // reconcileMount After create runtime daemon set, before data sync finish
 func (s *SampleSetReconcilePhase) reconcileMount() (ctrl.Result, error) {
+	s.Log.WithName("reconcileMount")
+
 	s.Log.Info("************")
 	return utils.NoRequeue()
 }

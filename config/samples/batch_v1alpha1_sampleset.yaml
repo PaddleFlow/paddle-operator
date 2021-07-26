@@ -9,14 +9,14 @@ spec:
       name: imagenet
   secretRef:
     name: imagenet
-#  csi:
-#    driver: juicefs
-#    juiceFSMountOptions:
-#  cache:
-#    levels:
-#      - mediumType: MEM
-#        path: /dev/shm/imagenet
-#        cacheSize: 1024
+  csi:
+    driver: juicefs
+    juiceFSMountOptions:
+  cache:
+    levels:
+      - mediumType: MEM
+        path: /dev/shm/imagenet-0:/dev/shm/imagenet-1
+        cacheSize: 1024
 #      - mediumType: HDD
 #        path: /data/imagenet
 #        cacheSize: 1024
