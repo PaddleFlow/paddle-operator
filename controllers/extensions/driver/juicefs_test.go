@@ -19,6 +19,7 @@ import (
 	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"strings"
 	"testing"
 )
 
@@ -36,6 +37,7 @@ func TestGetMountOptions(t *testing.T) {
 			EnableXattr: true,
 			WriteBack: true,
 			FreeSpaceRatio: "0.2",
+			CacheDir: "/dev/shm/imagenet",
 		},
 	}
 
@@ -46,12 +48,8 @@ func TestGetMountOptions(t *testing.T) {
 		},
 		Spec: v1alpha1.SampleSetSpec{
 			Partitions: 2,
-			Sources: []v1alpha1.Source{
-				{
-					URI:  "https://imagenet.bj.bcebos.com/juicefs",
-					Name: "imagenet",
-					Path: "/imagenet",
-				},
+			Source: &v1alpha1.Source{
+				URI: "https://imagenet.bj.bcebos.com/juicefs",
 			},
 			SecretRef: &corev1.LocalObjectReference{
 				Name: "imagenet",
@@ -64,7 +62,7 @@ func TestGetMountOptions(t *testing.T) {
 				Levels: []v1alpha1.CacheLevel{
 					{
 						MediumType: common.Memory,
-						Path: "/dev/shm/imagenet",
+						Path: "/dev/shm/imagenet-0:/dev/shm/imagenet-1",
 						CacheSize: 150,
 					},
 					{
@@ -95,6 +93,15 @@ func TestGetMountOptions(t *testing.T) {
 	if err != nil {
 		t.Errorf("test getMountOptions error: %s", err.Error())
 	}
+	for _, option := range strings.Split(options, ",") {
+		if strings.HasPrefix(option, "cache-dir") {
+			cacheDir := strings.Split(option, "=")[1]
+			if len(strings.Split(cacheDir, ":")) != 3 {
+				t.Errorf("length of cache-dir should be 2: %s", cacheDir)
+			}
+		}
+	}
+
 	t.Log("mountOptions: ", options)
 }
 

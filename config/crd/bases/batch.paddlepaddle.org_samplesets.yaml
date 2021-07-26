@@ -167,20 +167,17 @@ spec:
                   name:
                     type: string
                 type: object
-              sources:
-                items:
-                  properties:
-                    name:
-                      minLength: 0
-                      type: string
-                    path:
-                      type: string
-                    uri:
-                      minLength: 10
-                      type: string
-                  type: object
-                minItems: 1
-                type: array
+              source:
+                properties:
+                  secretRef:
+                    properties:
+                      name:
+                        type: string
+                    type: object
+                  uri:
+                    minLength: 10
+                    type: string
+                type: object
               tolerations:
                 items:
                   properties:
@@ -209,6 +206,13 @@ spec:
                   cachedSize:
                     type: string
                 type: object
+              jobsName:
+                properties:
+                  clearJobName:
+                    type: string
+                  syncJobName:
+                    type: string
+                type: object
               phase:
                 type: string
               runtimeStatus:
@@ -222,8 +226,6 @@ spec:
                     format: int32
                     type: integer
                 type: object
-              sampleJobRef:
-                type: string
               totalFiles:
                 type: string
               totalSize:

@@ -17,6 +17,7 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // SampleSetPhase indicates whether the loading is behaving
@@ -30,17 +31,13 @@ type DriverName string
 
 // Source describes a mounting. <br>
 type Source struct {
-	// MountPoint is the mount point of source.
+	// The uri of source data from remote storage
 	// +kubebuilder:validation:MinLength=10
 	// +required
 	URI string `json:"uri,omitempty"`
-	// The name of mount
-	// +kubebuilder:validation:MinLength=0
-	// +required
-	Name string `json:"name,omitempty"`
-	// The path of mount, if not set will be /{Name}
+	// If the remote storage requires additional authorization information, set this secret reference
 	// +optional
-	Path string `json:"path,omitempty"`
+	SecretRef *corev1.LocalObjectReference `json:"secretRef,omitempty"`
 }
 
 // MountOptions aa
@@ -105,16 +102,22 @@ type RuntimeStates struct {
 	ReadyReplicas *int32 `json:"readyReplicas,omitempty"`
 }
 
+// JobsName record the name of jobs triggered by SampleSet controller, it should store and load atomically.
+type JobsName struct {
+	// the name of sync data job, used by controller to request runtime server for get job information.
+	SyncJobName types.UID `json:"syncJobName,omitempty"`
+	// the name of clear cache job, use by controller to request runtime server in delete resource phase.
+	ClearJobName types.UID `json:"clearJobName,omitempty"`
+}
+
 // SampleSetSpec defines the desired state of SampleSet
 type SampleSetSpec struct {
 	// Partitions is the number of SampleSet partitions, partition means cache node.
 	// +kubebuilder:validation:Minimum=1
 	// +required
 	Partitions int32 `json:"partitions,omitempty"`
-	// +kubebuilder:validation:MinItems=1
-	// +kubebuilder:validation:UniqueItems=false
 	// +required
-	Sources []Source `json:"sources,omitempty"`
+	Source *Source `json:"source,omitempty"`
 	// SecretRef is reference to the authentication secret for source storage and cache engine.
 	// +required
 	SecretRef *corev1.LocalObjectReference `json:"secretRef,omitempty"`
@@ -145,10 +148,8 @@ type SampleSetStatus struct {
 	CacheStatus *CacheStates `json:"cacheStatus,omitempty"`
 	// RuntimeStatus
 	RuntimeStatus *RuntimeStates `json:"runtimeStatus,omitempty"`
-	// InitSyncJob
-	InitSyncJob string `json:"initSyncJob,omitempty"`
-	// InitWarmupJob
-	InitWarmupJob string `json:"initWarmupJob,omitempty"`
+	// recorde the name of jobs, all names is generate by uuid
+	JobsName *JobsName `json:"jobsName,omitempty"`
 }
 
 //+kubebuilder:object:root=true

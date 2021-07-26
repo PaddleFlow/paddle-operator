@@ -190,7 +190,7 @@ func (j *JuiceFS) getMountOptions(sampleSet *v1alpha1.SampleSet) (string, error)
 	}
 
 	// Get the cache dir set by user, use default path if not set
-	var cacheSize int
+	cacheSize := 0
 	var cacheDir []string
 	if len(sampleSet.Spec.Cache.Levels) > 0 {
 		levels := sampleSet.Spec.Cache.Levels
@@ -208,7 +208,7 @@ func (j *JuiceFS) getMountOptions(sampleSet *v1alpha1.SampleSet) (string, error)
 		// Override cache-dir with the value from Cache Levels
 		if option == JuiceFSCacheDirOption {
 			var cacheDirOption string
-			if len(cacheDir) > 1 {
+			if len(cacheDir) > 0 {
 				cacheDirs := strings.Join(cacheDir, ":")
 				cacheDirOption = JuiceFSCacheDirOption + "=" + cacheDirs
 			} else {
@@ -325,11 +325,13 @@ func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx common.RequestContext
 		},
 	}
 	// construct StatefulSetSpec
+	serviceName := j.GetServiceName(ctx.Req.Name)
 	replicas := ctx.SampleSet.Spec.Partitions
 	spec := appv1.StatefulSetSpec{
 		Replicas: &replicas,
 		Selector: &selector,
 		Template: template,
+		ServiceName: serviceName,
 		PodManagementPolicy: appv1.ParallelPodManagement,
 	}
 	ds.Spec = spec

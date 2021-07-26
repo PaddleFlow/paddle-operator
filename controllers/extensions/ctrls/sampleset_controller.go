@@ -189,7 +189,7 @@ func (s *SampleSetReconcilePhase) deleteResource() (ctrl.Result, error) {
 					common.ErrorDeleteRuntime, e.Error())
 				return utils.RequeueWithError(err)
 			}
-			s.Log.V(1).Info("deleted statefulset")
+			s.Log.V(1).Info("delete statefulset")
 		}
 		utils.RemoveFinalizer(&s.SampleSet.ObjectMeta, runtimeFinalizer)
 		// update SampleSet finalizer
@@ -215,7 +215,38 @@ func (s *SampleSetReconcilePhase) deleteResource() (ctrl.Result, error) {
 		return utils.RequeueAfter(5 * time.Second)
 	}
 
-	// 5. delete pvc
+	// 5. delete runtime service
+	serviceFinalizer := GetServiceFinalizer(sampleSetName)
+	if utils.HasFinalizer(&s.SampleSet.ObjectMeta, serviceFinalizer) {
+		serviceName := s.GetServiceName(sampleSetName)
+		serviceKey := client.ObjectKey{
+			Name: serviceName,
+			Namespace: s.Req.Namespace,
+		}
+
+		service := &v1.Service{}
+		err := s.Get(s.Ctx, serviceKey, service)
+		if client.IgnoreNotFound(err) != nil {
+			return utils.RequeueWithError(err)
+		}
+		if err == nil {
+			if e := s.Delete(s.Ctx, service); e != nil {
+				s.Recorder.Event(s.SampleSet, v1.EventTypeWarning,
+					common.ErrorDeleteService, e.Error())
+				return utils.RequeueWithError(err)
+			}
+			s.Log.V(1).Info("delete service")
+		}
+		utils.RemoveFinalizer(&s.SampleSet.ObjectMeta, serviceFinalizer)
+		// update SampleSet finalizer
+		if err := s.Update(s.Ctx, s.SampleSet); err != nil {
+			return utils.RequeueWithError(err)
+		}
+		s.Log.V(1).Info("remove service finalizer")
+		return utils.NoRequeue()
+	}
+
+	// 6. delete pvc
 	pvcFinalizer := GetPVCFinalizer(sampleSetName)
 	if utils.HasFinalizer(&s.SampleSet.ObjectMeta, pvcFinalizer) {
 		pvc := &v1.PersistentVolumeClaim{}
@@ -236,7 +267,7 @@ func (s *SampleSetReconcilePhase) deleteResource() (ctrl.Result, error) {
 		s.Log.V(1).Info("remove pvc finalizer")
 	}
 
-	// 6. delete pv
+	// 7. delete pv
 	pvFinalizer := GetPVFinalizer(sampleSetName)
 	if utils.HasFinalizer(&s.SampleSet.ObjectMeta, pvFinalizer) {
 		pv := &v1.PersistentVolume{}
@@ -257,7 +288,7 @@ func (s *SampleSetReconcilePhase) deleteResource() (ctrl.Result, error) {
 		s.Log.V(1).Info("remove pv finalizer")
 	}
 
-	// 7. remove SampleSet finalizer and update SampleSet
+	// 8. remove SampleSet finalizer and update SampleSet
 	sampleSetFinalizer := GetSampleSetFinalizer(sampleSetName)
 	if utils.HasFinalizer(&s.SampleSet.ObjectMeta, sampleSetFinalizer) {
 		utils.RemoveFinalizer(&s.SampleSet.ObjectMeta, sampleSetFinalizer)
@@ -348,7 +379,7 @@ func (s *SampleSetReconcilePhase) reconcileNone() (ctrl.Result, error) {
 		return utils.RequeueWithError(e)
 	}
 	s.SampleSet.Finalizers = append(s.SampleSet.Finalizers, GetPVFinalizer(sampleSetName))
-	s.Log.V(1).Info("create pv successfully")
+	s.Log.V(1).Info("create pv successful")
 
 	// 4. check if persistent volume claim is exist and have same name as the SampleSet
 	pvc := &v1.PersistentVolumeClaim{}
@@ -387,7 +418,7 @@ func (s *SampleSetReconcilePhase) reconcileNone() (ctrl.Result, error) {
 		e := fmt.Errorf("update sampleset %s error: %s", namespacedName, err.Error())
 		return utils.RequeueWithError(e)
 	}
-	s.Log.V(1).Info("update sampleset finalizer successful")
+	s.Log.V(1).Info("update sampleset pv/pvc finalizer successful")
 
 	s.Recorder.Eventf(s.SampleSet, v1.EventTypeNormal, common.NormalCreate,
 		"create pv and pvc: %s successful", sampleSetName)
@@ -399,13 +430,55 @@ func (s *SampleSetReconcilePhase) reconcileNone() (ctrl.Result, error) {
 func (s *SampleSetReconcilePhase) reconcileBound() (ctrl.Result, error) {
 	s.Log.WithName("reconcileBound")
 	runtimeName := s.GetRuntimeName(s.Req.Name)
+	serviceName := s.GetServiceName(s.Req.Name)
 	runtimeKey := client.ObjectKey{
 		Name: runtimeName,
 		Namespace: s.Req.Namespace,
 	}
+	serviceKey := client.ObjectKey{
+		Name: serviceName,
+		Namespace: s.Req.Namespace,
+	}
 	statefulSetName := runtimeKey.String()
+	rc := common.RequestContext{
+		Req: s.Req,
+		SampleSet: s.SampleSet,
+	}
 
-	// 1. check if StatefulSet is already exist
+	// 1. create service for runtime StatefulSet
+	service := &v1.Service{}
+	if err := s.Get(s.Ctx, serviceKey, service); err != nil {
+		if client.IgnoreNotFound(err) != nil {
+			e := fmt.Errorf("get service %s error: %s", serviceName, err.Error())
+			return utils.RequeueWithError(e)
+		}
+		// if service is not exist then create service for runtime server
+		if err := s.CreateService(service, rc); err != nil {
+			e := fmt.Errorf("create service %s error: %s", serviceName, err.Error())
+			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorCreateService, e.Error())
+			return utils.NoRequeue()
+		}
+		if err := s.Create(s.Ctx, service); err != nil {
+			e := fmt.Errorf("create service %s error: %s", serviceName, err.Error())
+			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorCreateService, e.Error())
+			return utils.RequeueWithError(e)
+		}
+		s.Log.V(1).Info("create service successful")
+
+		// update SampleSet finalizer
+		s.SampleSet.Finalizers = append(s.SampleSet.Finalizers, GetServiceFinalizer(s.Req.Name))
+		if err := s.Update(s.Ctx, s.SampleSet); err != nil {
+			e := fmt.Errorf("update sampleset %s error: %s", statefulSetName, err.Error())
+			return utils.RequeueWithError(e)
+		}
+		s.Log.V(1).Info("update sampleset service finalizer successful")
+		s.Recorder.Eventf(s.SampleSet, v1.EventTypeNormal, common.NormalCreate,
+			"create service: %s successful", serviceName)
+		return utils.NoRequeue()
+	}
+	rc.Service = service
+
+	// 2. check if StatefulSet is already exist
 	statefulSet := &appv1.StatefulSet{}
 	err := s.Get(s.Ctx, runtimeKey, statefulSet)
 	if err == nil {
@@ -478,7 +551,7 @@ func (s *SampleSetReconcilePhase) reconcileBound() (ctrl.Result, error) {
 		return utils.RequeueWithError(e)
 	}
 
-	// 2. get pv info and construct request context
+	// 3. get persistent volume and set to reconcile context
 	pv := &v1.PersistentVolume{}
 	volumeName := s.Req.Name
 	volumeKey := client.ObjectKey{Name: volumeName}
@@ -486,9 +559,9 @@ func (s *SampleSetReconcilePhase) reconcileBound() (ctrl.Result, error) {
 		e := fmt.Errorf("get pv %s error: %s", volumeName, err.Error())
 		return utils.RequeueWithError(e)
 	}
-	rc := common.RequestContext{Req: s.Req, SampleSet: s.SampleSet, PV: pv}
+	rc.PV = pv
 
-	// 3. create runtime StatefulSet
+	// 4. create runtime StatefulSet
 	if err := s.CreateRuntime(statefulSet, rc); err != nil {
 		e := fmt.Errorf("create runtime %s error: %s", statefulSetName, err.Error())
 		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorCreateRuntime, e.Error())
@@ -501,13 +574,13 @@ func (s *SampleSetReconcilePhase) reconcileBound() (ctrl.Result, error) {
 	}
 	s.Log.V(1).Info("create runtime successful")
 
-	// 4. add runtime finalizer to SampleSet and update SampleSet
+	// 5. add runtime finalizer to SampleSet and update SampleSet
 	s.SampleSet.Finalizers = append(s.SampleSet.Finalizers, GetRuntimeFinalizer(volumeName))
 	if err := s.Update(s.Ctx, s.SampleSet); err != nil {
 		e := fmt.Errorf("update sampleset %s error: %s", statefulSetName, err.Error())
 		return utils.RequeueWithError(e)
 	}
-	s.Log.V(1).Info("update sampleset finalizer successful")
+	s.Log.V(1).Info("update sampleset runtime finalizer successful")
 
 	s.Recorder.Eventf(s.SampleSet, v1.EventTypeNormal, common.NormalCreate,
 		"create statefulset: %s successful", statefulSetName)
@@ -573,6 +646,10 @@ func GetPVFinalizer(name string) string {
 
 func GetPVCFinalizer(name string) string {
 	return common.PaddleLabel + "/" + "pvc-" + name
+}
+
+func GetServiceFinalizer(name string) string {
+	return common.PaddleLabel + "/" + "service" + name
 }
 
 func GetRuntimeFinalizer(name string) string {

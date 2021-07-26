@@ -4,14 +4,15 @@ metadata:
   name: imagenet
 spec:
   partitions: 2
-  sources:
-    - uri: https://imagenet.bj.bcebos.com/juicefs
-      name: imagenet
+  source:
+    uri: https://imagenet.bj.bcebos.com/juicefs
   secretRef:
     name: imagenet
   csi:
     driver: juicefs
     juiceFSMountOptions:
+      cache-size: 10240
+      open-cache: 2048
   cache:
     levels:
       - mediumType: MEM
