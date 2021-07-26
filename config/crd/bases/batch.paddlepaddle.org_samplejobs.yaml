@@ -35,7 +35,7 @@ spec:
                 type: object
               rmrOptions:
                 properties:
-                  start:
+                  path:
                     type: string
                 type: object
               sampleset:
@@ -45,7 +45,43 @@ spec:
                 type: string
               syncOptions:
                 properties:
+                  bwlimit:
+                    type: integer
+                  delete-dst:
+                    type: boolean
+                  delete-src:
+                    type: boolean
+                  destination:
+                    type: string
+                  dirs:
+                    type: boolean
+                  dry:
+                    type: boolean
+                  end:
+                    type: string
+                  exclude:
+                    type: string
+                  force-update:
+                    type: boolean
+                  http-port:
+                    type: integer
+                  include:
+                    type: string
+                  manager:
+                    type: string
+                  no-https:
+                    type: boolean
+                  perms:
+                    type: boolean
                   source:
+                    type: string
+                  start:
+                    type: string
+                  threads:
+                    type: integer
+                  update:
+                    type: boolean
+                  worker:
                     type: string
                 type: object
               type:
@@ -57,8 +93,14 @@ spec:
                 type: string
               warmupOptions:
                 properties:
-                  start:
+                  file:
                     type: string
+                  path:
+                    items:
+                      type: string
+                    type: array
+                  threads:
+                    type: integer
                 type: object
             type: object
           status:

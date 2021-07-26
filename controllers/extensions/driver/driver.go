@@ -50,10 +50,16 @@ type Driver interface {
 	// GetLabel get the label to mark pv、pvc and nodes which have cached data
 	GetLabel(sampleSetName string) string
 
-	// CreateRuntime create
+	// CreateService create a service for runtime StatefulSet
+	CreateService(service *v1.Service, ctx common.RequestContext) error
+
+	// GetServiceName get the name of runtime StatefulSet service
+	GetServiceName(sampleSetName string) string
+
+	// CreateRuntime create runtime StatefulSet to manager cache data
 	CreateRuntime(ds *appv1.StatefulSet, ctx common.RequestContext) error
 
-	// GetRuntimeName a
+	// GetRuntimeName get the runtime StatefulSet name
 	GetRuntimeName(sampleSetName string) string
 
 	CreateSyncJob(job *v1alpha1.SampleJob, ctx common.RequestContext) error
@@ -110,6 +116,43 @@ func (d *BaseDriver) CreatePVC(pvc *v1.PersistentVolumeClaim, ctx common.Request
 	return nil
 }
 
+// CreateService create service for runtime StatefulSet server
+func (d *BaseDriver) CreateService(service *v1.Service, ctx common.RequestContext) error {
+	label := d.GetLabel(ctx.Req.Name)
+	serviceName := d.GetServiceName(ctx.Req.Name)
+	objectMeta := metav1.ObjectMeta{
+		Name: serviceName,
+		Namespace: ctx.Req.Namespace,
+		Labels: map[string]string{
+			label: "true",
+		},
+		Annotations: map[string]string{
+			"CreatedBy": common.PaddleOperatorLabel,
+		},
+	}
+	service.ObjectMeta = objectMeta
+
+	runtimeName := d.GetRuntimeName(ctx.Req.Name)
+	selector := map[string]string{
+		label: "true",
+		"name": runtimeName,
+	}
+
+	port := v1.ServicePort{
+		Name: common.RuntimeServiceName,
+		Port: common.RuntimeServicePort,
+	}
+
+	spec := v1.ServiceSpec{
+		Selector: selector,
+		Ports: []v1.ServicePort{port},
+		ClusterIP: "None",
+	}
+	service.Spec = spec
+
+	return nil
+}
+
 // GetLabel label is concatenated by PaddleLabel、driver name and SampleSet name
 func (d *BaseDriver) GetLabel(sampleSetName string) string {
 	return common.PaddleLabel + "/" +  string(d.Name) + "-" + sampleSetName
@@ -117,6 +160,10 @@ func (d *BaseDriver) GetLabel(sampleSetName string) string {
 
 func (d *BaseDriver) GetRuntimeName(sampleSetName string) string {
 	return sampleSetName + "-" + common.RuntimeContainerName
+}
+
+func (d *BaseDriver) GetServiceName(sampleSetName string) string {
+	return d.GetRuntimeName(sampleSetName) + "-" + common.RuntimeServiceName
 }
 
 func (d *BaseDriver) getRuntimeCacheMountPath(name string) string {

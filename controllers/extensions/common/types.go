@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sync/atomic"
 )
 
 type ReconcileContext struct {
@@ -57,7 +58,12 @@ type RequestContext struct {
 
 	//
 	PV *v1.PersistentVolume
+
+	Service *v1.Service
 }
+
+type JobsName atomic.Value
+
 
 // RootCmdOptions the
 type RootCmdOptions struct {

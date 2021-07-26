@@ -85,9 +85,14 @@ const (
 
 	ErrorSSAlreadyExist = "ErrorStatefulSetAlreadyExist"
 
+	ErrorCreateService = "ErrorCreateService"
+
 	ErrorCreateRuntime = "ErrorCreateRuntime"
 
 	ErrorDeleteRuntime = "ErrorDeleteRuntime"
+
+	ErrorDeleteService = "ErrorDeleteService"
+
 	ErrorDeletePVC = "ErrorDeletePersistentVolumeClaim"
 	ErrorDeletePV = "ErrorDeletePersistentVolume"
 	ErrorDeleteSampleSet = "ErrorDeleteSampleSet"
@@ -112,6 +117,12 @@ const (
 	RuntimeContainerName = "runtime"
 	RuntimeCacheMountPath = "/cache"
 	RuntimeDateMountPath = "/mnt"
+)
+
+const (
+	RuntimeServiceName = "service"
+	RuntimeServicePort = 80
+	//RuntimeServicePort = 7716
 )
 
 const (
