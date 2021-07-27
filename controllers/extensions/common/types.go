@@ -64,14 +64,18 @@ type RequestContext struct {
 
 type JobsName atomic.Value
 
-
 // RootCmdOptions the
 type RootCmdOptions struct {
-	Driver string `json:"driver,omitempty"`
+	// container storage interface driver name,
+	// the value of it should in v1alpha1.DriverName
+	Driver string
+	// configures the logger to use a Zap development config
+	Development bool
 }
 
+type JobStatus string
 
-// RuntimeServerOptions the options of runtime server
-type RuntimeServerOptions struct {
-
+type JobResult struct {
+	Status  JobStatus `json:"status,omitempty"`
+	Message string    `json:"message,omitempty"`
 }

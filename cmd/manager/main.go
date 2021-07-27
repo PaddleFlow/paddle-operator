@@ -15,21 +15,22 @@
 package main
 
 import (
+	"log"
 	"os"
+
+	"github.com/spf13/cobra"
 
 	"github.com/paddleflow/paddle-operator/api/v1alpha1"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
-	"github.com/spf13/cobra"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/manager"
 )
 
 var (
+	rootCmdOptions common.RootCmdOptions
 	rmrJobOptions v1alpha1.RmrJobOptions
 	syncJobOptions v1alpha1.SyncJobOptions
 	clearJobOptions v1alpha1.ClearJobOptions
 	warmupJobOptions v1alpha1.WarmupJobOptions
-
-	rootCmdOptions common.RootCmdOptions
-	runtimeServerOptions common.RuntimeServerOptions
 )
 
 var rootCmd = &cobra.Command{
@@ -38,15 +39,19 @@ var rootCmd = &cobra.Command{
 }
 
 var serverCmd = &cobra.Command{
-	Use: "server",
-	Short: "run server",
+	Use: common.CmdServer,
+	Short: "run data management server",
 	Run: func(cmd *cobra.Command, args []string) {
-		println("server ...")
+		server, err := manager.NewServer(&rootCmdOptions)
+		if err != nil {
+			log.Fatalf("create server error: %s", err.Error())
+		}
+		log.Fatal(server.Run())
 	},
 }
 
 var syncJobCmd = &cobra.Command{
-	Use:   common.SyncJobCmd,
+	Use:   common.CmdSync,
 	Short: "sync data or metadata from source to the cache engine",
 	Run: func(cmd *cobra.Command, args []string) {
 		println("sync job ...")
@@ -54,7 +59,7 @@ var syncJobCmd = &cobra.Command{
 }
 
 var warmupJobCmd = &cobra.Command{
-	Use:   common.WarmupJobCmd,
+	Use:   common.CmdWarmup,
 	Short: "warm up data from remote storage to local host",
 	Run: func(cmd *cobra.Command, args []string) {
 		println("warmup job ...")
@@ -62,7 +67,7 @@ var warmupJobCmd = &cobra.Command{
 }
 
 var rmrJobCmd = &cobra.Command{
-	Use:   common.RmrJobCmd,
+	Use:   common.CmdRmr,
 	Short: "remove data from cache engine storage backend",
 	Run: func(cmd *cobra.Command, args []string) {
 		println("rmr job ...")
@@ -77,11 +82,10 @@ var clearJobCmd = &cobra.Command{
 	},
 }
 
-func initSyncJobOptions() {
+func init() {
 	// initialize options for root command
-	rootCmd.PersistentFlags().StringVar(&rootCmdOptions.Driver, "driver", "juicefs", "specify the cache engine")
-
-	// initialize options for runtime server
+	rootCmd.PersistentFlags().StringVar(&rootCmdOptions.Driver, "driver", "juicefs", "specify the cache engine (default: juicefs)")
+	rootCmd.PersistentFlags().BoolVar(&rootCmdOptions.Development, "development", true, "configures the logger to use a Zap development config")
 
 	// initialize options for sync job command
 	syncJobCmd.Flags().StringVar(&syncJobOptions.Source, "source", "", "data source that need sync to cache engine")
@@ -109,11 +113,6 @@ func initSyncJobOptions() {
 	warmupJobCmd.Flags().StringVar(&warmupJobOptions.File, "file", "", "file containing a list of paths")
 	warmupJobCmd.Flags().IntVar(&warmupJobOptions.Threads, "threads", 50, "number of concurrent workers (default: 50)")
 
-
-}
-
-func init() {
-	initSyncJobOptions()
 
 	rootCmd.AddCommand(serverCmd, syncJobCmd, warmupJobCmd, rmrJobCmd, clearJobCmd)
 }

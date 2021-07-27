@@ -62,7 +62,11 @@ type Driver interface {
 	// GetRuntimeName get the runtime StatefulSet name
 	GetRuntimeName(sampleSetName string) string
 
-	CreateSyncJob(job *v1alpha1.SampleJob, ctx common.RequestContext) error
+	//CreateSyncJob(job *v1alpha1.SampleJob, ctx common.RequestContext) error
+
+	DoSyncJob(opt *v1alpha1.SyncJobOptions) error
+
+	DoClearJob(opt *v1alpha1.ClearJobOptions) error
 }
 
 // GetDriver get csi driver by name, return error if not found
@@ -150,6 +154,11 @@ func (d *BaseDriver) CreateService(service *v1.Service, ctx common.RequestContex
 	}
 	service.Spec = spec
 
+	return nil
+}
+
+// DoClearJob clear the cache data in folders specified by options
+func (d *BaseDriver) DoClearJob(opt *v1alpha1.ClearJobOptions) error {
 	return nil
 }
 

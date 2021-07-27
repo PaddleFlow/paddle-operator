@@ -61,12 +61,12 @@ func TestGetMountOptions(t *testing.T) {
 			Cache: v1alpha1.Cache{
 				Levels: []v1alpha1.CacheLevel{
 					{
-						MediumType: common.Memory,
+						MediumType: common.MediumTypeMEM,
 						Path: "/dev/shm/imagenet-0:/dev/shm/imagenet-1",
 						CacheSize: 150,
 					},
 					{
-						MediumType: common.SSD,
+						MediumType: common.MediumTypeSSD,
 						Path: "/data/imagenet",
 						CacheSize: 150,
 					},
@@ -131,5 +131,9 @@ func TestGetVolumeInfo(t *testing.T) {
 	if len(volumes) != 4 || len(volumeMounts) != 4 {
 		t.Errorf("len of volumes or volumeMounts not right \n")
 	}
+
+}
+
+func TestJuiceFS_DoSyncJob(t *testing.T) {
 
 }
