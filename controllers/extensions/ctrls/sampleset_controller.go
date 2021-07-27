@@ -116,7 +116,7 @@ func (r *SampleSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
 		&v1.Event{},
-		common.EventIndexerKey,
+		common.IndexerKeyEvent,
 		EventIndexerFunc); err != nil {
 		return err
 	}
@@ -420,7 +420,7 @@ func (s *SampleSetReconcilePhase) reconcileNone() (ctrl.Result, error) {
 	}
 	s.Log.V(1).Info("update sampleset pv/pvc finalizer successful")
 
-	s.Recorder.Eventf(s.SampleSet, v1.EventTypeNormal, common.NormalCreate,
+	s.Recorder.Eventf(s.SampleSet, v1.EventTypeNormal, common.EventCreate,
 		"create pv and pvc: %s successful", sampleSetName)
 	//return utils.RequeueAfter(1 * time.Second)
 	return utils.NoRequeue()
@@ -472,7 +472,7 @@ func (s *SampleSetReconcilePhase) reconcileBound() (ctrl.Result, error) {
 			return utils.RequeueWithError(e)
 		}
 		s.Log.V(1).Info("update sampleset service finalizer successful")
-		s.Recorder.Eventf(s.SampleSet, v1.EventTypeNormal, common.NormalCreate,
+		s.Recorder.Eventf(s.SampleSet, v1.EventTypeNormal, common.EventCreate,
 			"create service: %s successful", serviceName)
 		return utils.NoRequeue()
 	}
@@ -527,7 +527,7 @@ func (s *SampleSetReconcilePhase) reconcileBound() (ctrl.Result, error) {
 		var eventList v1.EventList
 		values := []string{"Pod", s.Req.Namespace, runtimeName+"-0", "Warning"}
 		fOpt := client.MatchingFields{
-			common.EventIndexerKey: strings.Join(values, "-"),
+			common.IndexerKeyEvent: strings.Join(values, "-"),
 		}
 		nOpt := client.InNamespace(s.Req.Namespace)
 		lOpt := client.Limit(1)
@@ -582,7 +582,7 @@ func (s *SampleSetReconcilePhase) reconcileBound() (ctrl.Result, error) {
 	}
 	s.Log.V(1).Info("update sampleset runtime finalizer successful")
 
-	s.Recorder.Eventf(s.SampleSet, v1.EventTypeNormal, common.NormalCreate,
+	s.Recorder.Eventf(s.SampleSet, v1.EventTypeNormal, common.EventCreate,
 		"create statefulset: %s successful", statefulSetName)
 	return utils.NoRequeue()
 }

@@ -20,6 +20,10 @@ import (
 	"github.com/paddleflow/paddle-operator/controllers/extensions/driver"
 )
 
+type Command interface {
+	Run()
+}
+
 type Job interface {
 
 }
