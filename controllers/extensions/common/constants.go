@@ -93,13 +93,13 @@ const (
 )
 
 const (
-	RuntimeServiceName = "service"
 	RuntimeServicePort = 7716
+	RuntimeServiceName = "service"
 )
 
 const (
 	PathUploadPrefix = "/upload"
-	PathServerRoot   = "/Users/chenenquan/Desktop/runtime"
+	PathServerRoot   = "/runtime"
 	PathCacheInfo    = "/cacheInfo"
 	PathSyncResult   = "/syncResult"
 	PathClearResult  = "/clearResult"

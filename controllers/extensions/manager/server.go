@@ -15,6 +15,7 @@
 package manager
 
 import (
+	"errors"
 	"fmt"
 	"github.com/go-logr/logr"
 	"github.com/paddleflow/paddle-operator/api/v1alpha1"
@@ -38,26 +39,31 @@ type Server struct {
 	driver.Driver
 	Log logr.Logger
 
-	watcher *fsnotify.Watcher
-	opt *common.RootCmdOptions
-	doers map[string]func([]byte)error
+	watcher   *fsnotify.Watcher
+	svrOpt    *common.ServerOptions
+	rootOpt   *common.RootCmdOptions
+	doers     map[string]func([]byte)error
+	optResMap map[string]string
 }
 
-func NewServer(opt *common.RootCmdOptions) (*Server, error) {
-	driverName := v1alpha1.DriverName(opt.Driver)
+func NewServer(rootOpt *common.RootCmdOptions, svrOpt *common.ServerOptions) (*Server, error) {
+	driverName := v1alpha1.DriverName(rootOpt.Driver)
 	csiDriver, err :=  driver.GetDriver(driverName)
 	if err != nil {
 		return nil, err
 	}
+	if !strings.HasPrefix(svrOpt.Path, "/") {
+		return nil, fmt.Errorf("path must begin with /")
+	}
 
 	// configure zap log and create a logger
 	zapLog := zap.New(func(o *zap.Options) {
-		o.Development = opt.Development
+		o.Development = rootOpt.Development
 	}, func(o *zap.Options) {
 		o.ZapOpts = append(o.ZapOpts, zapOpt.AddCaller())
 	},
 	func(o *zap.Options) {
-		if !opt.Development {
+		if !rootOpt.Development {
 			encCfg := zapOpt.NewProductionEncoderConfig()
 			encCfg.EncodeLevel = zapcore.CapitalLevelEncoder
 			encCfg.EncodeTime = zapcore.ISO8601TimeEncoder
@@ -72,10 +78,11 @@ func NewServer(opt *common.RootCmdOptions) (*Server, error) {
 	}
 
 	server := &Server{
-		opt: opt,
-		Log: zapLog,
+		rootOpt: rootOpt,
+		svrOpt:  svrOpt,
+		Log:     zapLog,
 		watcher: watcher,
-		Driver: csiDriver,
+		Driver:  csiDriver,
 	}
 	return server, nil
 }
@@ -84,7 +91,15 @@ func NewServer(opt *common.RootCmdOptions) (*Server, error) {
 func (s *Server) Run() error {
 	defer s.watcher.Close()
 
-	if err := addStaticHandlers(
+	// add job doer for watcher's event
+	s.doers[common.PathSyncOptions] = s.doSync
+	s.doers[common.PathClearOptions] = s.doClear
+	// add options to result map key-value pair
+	s.optResMap[common.PathSyncOptions] = common.PathSyncResult
+	s.optResMap[common.PathClearOptions] = common.PathClearResult
+
+	// add static file server handlers
+	if err := s.addStaticHandlers(
 		common.PathCacheInfo,
 		common.PathSyncResult,
 		common.PathClearResult,
@@ -93,22 +108,18 @@ func (s *Server) Run() error {
 		); err != nil {
 		return err
 	}
-	addUploadHandlers(s,
-		common.PathSyncOptions,
-		common.PathUploadPrefix,
-		)
 
-	if err := addWatchDirs(
-		s.watcher,
+	// add upload option file handlers
+	s.addUploadHandlers(
+		common.PathSyncOptions,
+		common.PathUploadPrefix)
+
+	if err := s.addWatchDirs(
 		common.PathSyncOptions,
 		common.PathClearOptions,
 	); err != nil {
 		return err
 	}
-
-	// add job doer for watcher's event
-	s.doers[common.PathSyncOptions] = s.doSync
-	s.doers[common.PathClearOptions] = s.doClear
 
 	go s.watchAndDo()
 
@@ -147,7 +158,7 @@ func (s *Server) uploadHandleFunc(pattern string) func(w http.ResponseWriter, re
 			s.Log.Error(e, "can not get filename from request header")
 		}
 
-		dirPath := common.PathServerRoot + pattern
+		dirPath := s.svrOpt.Path + pattern
 		filePath := dirPath + "/" + fileName
 		err = ioutil.WriteFile(filePath, body, os.ModePerm)
 		if err != nil {
@@ -187,30 +198,64 @@ func (s *Server) handleEvent(event fsnotify.Event) {
 	case common.PathClearOptions:
 		s.do(common.PathClearOptions, event.Name)
 	default:
-		err := fmt.Errorf()
-		s.Log.Error(err, "")
+		err := fmt.Errorf("extract pattern error")
+		s.Log.Error(err, "can not deal with none")
 	}
 }
 
 func (s *Server) do(pattern string, optionFile string) {
-	result := common.JobResult{}
-	// 1. 创建结果文件
 	body, err := ioutil.ReadFile(optionFile)
 	if err != nil {
-
+		msg := fmt.Sprintf("read file %s error: %s", optionFile, err.Error())
+		s.writeResultFile(common.JobStatusFail, msg, pattern, optionFile)
+		return
 	}
 
 	doer, exist := s.doers[pattern]
 	if !exist {
-
+		msg := fmt.Sprintf("can not find pattern's doer")
+		s.writeResultFile(common.JobStatusFail, msg, pattern, optionFile)
+		return
 	}
+	s.writeResultFile(common.JobStatusRunning, "", pattern, optionFile)
 
 	if err := doer(body); err != nil {
-
+		s.writeResultFile(common.JobStatusFail, err.Error(), pattern, optionFile)
+		return
 	}
 
-	// 2. 执行相关命令
-	// 3. 更新结果文件
+	s.writeResultFile(common.JobStatusSuccess, "", pattern, optionFile)
+}
+
+func (s *Server) writeResultFile(status common.JobStatus, message string, pattern string, optionFile string) {
+	s.Log.WithValues("pattern", pattern)
+	if message != "" {
+		err := errors.New(message)
+		s.Log.Error(err, "")
+	}
+	result := common.JobResult{
+		Status: status,
+		Message: message,
+	}
+	body, err := json.Marshal(result)
+	if err != nil {
+		s.Log.Error(err, "marshal result error", "result", result)
+		return
+	}
+
+	resultPath, exist := s.optResMap[pattern]
+	if !exist {
+		s.Log.Error(errors.New("result pattern not find"), "")
+		return
+	}
+
+	optionPaths := strings.Split(optionFile, "/")
+	filename := optionPaths[len(optionPaths)-1]
+	filePath := s.svrOpt.Path + resultPath + "/" + filename
+
+	if err := ioutil.WriteFile(filePath, body, os.ModePerm); err != nil {
+		s.Log.Error(err, "write file error", "file", filePath)
+	}
 }
 
 func (s *Server) doSync(body []byte) error {
@@ -231,9 +276,9 @@ func (s *Server) doClear(body []byte) error {
 	return s.DoClearJob(opt)
 }
 
-func addWatchDirs(watcher *fsnotify.Watcher, patterns... string) error {
+func (s *Server) addWatchDirs(patterns... string) error {
 	for _, pattern := range patterns {
-		err := watcher.Add(common.PathServerRoot +pattern)
+		err := s.watcher.Add(s.svrOpt.Path+pattern)
 		if err != nil {
 			return fmt.Errorf("add watcher dir %s error", pattern)
 		}
@@ -241,12 +286,12 @@ func addWatchDirs(watcher *fsnotify.Watcher, patterns... string) error {
 	return nil
 }
 
-func addStaticHandlers(patterns... string) error {
+func (s *Server) addStaticHandlers(patterns... string) error {
 	// Add static file server
-	http.Handle("/", http.FileServer(http.Dir(common.PathServerRoot)))
+	http.Handle("/", http.FileServer(http.Dir(s.svrOpt.Path)))
 
 	for _, pattern := range patterns {
-		path := common.PathServerRoot + pattern
+		path := s.svrOpt.Path + pattern
 		if _, err := os.Stat(path); err != nil {
 			if !os.IsNotExist(err) {
 				return err
@@ -264,7 +309,7 @@ func addStaticHandlers(patterns... string) error {
 	return nil
 }
 
-func addUploadHandlers(s *Server, patterns... string) {
+func (s *Server) addUploadHandlers(patterns... string) {
 	for _, pattern := range patterns {
 		uploadUrl := common.PathUploadPrefix + pattern
 		http.HandleFunc(uploadUrl, s.uploadHandleFunc(pattern))

@@ -73,6 +73,11 @@ type RootCmdOptions struct {
 	Development bool
 }
 
+type ServerOptions struct {
+	Port int `json:"port,omitempty"`
+	Path string `json:"path,omitempty"`
+}
+
 type JobStatus string
 
 type JobResult struct {

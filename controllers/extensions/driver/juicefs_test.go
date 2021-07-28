@@ -23,8 +23,7 @@ import (
 	"testing"
 )
 
-// TestGetMountOptions
-func TestGetMountOptions(t *testing.T) {
+func TestJuiceFS_getMountOptions(t *testing.T) {
 	mountOptions := v1alpha1.MountOptions{
 		JuiceFSMountOptions: &v1alpha1.JuiceFSMountOptions{
 			OpenCache: 7200,
@@ -105,8 +104,7 @@ func TestGetMountOptions(t *testing.T) {
 	t.Log("mountOptions: ", options)
 }
 
-// TestGetVolumeInfo
-func TestGetVolumeInfo(t *testing.T) {
+func TestJuiceFS_getVolumeInfo(t *testing.T) {
 	mountOptions := "dir-entry-cache=7200,buffer-size=1024,prefetch=1,cache-dir=/dev/shm/imagenet:/data/imagenet:/dev/ssd/imagenet,cache-size=1048576"
 	pv := &corev1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{

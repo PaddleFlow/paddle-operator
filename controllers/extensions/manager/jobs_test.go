@@ -12,10 +12,4 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package driver
-
-import "testing"
-
-func TestBaseDriver_DoClearJob(t *testing.T) {
-
-}
+package manager

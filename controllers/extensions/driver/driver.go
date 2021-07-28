@@ -67,6 +67,10 @@ type Driver interface {
 	DoSyncJob(opt *v1alpha1.SyncJobOptions) error
 
 	DoClearJob(opt *v1alpha1.ClearJobOptions) error
+
+	DoWarmupJob(opt *v1alpha1.WarmupJobOptions) error
+
+	DoRmrJob(opt *v1alpha1.RmrJobOptions) error
 }
 
 // GetDriver get csi driver by name, return error if not found
