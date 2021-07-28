@@ -411,11 +411,19 @@ func (j *JuiceFS) getVolumeInfo(pv *v1.PersistentVolume) ([]v1.Volume, []v1.Volu
 	return volumes, volumeMounts, nil
 }
 
+// CreateSyncJob create
+func (j *JuiceFS) CreateSyncJob(job *v1alpha1.SampleJob, ctx common.RequestContext) error {
+	return nil
+}
+
 func (j *JuiceFS) DoSyncJob(opt *v1alpha1.SyncJobOptions) error {
 	return nil
 }
 
-//// CreateSyncJob create
-//func (j *JuiceFS) CreateSyncJob(job *v1alpha1.SampleJob, ctx common.RequestContext) error {
-//	return nil
-//}
+func (j *JuiceFS) DoWarmupJob(opt *v1alpha1.WarmupJobOptions) error {
+	return nil
+}
+
+func (j *JuiceFS) DoRmrJob(opt *v1alpha1.RmrJobOptions) error {
+	return nil
+}

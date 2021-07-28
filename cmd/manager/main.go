@@ -15,6 +15,7 @@
 package main
 
 import (
+	"github.com/paddleflow/paddle-operator/controllers/extensions/driver"
 	"log"
 	"os"
 
@@ -23,6 +24,7 @@ import (
 	"github.com/paddleflow/paddle-operator/api/v1alpha1"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/manager"
+
 )
 
 var (
@@ -55,11 +57,12 @@ var syncJobCmd = &cobra.Command{
 	Use:   common.CmdSync,
 	Short: "sync data or metadata from source to the cache engine",
 	Run: func(cmd *cobra.Command, args []string) {
-		job, err := manager.NewSyncJob(&rootCmdOptions, &syncJobOptions)
+		driverName := v1alpha1.DriverName(rootCmdOptions.Driver)
+		d, err := driver.GetDriver(driverName)
 		if err != nil {
-			log.Fatalf("create sync job error: %s", err.Error())
+			log.Fatalf("get driver %s error: %s", driverName, err.Error())
 		}
-		log.Fatal(job.Run())
+		log.Fatal(d.DoSyncJob(&syncJobOptions))
 	},
 }
 
@@ -67,11 +70,12 @@ var warmupJobCmd = &cobra.Command{
 	Use:   common.CmdWarmup,
 	Short: "warm up data from remote storage to local host",
 	Run: func(cmd *cobra.Command, args []string) {
-		job, err := manager.NewWarmupJob(&rootCmdOptions, &warmupJobOptions)
+		driverName := v1alpha1.DriverName(rootCmdOptions.Driver)
+		d, err := driver.GetDriver(driverName)
 		if err != nil {
-			log.Fatalf("create warmup job error: %s", err.Error())
+			log.Fatalf("get driver %s error: %s", driverName, err.Error())
 		}
-		log.Fatal(job.Run())
+		log.Fatal(d.DoWarmupJob(&warmupJobOptions))
 	},
 }
 
@@ -79,11 +83,12 @@ var rmrJobCmd = &cobra.Command{
 	Use:   common.CmdRmr,
 	Short: "remove data from cache engine storage backend",
 	Run: func(cmd *cobra.Command, args []string) {
-		job, err := manager.NewRmrJob(&rootCmdOptions, &rmrJobOptions)
+		driverName := v1alpha1.DriverName(rootCmdOptions.Driver)
+		d, err := driver.GetDriver(driverName)
 		if err != nil {
-			log.Fatalf("create rmr job error: %s", err.Error())
+			log.Fatalf("get driver %s error: %s", driverName, err.Error())
 		}
-		log.Fatal(job.Run())
+		log.Fatal(d.DoSyncJob(&syncJobOptions))
 	},
 }
 
@@ -91,11 +96,12 @@ var clearJobCmd = &cobra.Command{
 	Use: common.CmdClear,
 	Short: "clear cache data from local host",
 	Run: func(cmd *cobra.Command, args []string) {
-		job, err := manager.NewClearJob(&rootCmdOptions, &clearJobOptions)
+		driverName := v1alpha1.DriverName(rootCmdOptions.Driver)
+		d, err := driver.GetDriver(driverName)
 		if err != nil {
-			log.Fatalf("create clear job error: %s", err.Error())
+			log.Fatalf("get driver %s error: %s", driverName, err.Error())
 		}
-		log.Fatal(job.Run())
+		log.Fatal(d.DoClearJob(&clearJobOptions))
 	},
 }
 
