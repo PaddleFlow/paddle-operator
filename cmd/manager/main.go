@@ -27,6 +27,7 @@ import (
 
 var (
 	rootCmdOptions common.RootCmdOptions
+	serverOptions common.ServerOptions
 	rmrJobOptions v1alpha1.RmrJobOptions
 	syncJobOptions v1alpha1.SyncJobOptions
 	clearJobOptions v1alpha1.ClearJobOptions
@@ -42,7 +43,7 @@ var serverCmd = &cobra.Command{
 	Use: common.CmdServer,
 	Short: "run data management server",
 	Run: func(cmd *cobra.Command, args []string) {
-		server, err := manager.NewServer(&rootCmdOptions)
+		server, err := manager.NewServer(&rootCmdOptions, &serverOptions)
 		if err != nil {
 			log.Fatalf("create server error: %s", err.Error())
 		}
@@ -54,7 +55,11 @@ var syncJobCmd = &cobra.Command{
 	Use:   common.CmdSync,
 	Short: "sync data or metadata from source to the cache engine",
 	Run: func(cmd *cobra.Command, args []string) {
-		println("sync job ...")
+		job, err := manager.NewSyncJob(&rootCmdOptions, &syncJobOptions)
+		if err != nil {
+			log.Fatalf("create sync job error: %s", err.Error())
+		}
+		log.Fatal(job.Run())
 	},
 }
 
@@ -62,7 +67,11 @@ var warmupJobCmd = &cobra.Command{
 	Use:   common.CmdWarmup,
 	Short: "warm up data from remote storage to local host",
 	Run: func(cmd *cobra.Command, args []string) {
-		println("warmup job ...")
+		job, err := manager.NewWarmupJob(&rootCmdOptions, &warmupJobOptions)
+		if err != nil {
+			log.Fatalf("create warmup job error: %s", err.Error())
+		}
+		log.Fatal(job.Run())
 	},
 }
 
@@ -70,15 +79,23 @@ var rmrJobCmd = &cobra.Command{
 	Use:   common.CmdRmr,
 	Short: "remove data from cache engine storage backend",
 	Run: func(cmd *cobra.Command, args []string) {
-		println("rmr job ...")
+		job, err := manager.NewRmrJob(&rootCmdOptions, &rmrJobOptions)
+		if err != nil {
+			log.Fatalf("create rmr job error: %s", err.Error())
+		}
+		log.Fatal(job.Run())
 	},
 }
 
 var clearJobCmd = &cobra.Command{
-	Use: common.ClearJobCmd,
+	Use: common.CmdClear,
 	Short: "clear cache data from local host",
 	Run: func(cmd *cobra.Command, args []string) {
-		println("clear job ...")
+		job, err := manager.NewClearJob(&rootCmdOptions, &clearJobOptions)
+		if err != nil {
+			log.Fatalf("create clear job error: %s", err.Error())
+		}
+		log.Fatal(job.Run())
 	},
 }
 
@@ -86,6 +103,10 @@ func init() {
 	// initialize options for root command
 	rootCmd.PersistentFlags().StringVar(&rootCmdOptions.Driver, "driver", "juicefs", "specify the cache engine (default: juicefs)")
 	rootCmd.PersistentFlags().BoolVar(&rootCmdOptions.Development, "development", true, "configures the logger to use a Zap development config")
+
+	// initialize options for runtime server
+	serverCmd.Flags().IntVar(&serverOptions.Port, "port", common.RuntimeServicePort, "the port for runtime service")
+	serverCmd.Flags().StringVar(&serverOptions.Path, "path", common.PathServerRoot, "the root path for static file service")
 
 	// initialize options for sync job command
 	syncJobCmd.Flags().StringVar(&syncJobOptions.Source, "source", "", "data source that need sync to cache engine")
@@ -109,10 +130,15 @@ func init() {
 	syncJobCmd.Flags().BoolVar(&syncJobOptions.NoHttps, "no-https", false, "do not use HTTPS (default: false)")
 
 	// initialize options for warmup job command
-	warmupJobCmd.Flags().StringSliceVar(&warmupJobOptions.Path, "path", nil, "A list of paths need to build cache")
+	warmupJobCmd.Flags().StringSliceVar(&warmupJobOptions.Paths, "paths", nil, "A list of paths need to build cache")
 	warmupJobCmd.Flags().StringVar(&warmupJobOptions.File, "file", "", "file containing a list of paths")
 	warmupJobCmd.Flags().IntVar(&warmupJobOptions.Threads, "threads", 50, "number of concurrent workers (default: 50)")
 
+	// initialize options for rmr job command
+	rmrJobCmd.Flags().StringSliceVar(&rmrJobOptions.Paths, "paths", nil, "the data mount paths that need to be remove")
+
+	// initialize options for clear job command
+	clearJobCmd.Flags().StringSliceVar(&clearJobOptions.Paths, "paths", nil, "the cache data paths that need to be clear")
 
 	rootCmd.AddCommand(serverCmd, syncJobCmd, warmupJobCmd, rmrJobCmd, clearJobCmd)
 }

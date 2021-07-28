@@ -124,7 +124,7 @@ type JuiceFSWarmupOptions struct {
 	Threads int `json:"threads,omitempty"`
 }
 
-//
+// SyncJobOptions the options for sync data to cache engine
 type SyncJobOptions struct {
 	// data source that need sync to cache engine
 	// +optional
@@ -141,7 +141,7 @@ type SyncJobOptions struct {
 type WarmupJobOptions struct {
 	// A list of paths need to build cache
 	// +optional
-	Path []string `json:"path,omitempty"`
+	Paths []string `json:"paths,omitempty"`
 	//
 	// +optional
 	JuiceFSWarmupOptions `json:",inline"`
@@ -149,10 +149,10 @@ type WarmupJobOptions struct {
 
 // RmrJobOptions the options for remove data from cache engine
 type RmrJobOptions struct {
-	Path string `json:"path,omitempty"`
+	Paths []string `json:"paths,omitempty"`
 }
 
 // ClearJobOptions the options for clear cache from local host
 type ClearJobOptions struct {
-	Path string `json:"start,omitempty"`
+	Paths []string `json:"paths,omitempty"`
 }
