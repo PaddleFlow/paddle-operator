@@ -122,6 +122,7 @@ func (s *Server) Run() error {
 	}
 
 	go s.watchAndDo()
+	go s.writeCacheInfo()
 
 	s.Log.V(1).Info("===== run server ======")
 	addr := fmt.Sprintf(":%d", common.RuntimeServicePort)
@@ -314,6 +315,10 @@ func (s *Server) addUploadHandlers(patterns... string) {
 		uploadUrl := common.PathUploadPrefix + pattern
 		http.HandleFunc(uploadUrl, s.uploadHandleFunc(pattern))
 	}
+}
+
+func (s *Server) writeCacheInfo() {
+
 }
 
 func extractPattern(path string) string {
