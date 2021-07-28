@@ -30,13 +30,17 @@ spec:
             properties:
               clearOptions:
                 properties:
-                  start:
-                    type: string
+                  paths:
+                    items:
+                      type: string
+                    type: array
                 type: object
               rmrOptions:
                 properties:
-                  path:
-                    type: string
+                  paths:
+                    items:
+                      type: string
+                    type: array
                 type: object
               sampleset:
                 minLength: 0
@@ -95,7 +99,7 @@ spec:
                 properties:
                   file:
                     type: string
-                  path:
+                  paths:
                     items:
                       type: string
                     type: array

@@ -17,22 +17,19 @@ package manager
 import (
 	"errors"
 	"fmt"
+	"github.com/fsnotify/fsnotify"
 	"github.com/go-logr/logr"
 	"github.com/paddleflow/paddle-operator/api/v1alpha1"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/driver"
 	zapOpt "go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"io/ioutil"
 	"k8s.io/apimachinery/pkg/util/json"
-	"os"
-	"strings"
-
 	"net/http"
+	"os"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
-	"github.com/fsnotify/fsnotify"
-
-	"github.com/paddleflow/paddle-operator/controllers/extensions/driver"
+	"strings"
 )
 
 type Server struct {
@@ -77,12 +74,18 @@ func NewServer(rootOpt *common.RootCmdOptions, svrOpt *common.ServerOptions) (*S
 		return nil, err
 	}
 
+	// make maps
+	optResMap := make(map[string]string)
+	doer := make(map[string]func([]byte)error)
+
 	server := &Server{
-		rootOpt: rootOpt,
-		svrOpt:  svrOpt,
-		Log:     zapLog,
-		watcher: watcher,
-		Driver:  csiDriver,
+		doers:     doer,
+		rootOpt:   rootOpt,
+		svrOpt:    svrOpt,
+		Log:       zapLog,
+		watcher:   watcher,
+		Driver:    csiDriver,
+		optResMap: optResMap,
 	}
 	return server, nil
 }
@@ -112,7 +115,7 @@ func (s *Server) Run() error {
 	// add upload option file handlers
 	s.addUploadHandlers(
 		common.PathSyncOptions,
-		common.PathUploadPrefix)
+		common.PathClearOptions)
 
 	if err := s.addWatchDirs(
 		common.PathSyncOptions,
@@ -122,7 +125,7 @@ func (s *Server) Run() error {
 	}
 
 	go s.watchAndDo()
-	go s.writeCacheInfo()
+	//go s.writeCacheInfo()
 
 	s.Log.V(1).Info("===== run server ======")
 	addr := fmt.Sprintf(":%d", common.RuntimeServicePort)
@@ -257,9 +260,11 @@ func (s *Server) writeResultFile(status common.JobStatus, message string, patter
 	if err := ioutil.WriteFile(filePath, body, os.ModePerm); err != nil {
 		s.Log.Error(err, "write file error", "file", filePath)
 	}
+	s.Log.V(1).Info("write result success", "file", filePath, "result", result)
 }
 
 func (s *Server) doSync(body []byte) error {
+	s.Log.V(1).Info("begin do sync")
 	opt := &v1alpha1.SyncJobOptions{}
 	err := json.Unmarshal(body, opt)
 	if err != nil {
@@ -269,6 +274,7 @@ func (s *Server) doSync(body []byte) error {
 }
 
 func (s *Server) doClear(body []byte) error {
+	s.Log.Info("begin do clear")
 	opt := &v1alpha1.ClearJobOptions{}
 	err := json.Unmarshal(body, opt)
 	if err != nil {
@@ -317,9 +323,9 @@ func (s *Server) addUploadHandlers(patterns... string) {
 	}
 }
 
-func (s *Server) writeCacheInfo() {
-
-}
+//func (s *Server) writeCacheInfo() {
+//
+//}
 
 func extractPattern(path string) string {
 	if strings.Contains(path, common.PathSyncOptions) {

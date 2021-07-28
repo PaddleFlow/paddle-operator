@@ -17,43 +17,17 @@ package manager
 import (
 	"bytes"
 	"fmt"
-	"github.com/fsnotify/fsnotify"
 	"github.com/paddleflow/paddle-operator/api/v1alpha1"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/utils"
 	"io/ioutil"
 	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/apimachinery/pkg/util/uuid"
-	"log"
+	"net/http"
 	"os"
-	"strconv"
 	"testing"
 	"time"
 )
-
-type TestServer struct {
-	Server
-}
-
-func (s *TestServer) doSync(body []byte) error {
-	opt := &v1alpha1.SyncJobOptions{}
-	err := json.Unmarshal(body, opt)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("do sync option: %+v\n", opt)
-	return nil
-}
-
-func (s *Server) doClear(body []byte) error {
-	opt := &v1alpha1.ClearJobOptions{}
-	err := json.Unmarshal(body, opt)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("do clear option: %+v\n", opt)
-	return nil
-}
 
 func TestServer_Run(t *testing.T) {
 	rootOpt := &common.RootCmdOptions{
@@ -64,12 +38,36 @@ func TestServer_Run(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	//t.Log("home== ", home)
+	rootPath := home + common.PathServerRoot
+	//t.Log("rootPath== ", rootPath)
 	svrOpt := &common.ServerOptions{
 		Port: common.RuntimeServicePort,
-		Path: home,
+		Path: rootPath,
 	}
 
-	var testSyncOptions = v1alpha1.SyncJobOptions{
+	testDoSync := func(body []byte) error {
+		opt := &v1alpha1.SyncJobOptions{}
+		err := json.Unmarshal(body, opt)
+		if err != nil {
+		return err
+	}
+		//fmt.Println("do sync option: ", opt)
+		return nil
+	}
+
+	testDoClear := func(body []byte) error {
+		opt := &v1alpha1.ClearJobOptions{}
+		err := json.Unmarshal(body, opt)
+		if err != nil {
+		return err
+	}
+		//fmt.Println("do clear option: ", opt)
+		time.Sleep(600 * time.Second)
+		return nil
+	}
+
+	var syncOptions = v1alpha1.SyncJobOptions{
 		Source: "bos://imagenet.bj.bcebos.com/imagenet",
 		Destination: "bos://imagenet.bj.bcebos.com/test",
 		JuiceFSSyncOptions: v1alpha1.JuiceFSSyncOptions{
@@ -80,8 +78,8 @@ func TestServer_Run(t *testing.T) {
 		},
 	}
 
-	var testClearOptions = v1alpha1.ClearJobOptions{
-
+	var clearOptions = v1alpha1.ClearJobOptions{
+		Paths: []string{"/dev/shm/imagenet-0", "/dev/shm/imagenet-1"},
 	}
 
 	server, err := NewServer(rootOpt, svrOpt)
@@ -89,106 +87,123 @@ func TestServer_Run(t *testing.T) {
 		t.Error(err)
 	}
 
-	ioutil.
-
-}
-
-
-func TestUUID (t *testing.T) {
-
-	uid := uuid.NewUUID()
-
-	t.Log(fmt.Sprintf("uuid %s", uid))
-}
-
-func TestMkdir(t *testing.T) {
-	path := "/Users/chenenquan/Desktop/test/test"
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		e := os.Mkdir(path, os.ModePerm)
-		if e != nil {
-			t.Fatal(e)
-		}
-	}
-}
-
-func TestPostGet(t *testing.T) {
-	options := v1alpha1.SyncJobOptions{
-		Source: "test",
-		Destination: "test",
-		JuiceFSSyncOptions: v1alpha1.JuiceFSSyncOptions{
-			Start: "test",
-		},
-	}
-
-	body, err := json.Marshal(options)
-	if err != nil {
-		t.Error(err)
-	}
-
-	resp, err := utils.Post("http://localhost:7716/upload/syncOptions", "test.json", bytes.NewReader(body))
-	if err != nil {
-		t.Error(err)
-	}
-	t.Log(resp.Status)
-
-	resp, err = utils.Get("http://localhost:7716/syncOptions", "test.json")
-	if err != nil {
-		t.Error(err)
-	}
-	content, err := ioutil.ReadAll(resp.Body)
-	resp.Body.Close()
-	if err != nil {
-		t.Error(err)
-	}
-	opt := &v1alpha1.SyncJobOptions{}
-	if err := json.Unmarshal(content, opt); err != nil {
-		t.Error(err)
-	}
-	t.Log("rootOpt===", opt)
-}
-
-func TestWatcher(t *testing.T) {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer watcher.Close()
-
-	handleEvent := func(event fsnotify.Event) {
-		time.Sleep(30 * time.Second)
-		fmt.Println("handle event", event)
-	}
-
-	done := make(chan bool)
 	go func() {
-		for {
-			select {
-			case event, ok := <-watcher.Events:
-				if !ok {
-					return
-				}
-				handleEvent(event)
-			case err, ok := <-watcher.Errors:
-				if !ok {
-					return
-				}
-				log.Println("hande error: ", err)
-			}
+		if err := server.Run(); err != nil {
+			t.Error("server error: ", err.Error())
+			return
 		}
 	}()
 
-	err = watcher.Add(common.PathServerRoot + common.PathSyncOptions)
-	if err != nil {
-		log.Fatal(err)
-	}
+	uri := fmt.Sprintf("http://localhost:%d", common.RuntimeServicePort)
 
-	for i := 0; i < 10; i++ {
-		filename := common.PathServerRoot + common.PathSyncOptions + "/" + strconv.Itoa(i) + ".txt"
-		err := ioutil.WriteFile(filename, []byte(strconv.Itoa(i)), os.ModePerm)
+	// wait util server is running
+	for {
+		time.Sleep(10 * time.Second)
+		resp, err := http.Head(uri + "/")
 		if err != nil {
-			t.Error(err)
+			t.Log("wait server up, error: ", err.Error())
+			continue
+		}
+		if resp.StatusCode == http.StatusOK {
+			break
+		} else {
+			return
 		}
 	}
 
-	<-done
+	server.doers[common.PathSyncOptions] = testDoSync
+	server.doers[common.PathClearOptions] = testDoClear
+	//t.Log("change server's doers")
+
+	// upload sync option
+	syncBody, err := json.Marshal(syncOptions)
+	if err != nil {
+		t.Error(err)
+	}
+	syncOptUri := uri + common.PathUploadPrefix + common.PathSyncOptions
+	syncOptFileName := fmt.Sprintf("%s", uuid.NewUUID())
+	resp, err := utils.Post(syncOptUri, syncOptFileName, bytes.NewReader(syncBody))
+	if err != nil {
+		t.Error("post sync option error", uri, err.Error())
+		return
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Error("post sync option status not ok")
+		return
+	}
+	time.Sleep(5 * time.Second)
+	// get sync result
+	syncResUri := uri + common.PathSyncResult
+	resp, err = utils.Get(syncResUri, syncOptFileName)
+	if err != nil {
+		t.Error("get sync result file error: ", err.Error())
+		return
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Error("get sync result file error resp status: ", resp.StatusCode)
+	}
+	syncResBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Error("read sync result resp body error: ", err.Error())
+	}
+
+	var result common.JobResult
+	err = json.Unmarshal(syncResBody, &result)
+	if err != nil {
+		t.Error("unmarshal sync resp body error: ", err.Error())
+	}
+	//t.Log("get sync result: ", result)
+
+	if result.Status != common.JobStatusSuccess {
+		t.Error("sync job should be fail, status: ", result.Status)
+	}
+
+	// upload clear options
+	clearBody, err := json.Marshal(clearOptions)
+	if err != nil {
+		t.Error(err)
+	}
+	clearOptUri := uri + common.PathUploadPrefix + common.PathClearOptions
+	clearOptFile := fmt.Sprintf("%s", uuid.NewUUID())
+	resp, err = utils.Post(clearOptUri, clearOptFile, bytes.NewReader(clearBody))
+	if err != nil {
+		t.Error("post clear option error", uri, err.Error())
+		return
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Error("get clear result file error resp status: ", resp.Status)
+		return
+	}
+	time.Sleep(2 * time.Second)
+	// get clear result
+	clearResUri := uri + common.PathClearResult
+	resp, err = utils.Get(clearResUri, clearOptFile)
+	if err != nil {
+		t.Error("get clear result file error: ", err.Error())
+		return
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Error("get clear result file error resp status: ", resp.StatusCode)
+		return
+	}
+	clearResBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Error("read clear result resp body error: ", err.Error())
+		return
+	}
+
+	err = json.Unmarshal(clearResBody, &result)
+	if err != nil {
+		t.Error("unmarshal clear resp body error: ", err.Error())
+		return
+	}
+	t.Log("get clear result: ", result)
+	if result.Status != common.JobStatusRunning {
+		t.Error("clear job should be running, status: ", result.Status)
+	}
+
+	// get cache info
+
+
+	_ = os.RemoveAll(rootPath)
 }
