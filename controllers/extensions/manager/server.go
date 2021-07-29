@@ -17,19 +17,22 @@ package manager
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-logr/logr"
+	zapOpt "go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"k8s.io/apimachinery/pkg/util/json"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
 	"github.com/paddleflow/paddle-operator/api/v1alpha1"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/driver"
-	zapOpt "go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"io/ioutil"
-	"k8s.io/apimachinery/pkg/util/json"
-	"net/http"
-	"os"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"strings"
 )
 
 type Server struct {
@@ -49,7 +52,7 @@ func NewServer(rootOpt *common.RootCmdOptions, svrOpt *common.ServerOptions) (*S
 	if err != nil {
 		return nil, err
 	}
-	if !strings.HasPrefix(svrOpt.Path, "/") {
+	if !strings.HasPrefix(svrOpt.ServerDir, "/") {
 		return nil, fmt.Errorf("path must begin with /")
 	}
 
@@ -97,17 +100,26 @@ func (s *Server) Run() error {
 	// add job doer for watcher's event
 	s.doers[common.PathSyncOptions] = s.doSync
 	s.doers[common.PathClearOptions] = s.doClear
+	s.doers[common.PathRmrOptions] = s.doRmr
+	s.doers[common.PathWarmupOptions] = s.doWarmup
 	// add options to result map key-value pair
 	s.optResMap[common.PathSyncOptions] = common.PathSyncResult
 	s.optResMap[common.PathClearOptions] = common.PathClearResult
+	s.optResMap[common.PathRmrOptions] = common.PathRmrResult
+	s.optResMap[common.PathWarmupOptions] = common.PathWarmupResult
 
 	// add static file server handlers
 	if err := s.addStaticHandlers(
-		common.PathCacheInfo,
+		common.PathCacheStatus,
 		common.PathSyncResult,
 		common.PathClearResult,
+		common.PathRmrResult,
+		common.PathWarmupResult,
+
 		common.PathSyncOptions,
 		common.PathClearOptions,
+		common.PathRmrOptions,
+		common.PathWarmupOptions,
 		); err != nil {
 		return err
 	}
@@ -115,17 +127,21 @@ func (s *Server) Run() error {
 	// add upload option file handlers
 	s.addUploadHandlers(
 		common.PathSyncOptions,
-		common.PathClearOptions)
+		common.PathClearOptions,
+		common.PathRmrOptions,
+		common.PathWarmupOptions)
 
 	if err := s.addWatchDirs(
 		common.PathSyncOptions,
 		common.PathClearOptions,
+		common.PathRmrOptions,
+		common.PathWarmupOptions,
 	); err != nil {
 		return err
 	}
 
 	go s.watchAndDo()
-	//go s.writeCacheInfo()
+	go s.writeCacheStatus()
 
 	s.Log.V(1).Info("===== run server ======")
 	addr := fmt.Sprintf(":%d", common.RuntimeServicePort)
@@ -162,7 +178,7 @@ func (s *Server) uploadHandleFunc(pattern string) func(w http.ResponseWriter, re
 			s.Log.Error(e, "can not get filename from request header")
 		}
 
-		dirPath := s.svrOpt.Path + pattern
+		dirPath := s.svrOpt.ServerDir + pattern
 		filePath := dirPath + "/" + fileName
 		err = ioutil.WriteFile(filePath, body, os.ModePerm)
 		if err != nil {
@@ -255,7 +271,7 @@ func (s *Server) writeResultFile(status common.JobStatus, message string, patter
 
 	optionPaths := strings.Split(optionFile, "/")
 	filename := optionPaths[len(optionPaths)-1]
-	filePath := s.svrOpt.Path + resultPath + "/" + filename
+	filePath := s.svrOpt.ServerDir + resultPath + "/" + filename
 
 	if err := ioutil.WriteFile(filePath, body, os.ModePerm); err != nil {
 		s.Log.Error(err, "write file error", "file", filePath)
@@ -283,9 +299,29 @@ func (s *Server) doClear(body []byte) error {
 	return s.DoClearJob(opt)
 }
 
+func (s *Server) doWarmup(body []byte) error {
+	s.Log.Info("begin do warmup")
+	opt := &v1alpha1.WarmupJobOptions{}
+	err := json.Unmarshal(body, opt)
+	if err != nil {
+		return err
+	}
+	return s.DoWarmupJob(opt)
+}
+
+func (s *Server) doRmr(body []byte) error {
+	s.Log.Info("begin do rmr")
+	opt := &v1alpha1.RmrJobOptions{}
+	err := json.Unmarshal(body, opt)
+	if err != nil {
+		return err
+	}
+	return s.DoRmrJob(opt)
+}
+
 func (s *Server) addWatchDirs(patterns... string) error {
 	for _, pattern := range patterns {
-		err := s.watcher.Add(s.svrOpt.Path+pattern)
+		err := s.watcher.Add(s.svrOpt.ServerDir +pattern)
 		if err != nil {
 			return fmt.Errorf("add watcher dir %s error", pattern)
 		}
@@ -295,10 +331,10 @@ func (s *Server) addWatchDirs(patterns... string) error {
 
 func (s *Server) addStaticHandlers(patterns... string) error {
 	// Add static file server
-	http.Handle("/", http.FileServer(http.Dir(s.svrOpt.Path)))
+	http.Handle("/", http.FileServer(http.Dir(s.svrOpt.ServerDir)))
 
 	for _, pattern := range patterns {
-		path := s.svrOpt.Path + pattern
+		path := s.svrOpt.ServerDir + pattern
 		if _, err := os.Stat(path); err != nil {
 			if !os.IsNotExist(err) {
 				return err
@@ -323,9 +359,33 @@ func (s *Server) addUploadHandlers(patterns... string) {
 	}
 }
 
-//func (s *Server) writeCacheInfo() {
-//
-//}
+func (s *Server) writeCacheStatus() {
+	status := &v1alpha1.CacheStatus{}
+	filePath := s.svrOpt.ServerDir +
+		common.PathCacheStatus +
+		common.FilePathCacheInfo
+
+	for {
+		time.Sleep(300 * time.Second)
+
+		err := s.GetCacheStatus(s.svrOpt, status)
+		if err != nil {
+			status.ErrorMassage = err.Error()
+			s.Log.Error(err, "get cache status error")
+		}
+		body, err := json.Marshal(status)
+		if err != nil {
+			s.Log.Error(err, "marshal cache status error")
+			continue
+		}
+		err = ioutil.WriteFile(filePath, body, os.ModePerm)
+		if err != nil {
+			s.Log.Error(err, "write cache status error")
+			continue
+		}
+		s.Log.V(1).Info("write cache status success")
+	}
+}
 
 func extractPattern(path string) string {
 	if strings.Contains(path, common.PathSyncOptions) {

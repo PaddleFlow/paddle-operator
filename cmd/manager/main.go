@@ -15,7 +15,6 @@
 package main
 
 import (
-	"github.com/paddleflow/paddle-operator/controllers/extensions/driver"
 	"log"
 	"os"
 
@@ -23,8 +22,8 @@ import (
 
 	"github.com/paddleflow/paddle-operator/api/v1alpha1"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/driver"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/manager"
-
 )
 
 var (
@@ -111,8 +110,10 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&rootCmdOptions.Development, "development", true, "configures the logger to use a Zap development config")
 
 	// initialize options for runtime server
-	serverCmd.Flags().IntVar(&serverOptions.Port, "port", common.RuntimeServicePort, "the port for runtime service")
-	serverCmd.Flags().StringVar(&serverOptions.Path, "path", common.PathServerRoot, "the root path for static file service")
+	serverCmd.Flags().IntVar(&serverOptions.ServerPort, "serverPort", common.RuntimeServicePort, "the port for runtime service")
+	serverCmd.Flags().StringVar(&serverOptions.ServerDir, "serverDir", common.PathServerRoot, "the root dir for static file service")
+	serverCmd.Flags().StringSliceVar(&serverOptions.CacheDirs, "cacheDirs", nil, "cache data directories that mounted to the container")
+	serverCmd.Flags().StringVar(&serverOptions.DataDir, "dataDir", "", "the sample set data path mounted to the container")
 
 	// initialize options for sync job command
 	syncJobCmd.Flags().StringVar(&syncJobOptions.Source, "source", "", "data source that need sync to cache engine")

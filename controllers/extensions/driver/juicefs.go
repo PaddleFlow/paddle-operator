@@ -15,18 +15,22 @@
 package driver
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
-	"github.com/paddleflow/paddle-operator/api/v1alpha1"
-	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
-	"github.com/paddleflow/paddle-operator/controllers/extensions/utils"
-	_ "github.com/paddleflow/paddle-operator/controllers/extensions/utils"
+	"os/exec"
+	"reflect"
+	"strconv"
+	"strings"
+
 	appv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"reflect"
-	"strconv"
-	"strings"
+
+	"github.com/paddleflow/paddle-operator/api/v1alpha1"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/utils"
 )
 
 const (
@@ -52,23 +56,20 @@ const (
 	JuiceFSSecretAK string = "access-key"
 )
 
-// JuiceFSSecretDataKeys is
 var (
-	// JuiceFSSecretDataKeys a
-	JuiceFSSecretDataKeys []string
-	// JuiceFSDefaultMountOptions a
+	JuiceFSSecretDataKeys      []string
 	JuiceFSDefaultMountOptions *v1alpha1.JuiceFSMountOptions
 )
 
 func init() {
-	//
+	// data keys of secret must contains when use JuiceFS as csi driver
 	JuiceFSSecretDataKeys = []string{
 		JuiceFSSecretSK, JuiceFSSecretAK,
 		JuiceFSSecretName, JuiceFSSecretStorage,
 		JuiceFSSecretMetaURL, JuiceFSSecretBucket,
 	}
 
-	//
+	// default JuiceFS mount volume options pass to pv
 	JuiceFSDefaultMountOptions = &v1alpha1.JuiceFSMountOptions{
 		OpenCache: 7200, CacheSize: 1024 * 1024,
 		AttrCache: 7200, EntryCache: 7200,
@@ -389,7 +390,7 @@ func (j *JuiceFS) getVolumeInfo(pv *v1.PersistentVolume) ([]v1.Volume, []v1.Volu
 		volumeMounts = append(volumeMounts, volumeMount)
 	}
 
-	// construct data persistent volume claim source
+	// construct data persistent volume claim source pods
 	pvcs := v1.PersistentVolumeClaimVolumeSource{
 		ClaimName: pv.Name,
 	}
@@ -417,13 +418,97 @@ func (j *JuiceFS) CreateSyncJob(job *v1alpha1.SampleJob, ctx common.RequestConte
 }
 
 func (j *JuiceFS) DoSyncJob(opt *v1alpha1.SyncJobOptions) error {
+	if !strings.Contains(opt.Source, "://") {
+		return fmt.Errorf("source is no valid: %s", opt.Source)
+	}
+	if !strings.Contains(opt.Destination, "://") {
+		return fmt.Errorf("destination is no valid: %s", opt.Destination)
+	}
+
+	args := []string{"sync"}
+
+	optionMap := make(map[string]reflect.Value)
+	utils.NoZeroOptionToMap(optionMap, &opt.JuiceFSSyncOptions)
+
+	for option, value := range optionMap {
+		var arg string
+		if value.Kind() == reflect.Bool {
+			arg = fmt.Sprintf("--%s", option)
+		} else if value.Kind() == reflect.String {
+			arg = fmt.Sprintf(`--%s="%s"`, option, value)
+		} else {
+			arg = fmt.Sprintf("--%s=%+v", option, value)
+		}
+		args = append(args, arg)
+	}
+	args = append(args, opt.Source)
+	args = append(args, opt.Destination)
+
+	cmd := exec.Command("juicefs", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("juice sync cmd: %s; error: %s", cmd.String(), stderr.String())
+	}
+	fmt.Print(stdout)
 	return nil
 }
 
 func (j *JuiceFS) DoWarmupJob(opt *v1alpha1.WarmupJobOptions) error {
+	if len(opt.Paths) == 0 {
+		return errors.New("warmup job option paths not set")
+	}
+	args := []string{"warmup"}
+
+	optionMap := make(map[string]reflect.Value)
+	utils.NoZeroOptionToMap(optionMap, &opt.JuiceFSWarmupOptions)
+	for option, value := range optionMap {
+		var arg string
+		if value.Kind() == reflect.Bool {
+			arg = fmt.Sprintf("--%s", option)
+
+		} else if value.Kind() == reflect.String {
+			arg = fmt.Sprintf(`--%s="%s"`, option, value)
+		} else {
+			arg = fmt.Sprintf("--%s=%+v", option, value)
+		}
+		args = append(args, arg)
+	}
+
+	for _, path := range opt.Paths {
+		if !strings.HasPrefix(path, "/") {
+			return fmt.Errorf("path %s is not valid", path)
+		}
+		args = append(args, path)
+	}
+
+	cmd := exec.Command("juicefs", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("juice sync cmd: %s, error: %s", cmd.String(), stderr.String())
+	}
+	fmt.Print(stdout)
 	return nil
 }
 
 func (j *JuiceFS) DoRmrJob(opt *v1alpha1.RmrJobOptions) error {
+	if len(opt.Paths) == 0 {
+		return errors.New("rmr job option paths not set")
+	}
+	args := []string{"rmr"}
+	for _, path := range opt.Paths {
+		if !strings.HasPrefix(path, "/") {
+			return fmt.Errorf("path %s is not valid", path)
+		}
+		args = append(args, path)
+	}
+	cmd := exec.Command("juicefs", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("juice rmr cmd: %s, error: %s", cmd.String(), stderr.String())
+	}
+	fmt.Print(stdout)
 	return nil
 }

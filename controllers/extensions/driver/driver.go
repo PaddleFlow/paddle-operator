@@ -15,13 +15,21 @@
 package driver
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
-	"github.com/paddleflow/paddle-operator/api/v1alpha1"
-	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
+	"os"
+	"os/exec"
+	"strings"
+
 	appv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/paddleflow/paddle-operator/api/v1alpha1"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/utils"
 )
 
 const (
@@ -64,6 +72,8 @@ type Driver interface {
 
 	//CreateSyncJob(job *v1alpha1.SampleJob, ctx common.RequestContext) error
 
+	GetCacheStatus(opt *common.ServerOptions, status *v1alpha1.CacheStatus) error
+
 	DoSyncJob(opt *v1alpha1.SyncJobOptions) error
 
 	DoClearJob(opt *v1alpha1.ClearJobOptions) error
@@ -71,6 +81,7 @@ type Driver interface {
 	DoWarmupJob(opt *v1alpha1.WarmupJobOptions) error
 
 	DoRmrJob(opt *v1alpha1.RmrJobOptions) error
+
 }
 
 // GetDriver get csi driver by name, return error if not found
@@ -163,6 +174,77 @@ func (d *BaseDriver) CreateService(service *v1.Service, ctx common.RequestContex
 
 // DoClearJob clear the cache data in folders specified by options
 func (d *BaseDriver) DoClearJob(opt *v1alpha1.ClearJobOptions) error {
+	if len(opt.Paths) == 0 {
+		return errors.New("clear job option paths not set")
+	}
+	args := []string{"-rf"}
+	for _, path := range opt.Paths {
+		if !strings.HasPrefix(path, "/") {
+			return fmt.Errorf("path %s is not valid", path)
+		}
+		args = append(args, path)
+	}
+
+	cmd := exec.Command("rm", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("rm -rf error: %s", stderr.String())
+	}
+	fmt.Println(stdout)
+	return nil
+}
+
+func (d *BaseDriver) GetCacheStatus(opt *common.ServerOptions, status *v1alpha1.CacheStatus) error {
+	if opt.CacheDirs == nil || len(opt.CacheDirs) == 0 {
+		return fmt.Errorf("option cacheDirs not set")
+	}
+	if !strings.HasPrefix(opt.CacheDirs[0], "/") {
+		return fmt.Errorf("option cacheDirs: %s is not valid", opt.CacheDirs[0])
+	}
+	if !strings.HasPrefix(opt.DataDir, "/") {
+		return fmt.Errorf("option dataDir: %s is not valid", opt.DataDir)
+	}
+
+	var errs []string
+	// get total data size from data mount path
+	totalSize, err := utils.DiskUsageOfPaths(opt.DataDir)
+	if err == nil {
+		status.TotalSize = totalSize
+	} else {
+		errs = append(errs, fmt.Sprintf("get totalSize error: %s", err.Error()))
+	}
+
+	// get total file number from data mount path
+	totalFiles, err := utils.FileNumberOfPaths(opt.DataDir)
+	if err == nil {
+		status.TotalFiles = totalFiles
+	} else {
+		errs = append(errs, fmt.Sprintf("get totalSize error: %s", err.Error()))
+	}
+
+	// get cache data size from cache data mount path
+	cacheSize, err := utils.DiskUsageOfPaths(opt.CacheDirs...)
+	if err == nil {
+		status.CachedSize = cacheSize
+	} else {
+		errs = append(errs, fmt.Sprintf("get totalSize error: %s", err.Error()))
+	}
+
+	// get disk space status of cache paths
+	diskStatus, err := utils.DiskSpaceOfPaths(opt.CacheDirs...)
+	if err == nil {
+		status.DiskSize = strings.TrimSpace(diskStatus[1])
+		status.DiskUsed = strings.TrimSpace(diskStatus[2])
+		status.DiskAvail = strings.TrimSpace(diskStatus[3])
+		status.DiskUsageRate = strings.TrimSpace(diskStatus[4])
+	} else {
+		errs = append(errs, fmt.Sprintf("get disk status error: %s", err.Error()))
+	}
+
+	if len(errs) != 0 {
+		return errors.New(strings.Join(errs, ";"))
+	}
 	return nil
 }
 
@@ -180,9 +262,17 @@ func (d *BaseDriver) GetServiceName(sampleSetName string) string {
 }
 
 func (d *BaseDriver) getRuntimeCacheMountPath(name string) string {
-	return common.RuntimeCacheMountPath + "/" + name
+	mountPath := os.Getenv("CACHE_MOUNT_PATH")
+	if mountPath == "" {
+		return common.RuntimeCacheMountPath + "/" + name
+	}
+	return mountPath + "/" + name
 }
 
 func (d *BaseDriver) getRuntimeDataMountPath(name string) string {
-	return common.RuntimeDateMountPath + "/" + name
+	mountPath := os.Getenv("DATA_MOUNT_PATH")
+	if mountPath == "" {
+		return common.RuntimeDateMountPath + "/" + name
+	}
+	return mountPath + "/" + name
 }

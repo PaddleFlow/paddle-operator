@@ -15,14 +15,18 @@
 package utils
 
 import (
+	"bytes"
 	"encoding/base64"
 	"errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"fmt"
 	"os"
+	"os/exec"
 	"reflect"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"strings"
 	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 // HasDeletionTimestamp method to check if an object need to delete.
@@ -90,6 +94,69 @@ func NoZeroOptionToMap(optionMap map[string]reflect.Value, i interface{}) {
 		option := strings.Split(tag, ",")[0]
 		optionMap[option] = value
 	}
+}
+
+func DiskUsageOfPaths(paths... string) (string, error) {
+	var stdout, stderr bytes.Buffer
+	args := []string{"-sch"}
+	for _, path := range paths {
+		args = append(args, path)
+	}
+
+	cmd := exec.Command("du", args...)
+	fmt.Printf("total size cmd: %s\n", cmd.String())
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("cmd:%s, error: %s", cmd.String(), stderr.String())
+	}
+	lines := strings.Split(stdout.String(), "\n")
+	if len(lines) == 0 {
+		return "", fmt.Errorf("cmd:%s, output:%s", cmd.String(), stdout.String())
+	}
+	total := strings.Split(lines[len(lines)-1], " ")
+	if len(total) != 2 {
+		return "", fmt.Errorf("cmd:%s, output:%s", cmd.String(), stdout.String())
+	}
+	return strings.TrimSpace(total[0]), nil
+}
+
+func FileNumberOfPaths(paths... string) (string, error) {
+	var stdout, stderr bytes.Buffer
+	args := []string{"-lR"}
+	for _, path := range paths {
+		args = append(args, path)
+	}
+	args = append(args, "|", "grep", `"^-"`, "|", "wc", "-l")
+
+	cmd := exec.Command("ls", args...)
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("cmd:%s, error: %s", cmd.String(), stderr.String())
+	}
+	return strings.TrimSpace(stdout.String()), nil
+}
+
+func DiskSpaceOfPaths(paths... string) ([]string, error) {
+	var stdout, stderr bytes.Buffer
+	args := []string{"--total", "-h"}
+	for _, path := range paths {
+		args = append(args, path)
+	}
+
+	cmd := exec.Command("df", args...)
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("cmd:%s, error: %s", cmd.String(), stderr.String())
+	}
+	lines := strings.Split(stdout.String(), "\n")
+	if len(lines) == 0 {
+		return nil, fmt.Errorf("cmd:%s, output:%s", cmd.String(), stdout.String())
+	}
+	total := strings.Split(lines[len(lines)-1], " ")
+	if len(total) != 6 {
+		return nil, fmt.Errorf("cmd:%s, output:%s", cmd.String(), stdout.String())
+	}
+	return total, nil
 }
 
 func Base64Decode(data []byte) (string, error) {

@@ -14,8 +14,38 @@
 
 package driver
 
-import "testing"
+import (
+	"github.com/paddleflow/paddle-operator/api/v1alpha1"
+	"os"
+	"testing"
+)
 
 func TestBaseDriver_DoClearJob(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Error(err)
+	}
+	var paths []string
+	path1 := home + "/test_DoClearJob"
+	err = os.MkdirAll(path1, os.ModePerm)
+	if err != nil {
+		t.Errorf("make dir %s error: %s", path1, err.Error())
+	}
+	paths = append(paths, path1)
+	path2 := home + "/test_DoClearJob" + "/test"
+	err = os.MkdirAll(path2, os.ModePerm)
+	if err != nil {
+		t.Errorf("make dir %s error: %s", path2, err.Error())
+	}
+	paths = append(paths, path2)
+
+	opt := &v1alpha1.ClearJobOptions{Paths: paths}
+	d, _ := GetDriver("juicefs")
+	if err := d.DoClearJob(opt); err != nil {
+		t.Errorf("DoClearJob error: %s", err.Error())
+	}
+}
+
+func TestBaseDriver_GetCacheStatus(t *testing.T) {
 
 }

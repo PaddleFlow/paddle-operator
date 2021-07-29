@@ -98,13 +98,18 @@ const (
 )
 
 const (
-	PathUploadPrefix = "/upload"
-	PathServerRoot   = "/runtime"
-	PathCacheInfo    = "/cacheInfo"
-	PathSyncResult   = "/syncResult"
-	PathClearResult  = "/clearResult"
-	PathSyncOptions  = "/syncOptions"
-	PathClearOptions = "/clearOptions"
+	PathUploadPrefix  = "/upload"
+	PathServerRoot    = "/runtime"
+	PathCacheStatus   = "/cacheStatus"
+	PathSyncResult    = "/syncResult"
+	PathClearResult   = "/clearResult"
+	PathRmrResult     = "/rmrResult"
+	PathWarmupResult  = "/warmupResult"
+	PathSyncOptions   = "/syncOptions"
+	PathClearOptions  = "/clearOptions"
+	PathRmrOptions    = "/rmrOptions"
+	PathWarmupOptions = "/warmupOptions"
+	FilePathCacheInfo = "/cacheInfo.json"
 )
 
 const (

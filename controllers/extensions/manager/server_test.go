@@ -42,8 +42,8 @@ func TestServer_Run(t *testing.T) {
 	rootPath := home + common.PathServerRoot
 	//t.Log("rootPath== ", rootPath)
 	svrOpt := &common.ServerOptions{
-		Port: common.RuntimeServicePort,
-		Path: rootPath,
+		Port:      common.RuntimeServicePort,
+		serverDir: rootPath,
 	}
 
 	testDoSync := func(body []byte) error {
