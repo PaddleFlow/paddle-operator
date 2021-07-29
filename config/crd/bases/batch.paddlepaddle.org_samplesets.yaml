@@ -17,7 +17,7 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .status.totalSize
+    - jsonPath: .status.cacheStatus.totalSize
       name: TOTAL SIZE
       type: string
     - jsonPath: .status.cacheStatus.cachedSize
@@ -113,6 +113,8 @@ spec:
                         type: boolean
                     type: object
                 type: object
+              noSync:
+                type: boolean
               nodeAffinity:
                 properties:
                   required:
@@ -205,6 +207,12 @@ spec:
                     type: string
                   cachedSize:
                     type: string
+                  errorMassage:
+                    type: string
+                  totalFiles:
+                    type: string
+                  totalSize:
+                    type: string
                 type: object
               jobsName:
                 properties:
@@ -226,10 +234,6 @@ spec:
                     format: int32
                     type: integer
                 type: object
-              totalFiles:
-                type: string
-              totalSize:
-                type: string
             type: object
         type: object
     served: true

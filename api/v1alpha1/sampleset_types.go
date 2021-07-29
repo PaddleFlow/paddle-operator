@@ -82,18 +82,28 @@ type Cache struct {
 	Levels []CacheLevel `json:"levels,omitempty"`
 }
 
-// CacheStates states of cache data
-type CacheStates struct {
-	// CachedSize
+// CacheStatus status of cache data
+type CacheStatus struct {
+	// TotalSize the total size of SampleSet data
+	TotalSize string `json:"totalSize,omitempty"`
+	// TotalFiles the total file number of SampleSet data
+	TotalFiles string `json:"totalFiles,omitempty"`
+	// CachedSize the cached data
 	CachedSize string `json:"cachedSize,omitempty"`
-	// CacheCapacity
-	CacheCapacity string `json:"cacheCapacity,omitempty"`
-	// CachedPercentage
-	CachedPercentage string `json:"cachedPercentage,omitempty"`
+	// DiskSize
+	DiskSize string `json:"diskSize,omitempty"`
+	// DiskUsed
+	DiskUsed string `json:"diskUsed,omitempty"`
+	// DiskAvail
+	DiskAvail string `json:"diskAvail,omitempty"`
+	// DiskUsageRate
+	DiskUsageRate string `json:"diskUsageRate,omitempty"`
+	// ErrorMassage
+	ErrorMassage string `json:"errorMassage,omitempty"`
 }
 
-// RuntimeStates states of runtime StatefulSet
-type RuntimeStates struct {
+// RuntimeStatus status of runtime StatefulSet
+type RuntimeStatus struct {
 	// RuntimeReady is use to display SampleSet Runtime pods status, format like {ReadyReplicas}/{SpecReplicas}.
 	RuntimeReady string `json:"runtimeReady,omitempty"`
 	// SpecReplicas is the number of Pods should be created by Runtime StatefulSet.
@@ -121,6 +131,9 @@ type SampleSetSpec struct {
 	// SecretRef is reference to the authentication secret for source storage and cache engine.
 	// +required
 	SecretRef *corev1.LocalObjectReference `json:"secretRef,omitempty"`
+	// If the data is already in cache engine backend storage,can set NoSync as true to skip sync phase.
+	// +optional
+	NoSync bool `json:"noSync,omitempty"`
 	// CSI defines the csi driver and mount options for supporting dataset.
 	// +optional
 	CSI *CSI `json:"csi,omitempty"`
@@ -138,25 +151,21 @@ type SampleSetSpec struct {
 
 // SampleSetStatus defines the observed state of SampleSet
 type SampleSetStatus struct {
-	// TotalSize in GB of the SampleSet in the cluster
-	TotalSize string `json:"totalSize,omitempty"`
-	// TotalFiles represents the file numbers of the SampleSet
-	TotalFiles string `json:"totalFiles,omitempty"`
 	// Dataset Phase. One of the four phases: `None`, `Bound`, `NotBound` and `Failed`
 	Phase SampleSetPhase `json:"phase,omitempty"`
 	// CacheStatus
-	CacheStatus *CacheStates `json:"cacheStatus,omitempty"`
+	CacheStatus *CacheStatus `json:"cacheStatus,omitempty"`
 	// RuntimeStatus
-	RuntimeStatus *RuntimeStates `json:"runtimeStatus,omitempty"`
+	RuntimeStatus *RuntimeStatus `json:"runtimeStatus,omitempty"`
 	// recorde the name of jobs, all names is generate by uuid
 	JobsName *JobsName `json:"jobsName,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-//+kubebuilder:printcolumn:name="TOTAL SIZE",type="string",JSONPath=`.status.totalSize`
+//+kubebuilder:printcolumn:name="TOTAL SIZE",type="string",JSONPath=`.status.cacheStatus.totalSize`
 //+kubebuilder:printcolumn:name="CACHED SIZE",type="string",JSONPath=`.status.cacheStatus.cachedSize`
-//+kubebuilder:printcolumn:name="CACHE CAPACITY",type="string",JSONPath=`.status.cacheStatus.cacheCapacity`
+//+kubebuilder:printcolumn:name="AVAIL SPACE",type="string",JSONPath=`.status.cacheStatus.diskAvail`
 //+kubebuilder:printcolumn:name="Runtime",type="string",JSONPath=`.status.runtimeStatus.runtimeReady`
 //+kubebuilder:printcolumn:name="PHASE",type="string",JSONPath=`.status.phase`
 //+kubebuilder:printcolumn:name="AGE",type="date",JSONPath=`.metadata.creationTimestamp`

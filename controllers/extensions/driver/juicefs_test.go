@@ -15,12 +15,14 @@
 package driver
 
 import (
-	"github.com/paddleflow/paddle-operator/api/v1alpha1"
-	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 	"testing"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/paddleflow/paddle-operator/api/v1alpha1"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
 )
 
 func TestJuiceFS_getMountOptions(t *testing.T) {
@@ -133,5 +135,19 @@ func TestJuiceFS_getVolumeInfo(t *testing.T) {
 }
 
 func TestJuiceFS_DoSyncJob(t *testing.T) {
-
+	options := &v1alpha1.SyncJobOptions{
+		Source: "bos://imagenet.bj.bcebos.com/juicefs",
+		Destination: "file:///mnt/imagenet",
+		JuiceFSSyncOptions: v1alpha1.JuiceFSSyncOptions{
+			Threads: 50,
+			Update: true,
+			BWLimit: 10,
+			Exclude: "/2017-[0-9]{2}-[0-9]{2}/",
+			Worker: "192.168.2.220",
+		},
+	}
+	driver := NewJuiceFSDriver()
+	if err := driver.DoSyncJob(options); err != nil {
+		t.Errorf("juicefs do sync job error: %s", err.Error())
+	}
 }

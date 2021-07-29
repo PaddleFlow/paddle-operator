@@ -74,8 +74,10 @@ type RootCmdOptions struct {
 }
 
 type ServerOptions struct {
-	Port int `json:"port,omitempty"`
-	Path string `json:"path,omitempty"`
+	ServerPort int      `json:"serverPort,omitempty"`
+	ServerDir  string   `json:"serverDir,omitempty"`
+	CacheDirs  []string `json:"cacheDirs,omitempty"`
+	DataDir    string   `json:"dataDir,omitempty"`
 }
 
 type JobStatus string

@@ -18,19 +18,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/go-logr/logr"
-	"github.com/paddleflow/paddle-operator/api/v1alpha1"
-	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
-	"github.com/paddleflow/paddle-operator/controllers/extensions/driver"
-	"github.com/paddleflow/paddle-operator/controllers/extensions/utils"
 	appv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
-	"time"
+
+	"github.com/paddleflow/paddle-operator/api/v1alpha1"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/driver"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/utils"
 )
 
 // SampleSetReconciler reconciles a SampleSet object
@@ -506,7 +508,7 @@ func (s *SampleSetReconcilePhase) reconcileBound() (ctrl.Result, error) {
 		// wait util at least one replica ready and update the phase of SampleSet to Mount
 		if statefulSet.Status.ReadyReplicas > 0 {
 			s.SampleSet.Status.Phase = common.SampleSetMount
-			runtimeStates := &v1alpha1.RuntimeStates{
+			runtimeStatus := &v1alpha1.RuntimeStatus{
 				SpecReplicas: statefulSet.Spec.Replicas,
 				ReadyReplicas: &statefulSet.Status.ReadyReplicas,
 				RuntimeReady: fmt.Sprintf("%d/%d",
@@ -514,7 +516,7 @@ func (s *SampleSetReconcilePhase) reconcileBound() (ctrl.Result, error) {
 					*statefulSet.Spec.Replicas,
 				),
 			}
-			s.SampleSet.Status.RuntimeStatus = runtimeStates
+			s.SampleSet.Status.RuntimeStatus = runtimeStatus
 			if err := s.Status().Update(s.Ctx, s.SampleSet); err != nil {
 				return utils.RequeueWithError(err)
 			}

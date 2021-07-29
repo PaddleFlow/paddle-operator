@@ -129,10 +129,10 @@ type SyncJobOptions struct {
 	// data source that need sync to cache engine
 	// +optional
 	Source string `json:"source,omitempty"`
-	//
+	// the destination path for data sync to
 	// +option
 	Destination string `json:"destination,omitempty"`
-	//
+	// JuiceFS sync command options
 	// +optional
 	JuiceFSSyncOptions `json:",inline"`
 }
@@ -142,7 +142,7 @@ type WarmupJobOptions struct {
 	// A list of paths need to build cache
 	// +optional
 	Paths []string `json:"paths,omitempty"`
-	//
+	// JuiceFS warmup command options
 	// +optional
 	JuiceFSWarmupOptions `json:",inline"`
 }
