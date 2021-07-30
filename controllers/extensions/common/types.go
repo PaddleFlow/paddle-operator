@@ -78,6 +78,7 @@ type ServerOptions struct {
 	ServerDir  string   `json:"serverDir,omitempty"`
 	CacheDirs  []string `json:"cacheDirs,omitempty"`
 	DataDir    string   `json:"dataDir,omitempty"`
+	Interval   int64    `json:"interval,omitempty"`
 }
 
 type JobStatus string

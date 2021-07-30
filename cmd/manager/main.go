@@ -15,10 +15,11 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"github.com/spf13/cobra"
 	"log"
 	"os"
-
-	"github.com/spf13/cobra"
 
 	"github.com/paddleflow/paddle-operator/api/v1alpha1"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
@@ -44,6 +45,8 @@ var serverCmd = &cobra.Command{
 	Use: common.CmdServer,
 	Short: "run data management server",
 	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("rootCmdOptions=== ", rootCmdOptions)
+		fmt.Println("serverOptions=== ", serverOptions)
 		server, err := manager.NewServer(&rootCmdOptions, &serverOptions)
 		if err != nil {
 			log.Fatalf("create server error: %s", err.Error())
@@ -61,7 +64,7 @@ var syncJobCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf("get driver %s error: %s", driverName, err.Error())
 		}
-		log.Fatal(d.DoSyncJob(&syncJobOptions))
+		log.Fatal(d.DoSyncJob(context.Background(), &syncJobOptions))
 	},
 }
 
@@ -74,7 +77,7 @@ var warmupJobCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf("get driver %s error: %s", driverName, err.Error())
 		}
-		log.Fatal(d.DoWarmupJob(&warmupJobOptions))
+		log.Fatal(d.DoWarmupJob(context.Background(), &warmupJobOptions))
 	},
 }
 
@@ -87,7 +90,7 @@ var rmrJobCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf("get driver %s error: %s", driverName, err.Error())
 		}
-		log.Fatal(d.DoSyncJob(&syncJobOptions))
+		log.Fatal(d.DoSyncJob(context.Background(), &syncJobOptions))
 	},
 }
 
@@ -100,7 +103,7 @@ var clearJobCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf("get driver %s error: %s", driverName, err.Error())
 		}
-		log.Fatal(d.DoClearJob(&clearJobOptions))
+		log.Fatal(d.DoClearJob(context.Background(), &clearJobOptions))
 	},
 }
 
@@ -114,6 +117,7 @@ func init() {
 	serverCmd.Flags().StringVar(&serverOptions.ServerDir, "serverDir", common.PathServerRoot, "the root dir for static file service")
 	serverCmd.Flags().StringSliceVar(&serverOptions.CacheDirs, "cacheDirs", nil, "cache data directories that mounted to the container")
 	serverCmd.Flags().StringVar(&serverOptions.DataDir, "dataDir", "", "the sample set data path mounted to the container")
+	serverCmd.Flags().Int64Var(&serverOptions.Interval, "interval", 120, "time interval for writing cache status to specified path")
 
 	// initialize options for sync job command
 	syncJobCmd.Flags().StringVar(&syncJobOptions.Source, "source", "", "data source that need sync to cache engine")
