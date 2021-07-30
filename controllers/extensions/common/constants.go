@@ -48,6 +48,7 @@ const (
 )
 
 const (
+	CmdRoot   = "nuwa"
 	CmdServer = "server"
 	// CmdSync defined the command to sync data and metadata
 	// from source to destination for job or cronjob
