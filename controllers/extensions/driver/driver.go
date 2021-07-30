@@ -16,6 +16,7 @@ package driver
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -74,14 +75,13 @@ type Driver interface {
 
 	GetCacheStatus(opt *common.ServerOptions, status *v1alpha1.CacheStatus) error
 
-	DoSyncJob(opt *v1alpha1.SyncJobOptions) error
+	DoSyncJob(ctx context.Context, opt *v1alpha1.SyncJobOptions) error
 
-	DoClearJob(opt *v1alpha1.ClearJobOptions) error
+	DoClearJob(ctx context.Context, opt *v1alpha1.ClearJobOptions) error
 
-	DoWarmupJob(opt *v1alpha1.WarmupJobOptions) error
+	DoWarmupJob(ctx context.Context, opt *v1alpha1.WarmupJobOptions) error
 
-	DoRmrJob(opt *v1alpha1.RmrJobOptions) error
-
+	DoRmrJob(ctx context.Context, opt *v1alpha1.RmrJobOptions) error
 }
 
 // GetDriver get csi driver by name, return error if not found
@@ -173,7 +173,7 @@ func (d *BaseDriver) CreateService(service *v1.Service, ctx common.RequestContex
 }
 
 // DoClearJob clear the cache data in folders specified by options
-func (d *BaseDriver) DoClearJob(opt *v1alpha1.ClearJobOptions) error {
+func (d *BaseDriver) DoClearJob(ctx context.Context, opt *v1alpha1.ClearJobOptions) error {
 	if len(opt.Paths) == 0 {
 		return errors.New("clear job option paths not set")
 	}
@@ -185,11 +185,12 @@ func (d *BaseDriver) DoClearJob(opt *v1alpha1.ClearJobOptions) error {
 		args = append(args, path)
 	}
 
-	cmd := exec.Command("rm", args...)
+	cmd := exec.CommandContext(ctx,"rm", args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("rm -rf error: %s", stderr.String())
+		return fmt.Errorf("cmd: %s; error: %s; stderr: %s",
+			cmd.String(), err.Error(), stderr.String())
 	}
 	fmt.Println(stdout)
 	return nil
@@ -215,20 +216,12 @@ func (d *BaseDriver) GetCacheStatus(opt *common.ServerOptions, status *v1alpha1.
 		errs = append(errs, fmt.Sprintf("get totalSize error: %s", err.Error()))
 	}
 
-	// get total file number from data mount path
-	totalFiles, err := utils.FileNumberOfPaths(opt.DataDir)
-	if err == nil {
-		status.TotalFiles = totalFiles
-	} else {
-		errs = append(errs, fmt.Sprintf("get totalSize error: %s", err.Error()))
-	}
-
 	// get cache data size from cache data mount path
 	cacheSize, err := utils.DiskUsageOfPaths(opt.CacheDirs...)
 	if err == nil {
 		status.CachedSize = cacheSize
 	} else {
-		errs = append(errs, fmt.Sprintf("get totalSize error: %s", err.Error()))
+		errs = append(errs, fmt.Sprintf("get cacheSize error: %s", err.Error()))
 	}
 
 	// get disk space status of cache paths

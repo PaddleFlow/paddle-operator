@@ -15,6 +15,7 @@
 package manager
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -38,6 +39,8 @@ import (
 type Server struct {
 	driver.Driver
 	Log logr.Logger
+	ctx context.Context
+	cancel context.CancelFunc
 
 	watcher   *fsnotify.Watcher
 	svrOpt    *common.ServerOptions
@@ -81,7 +84,12 @@ func NewServer(rootOpt *common.RootCmdOptions, svrOpt *common.ServerOptions) (*S
 	optResMap := make(map[string]string)
 	doer := make(map[string]func([]byte)error)
 
+	// make Cancel Context
+	ctx, cancel := context.WithCancel(context.Background())
+
 	server := &Server{
+		ctx:       ctx,
+		cancel:    cancel,
 		doers:     doer,
 		rootOpt:   rootOpt,
 		svrOpt:    svrOpt,
@@ -95,6 +103,7 @@ func NewServer(rootOpt *common.RootCmdOptions, svrOpt *common.ServerOptions) (*S
 
 
 func (s *Server) Run() error {
+	defer s.cancel()
 	defer s.watcher.Close()
 
 	// add job doer for watcher's event
@@ -165,11 +174,13 @@ func (s *Server) uploadHandleFunc(pattern string) func(w http.ResponseWriter, re
 			return
 		}
 
-		opt := &v1alpha1.SyncJobOptions{}
-		if err := json.Unmarshal(body, opt); err != nil {
-			s.Log.Error(err, "json unmarshal request body error")
-			w.WriteHeader(http.StatusBadRequest)
-			return
+		// if pattern is clearOptions and request parameter
+		// container delete then stop all tasks in progress
+		if pattern == common.PathClearOptions {
+			mark := req.URL.Query().Get(common.TerminateSignal)
+			if mark != "" {
+				s.cancel()
+			}
 		}
 
 		fileName := req.Header.Get("filename")
@@ -187,6 +198,7 @@ func (s *Server) uploadHandleFunc(pattern string) func(w http.ResponseWriter, re
 			return
 		}
 		s.Log.V(1).Info("upload options success", "file", filePath)
+
 		w.WriteHeader(http.StatusOK)
 		return
 	}
@@ -217,6 +229,10 @@ func (s *Server) handleEvent(event fsnotify.Event) {
 		s.do(common.PathSyncOptions, event.Name)
 	case common.PathClearOptions:
 		s.do(common.PathClearOptions, event.Name)
+	case common.PathRmrOptions:
+		s.do(common.PathRmrOptions, event.Name)
+	case common.PathWarmupOptions:
+		s.do(common.PathWarmupOptions, event.Name)
 	default:
 		err := fmt.Errorf("extract pattern error")
 		s.Log.Error(err, "can not deal with none")
@@ -286,37 +302,37 @@ func (s *Server) doSync(body []byte) error {
 	if err != nil {
 		return err
 	}
-	return s.DoSyncJob(opt)
+	return s.DoSyncJob(s.ctx, opt)
 }
 
 func (s *Server) doClear(body []byte) error {
-	s.Log.Info("begin do clear")
+	s.Log.V(1).Info("begin do clear")
 	opt := &v1alpha1.ClearJobOptions{}
 	err := json.Unmarshal(body, opt)
 	if err != nil {
 		return err
 	}
-	return s.DoClearJob(opt)
+	return s.DoClearJob(context.Background(), opt)
 }
 
 func (s *Server) doWarmup(body []byte) error {
-	s.Log.Info("begin do warmup")
+	s.Log.V(1).Info("begin do warmup")
 	opt := &v1alpha1.WarmupJobOptions{}
 	err := json.Unmarshal(body, opt)
 	if err != nil {
 		return err
 	}
-	return s.DoWarmupJob(opt)
+	return s.DoWarmupJob(s.ctx, opt)
 }
 
 func (s *Server) doRmr(body []byte) error {
-	s.Log.Info("begin do rmr")
+	s.Log.V(1).Info("begin do rmr")
 	opt := &v1alpha1.RmrJobOptions{}
 	err := json.Unmarshal(body, opt)
 	if err != nil {
 		return err
 	}
-	return s.DoRmrJob(opt)
+	return s.DoRmrJob(s.ctx, opt)
 }
 
 func (s *Server) addWatchDirs(patterns... string) error {
@@ -347,7 +363,6 @@ func (s *Server) addStaticHandlers(patterns... string) error {
 
 		handler := http.FileServer(http.Dir(path))
 		http.Handle(pattern, http.StripPrefix(pattern, handler))
-
 	}
 	return nil
 }
@@ -360,18 +375,19 @@ func (s *Server) addUploadHandlers(patterns... string) {
 }
 
 func (s *Server) writeCacheStatus() {
-	status := &v1alpha1.CacheStatus{}
 	filePath := s.svrOpt.ServerDir +
 		common.PathCacheStatus +
 		common.FilePathCacheInfo
+	interval := time.Duration(s.svrOpt.Interval)
 
 	for {
-		time.Sleep(300 * time.Second)
+		time.Sleep(interval * time.Second)
 
+		status := &v1alpha1.CacheStatus{}
 		err := s.GetCacheStatus(s.svrOpt, status)
 		if err != nil {
 			status.ErrorMassage = err.Error()
-			s.Log.Error(err, "get cache status error")
+			s.Log.Error(err, "")
 		}
 		body, err := json.Marshal(status)
 		if err != nil {
@@ -393,6 +409,12 @@ func extractPattern(path string) string {
 	}
 	if strings.Contains(path, common.PathClearOptions) {
 		return common.PathClearOptions
+	}
+	if strings.Contains(path, common.PathRmrOptions) {
+		return common.PathRmrOptions
+	}
+	if strings.Contains(path, common.PathWarmupOptions) {
+		return common.PathWarmupOptions
 	}
 	return ""
 }

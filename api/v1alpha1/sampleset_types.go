@@ -86,8 +86,6 @@ type Cache struct {
 type CacheStatus struct {
 	// TotalSize the total size of SampleSet data
 	TotalSize string `json:"totalSize,omitempty"`
-	// TotalFiles the total file number of SampleSet data
-	TotalFiles string `json:"totalFiles,omitempty"`
 	// CachedSize the cached data
 	CachedSize string `json:"cachedSize,omitempty"`
 	// DiskSize

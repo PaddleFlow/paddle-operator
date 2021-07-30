@@ -42,16 +42,22 @@ func TestServer_Run(t *testing.T) {
 	rootPath := home + common.PathServerRoot
 	//t.Log("rootPath== ", rootPath)
 	svrOpt := &common.ServerOptions{
-		Port:      common.RuntimeServicePort,
-		serverDir: rootPath,
+		ServerPort: common.RuntimeServicePort,
+		ServerDir: rootPath,
+		CacheDirs: []string{
+			"",
+			"",
+		},
+		DataDir: "",
+		Interval: 30,
 	}
 
 	testDoSync := func(body []byte) error {
 		opt := &v1alpha1.SyncJobOptions{}
 		err := json.Unmarshal(body, opt)
 		if err != nil {
-		return err
-	}
+			return err
+		}
 		//fmt.Println("do sync option: ", opt)
 		return nil
 	}
@@ -175,6 +181,7 @@ func TestServer_Run(t *testing.T) {
 		return
 	}
 	time.Sleep(2 * time.Second)
+
 	// get clear result
 	clearResUri := uri + common.PathClearResult
 	resp, err = utils.Get(clearResUri, clearOptFile)
@@ -203,7 +210,5 @@ func TestServer_Run(t *testing.T) {
 	}
 
 	// get cache info
-
-
 	_ = os.RemoveAll(rootPath)
 }

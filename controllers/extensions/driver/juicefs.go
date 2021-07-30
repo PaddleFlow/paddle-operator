@@ -16,6 +16,7 @@ package driver
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -417,7 +418,7 @@ func (j *JuiceFS) CreateSyncJob(job *v1alpha1.SampleJob, ctx common.RequestConte
 	return nil
 }
 
-func (j *JuiceFS) DoSyncJob(opt *v1alpha1.SyncJobOptions) error {
+func (j *JuiceFS) DoSyncJob(ctx context.Context, opt *v1alpha1.SyncJobOptions) error {
 	if !strings.Contains(opt.Source, "://") {
 		return fmt.Errorf("source is no valid: %s", opt.Source)
 	}
@@ -444,17 +445,18 @@ func (j *JuiceFS) DoSyncJob(opt *v1alpha1.SyncJobOptions) error {
 	args = append(args, opt.Source)
 	args = append(args, opt.Destination)
 
-	cmd := exec.Command("juicefs", args...)
+	cmd := exec.CommandContext(ctx,"juicefs", args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("juice sync cmd: %s; error: %s", cmd.String(), stderr.String())
+		return fmt.Errorf("juice sync cmd: %s; error: %s; stderr: %s",
+			cmd.String(), err.Error(), stderr.String())
 	}
 	fmt.Print(stdout)
 	return nil
 }
 
-func (j *JuiceFS) DoWarmupJob(opt *v1alpha1.WarmupJobOptions) error {
+func (j *JuiceFS) DoWarmupJob(ctx context.Context, opt *v1alpha1.WarmupJobOptions) error {
 	if len(opt.Paths) == 0 {
 		return errors.New("warmup job option paths not set")
 	}
@@ -466,7 +468,6 @@ func (j *JuiceFS) DoWarmupJob(opt *v1alpha1.WarmupJobOptions) error {
 		var arg string
 		if value.Kind() == reflect.Bool {
 			arg = fmt.Sprintf("--%s", option)
-
 		} else if value.Kind() == reflect.String {
 			arg = fmt.Sprintf(`--%s="%s"`, option, value)
 		} else {
@@ -482,17 +483,18 @@ func (j *JuiceFS) DoWarmupJob(opt *v1alpha1.WarmupJobOptions) error {
 		args = append(args, path)
 	}
 
-	cmd := exec.Command("juicefs", args...)
+	cmd := exec.CommandContext(ctx, "juicefs", args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("juice sync cmd: %s, error: %s", cmd.String(), stderr.String())
+		return fmt.Errorf("juice warmup cmd: %s; error: %s; stderr: %s",
+			cmd.String(), err.Error(), stderr.String())
 	}
 	fmt.Print(stdout)
 	return nil
 }
 
-func (j *JuiceFS) DoRmrJob(opt *v1alpha1.RmrJobOptions) error {
+func (j *JuiceFS) DoRmrJob(ctx context.Context, opt *v1alpha1.RmrJobOptions) error {
 	if len(opt.Paths) == 0 {
 		return errors.New("rmr job option paths not set")
 	}
@@ -503,11 +505,12 @@ func (j *JuiceFS) DoRmrJob(opt *v1alpha1.RmrJobOptions) error {
 		}
 		args = append(args, path)
 	}
-	cmd := exec.Command("juicefs", args...)
+	cmd := exec.CommandContext(ctx,"juicefs", args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("juice rmr cmd: %s, error: %s", cmd.String(), stderr.String())
+		return fmt.Errorf("juice rmr cmd: %s; error: %s; stderr: %s",
+			cmd.String(), err.Error(), stderr.String())
 	}
 	fmt.Print(stdout)
 	return nil

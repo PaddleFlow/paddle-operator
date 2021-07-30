@@ -19,14 +19,13 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
 	"os/exec"
 	"reflect"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"strings"
 	"time"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 // HasDeletionTimestamp method to check if an object need to delete.
@@ -109,31 +108,20 @@ func DiskUsageOfPaths(paths... string) (string, error) {
 	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("cmd:%s, error: %s", cmd.String(), stderr.String())
 	}
-	lines := strings.Split(stdout.String(), "\n")
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
 	if len(lines) == 0 {
 		return "", fmt.Errorf("cmd:%s, output:%s", cmd.String(), stdout.String())
 	}
-	total := strings.Split(lines[len(lines)-1], " ")
-	if len(total) != 2 {
+	total := strings.TrimSpace(lines[len(lines)-1])
+	if !strings.Contains(total, "total") {
 		return "", fmt.Errorf("cmd:%s, output:%s", cmd.String(), stdout.String())
 	}
-	return strings.TrimSpace(total[0]), nil
-}
-
-func FileNumberOfPaths(paths... string) (string, error) {
-	var stdout, stderr bytes.Buffer
-	args := []string{"-lR"}
-	for _, path := range paths {
-		args = append(args, path)
+	totalSlice := strings.FieldsFunc(total, func(r rune) bool { return r == ' ' || r == '\t' })
+	if len(totalSlice) == 0 {
+		return "", fmt.Errorf("cmd:%s, output:%s", cmd.String(), stdout.String())
 	}
-	args = append(args, "|", "grep", `"^-"`, "|", "wc", "-l")
 
-	cmd := exec.Command("ls", args...)
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("cmd:%s, error: %s", cmd.String(), stderr.String())
-	}
-	return strings.TrimSpace(stdout.String()), nil
+	return totalSlice[0], nil
 }
 
 func DiskSpaceOfPaths(paths... string) ([]string, error) {
@@ -148,15 +136,17 @@ func DiskSpaceOfPaths(paths... string) ([]string, error) {
 	if err := cmd.Run(); err != nil {
 		return nil, fmt.Errorf("cmd:%s, error: %s", cmd.String(), stderr.String())
 	}
-	lines := strings.Split(stdout.String(), "\n")
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
 	if len(lines) == 0 {
 		return nil, fmt.Errorf("cmd:%s, output:%s", cmd.String(), stdout.String())
 	}
-	total := strings.Split(lines[len(lines)-1], " ")
-	if len(total) != 6 {
+	total := strings.TrimSpace(lines[len(lines)-1])
+	if !strings.Contains(total, "total") {
 		return nil, fmt.Errorf("cmd:%s, output:%s", cmd.String(), stdout.String())
 	}
-	return total, nil
+	totalSlice := strings.FieldsFunc(total, func(r rune) bool { return r == ' ' || r == '\t' })
+
+	return totalSlice, nil
 }
 
 func Base64Decode(data []byte) (string, error) {

@@ -110,6 +110,7 @@ const (
 	PathRmrOptions    = "/rmrOptions"
 	PathWarmupOptions = "/warmupOptions"
 	FilePathCacheInfo = "/cacheInfo.json"
+	TerminateSignal   = "delete"
 )
 
 const (
