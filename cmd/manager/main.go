@@ -37,7 +37,7 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "run",
+	Use:   common.CmdRoot,
 	Short: "run server or job command",
 }
 

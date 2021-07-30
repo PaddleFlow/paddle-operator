@@ -3,7 +3,7 @@
 IMG ?= registry.baidubce.com/paddle-operator/controller
 SAMPLESET_IMG ?= registry.baidubce.com/paddle-operator/sampleset
 SAMPLEJOB_IMG ?= registry.baidubce.com/paddle-operator/samplejob
-EXECUTOR_IMG ?= registry.baidubce.com/paddle-operator/executor
+MANAGER_IMG ?= registry.baidubce.com/paddle-operator/manager
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:maxDescLen=0,generateEmbeddedObjectMeta=true,trivialVersions=true,preserveUnknownFields=false"
 
@@ -108,11 +108,19 @@ docker-build: test
 	docker build . -t ${IMG}:${GIT_VERSION}
 
 # Build all controller manager docker images
-docker-build-all: docker-build docker-build-sampleset
+docker-build-all: docker-build docker-build-sampleset docker-build-samplejob docker-build-manager
 
 # Build sampleset controller image
 docker-build-sampleset: test
 	docker build . -f Dockerfile.sampleset -t ${SAMPLESET_IMG}:${GIT_VERSION}
+
+# Build samplejob controller image
+docker-build-samplejob: test
+	docker build . -f Dockerfile.samplejob -t ${SAMPLEJOB_IMG}:${GIT_VERSION}
+
+# Build cache manager runtime image
+docker-build-manager: test
+	docker build . -f Dockerfile.manager -t ${MANAGER_IMG}:${GIT_VERSION}
 
 # Push the docker image
 docker-push:
