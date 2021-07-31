@@ -32,6 +32,7 @@ type DriverName string
 // Source describes a mounting. <br>
 type Source struct {
 	// The uri of source data from remote storage
+	// Cannot be update after SampleSet sync data to cache engine
 	// +kubebuilder:validation:MinLength=10
 	// +required
 	URI string `json:"uri,omitempty"`
@@ -86,17 +87,21 @@ type Cache struct {
 type CacheStatus struct {
 	// TotalSize the total size of SampleSet data
 	TotalSize string `json:"totalSize,omitempty"`
-	// CachedSize the cached data
+	// TotalFiles the total file number of SampleSet data
+	TotalFiles int `json:"totalFiles,omitempty"`
+	// CachedSize the total size of cached data in all nodes
 	CachedSize string `json:"cachedSize,omitempty"`
-	// DiskSize
+	// CachedFiles the total file number of cached data
+	CachedFiles int `json:"cached_files"`
+	// DiskSize disk space on file system containing cache data
 	DiskSize string `json:"diskSize,omitempty"`
-	// DiskUsed
+	// DiskUsed disk space already been used, display by command df
 	DiskUsed string `json:"diskUsed,omitempty"`
-	// DiskAvail
+	// DiskAvail disk space available on file system, display by command df
 	DiskAvail string `json:"diskAvail,omitempty"`
-	// DiskUsageRate
+	// DiskUsageRate disk space usage rate display by command df
 	DiskUsageRate string `json:"diskUsageRate,omitempty"`
-	// ErrorMassage
+	// ErrorMassage error massages collected when executing related command
 	ErrorMassage string `json:"errorMassage,omitempty"`
 }
 
@@ -124,25 +129,30 @@ type SampleSetSpec struct {
 	// +kubebuilder:validation:Minimum=1
 	// +required
 	Partitions int32 `json:"partitions,omitempty"`
+	// Source describes the information of data source uri and secret name.
 	// +required
 	Source *Source `json:"source,omitempty"`
 	// SecretRef is reference to the authentication secret for source storage and cache engine.
 	// +required
 	SecretRef *corev1.LocalObjectReference `json:"secretRef,omitempty"`
-	// If the data is already in cache engine backend storage,can set NoSync as true to skip sync phase.
+	// If the data is already in cache engine backend storage, can set NoSync as true to skip Syncing phase.
 	// +optional
 	NoSync bool `json:"noSync,omitempty"`
 	// CSI defines the csi driver and mount options for supporting dataset.
+	// Cannot be update after SampleSet phase is Bound
 	// +optional
 	CSI *CSI `json:"csi,omitempty"`
-	// cache options used by cache runtime engine
+	// Cache options used by cache runtime engine
+	// Cannot be update after SampleSet phase is Bound
 	// +optional
 	Cache Cache `json:"cache,omitempty"`
 	// NodeAffinity defines constraints that limit what nodes this SampleSet can be cached to.
 	// This field influences the scheduling of pods that use the cached dataset.
+	// Cannot be update
 	// +optional
 	NodeAffinity *corev1.VolumeNodeAffinity `json:"nodeAffinity,omitempty"`
 	// If specified, the pod's tolerations.
+	// Cannot be update
 	// +optional
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }

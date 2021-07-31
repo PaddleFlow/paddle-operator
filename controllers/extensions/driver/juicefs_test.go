@@ -16,6 +16,7 @@ package driver
 
 import (
 	"context"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/utils"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
@@ -124,11 +125,12 @@ func TestJuiceFS_getVolumeInfo(t *testing.T) {
 	}
 
 	driver := NewJuiceFSDriver()
-	volumes, volumeMounts, err := driver.getVolumeInfo(pv)
+	volumes, volumeMounts, serverOpt, err := driver.getVolumeInfo(pv)
 	if err != nil {
 		t.Error(err)
 	}
-	if len(volumes) != 4 || len(volumeMounts) != 4 {
+	t.Log("serverOpt=== ", serverOpt)
+	if len(volumes) != 4 || len(volumeMounts) != 4 || serverOpt.DataDir == "" || len(serverOpt.CacheDirs) != 3 {
 		t.Errorf("len of volumes or volumeMounts not right \n")
 	}
 
@@ -150,4 +152,20 @@ func TestJuiceFS_DoSyncJob(t *testing.T) {
 	if err := driver.DoSyncJob(context.Background(), options); err != nil {
 		t.Log("juicefs do sync job error: ", err.Error())
 	}
+}
+
+func TestNoZeroOptionToArgs(t *testing.T) {
+	options := common.ServerOptions{
+		ServerPort: 7716,
+		ServerDir: "/runtime",
+		DataDir: "/mnt/imagenet",
+		CacheDirs: []string{
+			"/dev/shm/imagenet",
+			"/dev/ssd/imagenet",
+		},
+		Interval: 120,
+		Timeout: 120,
+	}
+	args := utils.NoZeroOptionToArgs(&options)
+	t.Log(strings.Join(args, " "))
 }

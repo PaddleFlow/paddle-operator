@@ -151,6 +151,10 @@ func (s *SampleSetReconcilePhase) reconcilePhase() (ctrl.Result, error) {
 		return s.reconcileBound()
 	case common.SampleSetMount:
 		return s.reconcileMount()
+	case common.SampleSetSyncing:
+		return s.reconcileSyncing()
+	case common.SampleSetPartialReady:
+		return s.reconcilePartialReady()
 	case common.SampleSetReady:
 		return s.reconcileReady()
 	//default:
@@ -589,11 +593,32 @@ func (s *SampleSetReconcilePhase) reconcileBound() (ctrl.Result, error) {
 	return utils.NoRequeue()
 }
 
-// reconcileMount After create runtime daemon set, before data sync finish
+// reconcileMount After create runtime daemon set and mounted,
 func (s *SampleSetReconcilePhase) reconcileMount() (ctrl.Result, error) {
 	s.Log.WithName("reconcileMount")
 
+	// list
+	//if s.SampleSet.Spec.NoSync {
+	//
+	//
+	//
+	//}
+
+	//
+	//serviceName := s.GetServiceName(s.Req.Name)
+
+
+
+
 	s.Log.Info("************")
+	return utils.NoRequeue()
+}
+
+func (s *SampleSetReconcilePhase) reconcileSyncing() (ctrl.Result, error) {
+	return utils.NoRequeue()
+}
+
+func (s *SampleSetReconcilePhase) reconcilePartialReady() (ctrl.Result, error) {
 	return utils.NoRequeue()
 }
 

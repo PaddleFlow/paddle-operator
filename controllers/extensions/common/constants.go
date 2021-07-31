@@ -27,15 +27,16 @@ const (
 
 const (
 	// SampleSetNone After create SampleSet CR, before create PV/PVC
-	SampleSetNone   v1alpha1.SampleSetPhase = ""
+	SampleSetNone v1alpha1.SampleSetPhase = ""
 	// SampleSetBound After create PV/PVC, before create runtime daemon set
-	SampleSetBound  v1alpha1.SampleSetPhase = "Bound"
-	// SampleSetMount After create runtime daemon set, before data sync finish
-	SampleSetMount  v1alpha1.SampleSetPhase = "Mount"
+	SampleSetBound v1alpha1.SampleSetPhase = "Bound"
+	// SampleSetMount After create runtime daemon set, before data syncing.
+	SampleSetMount   v1alpha1.SampleSetPhase = "Mount"
+	SampleSetSyncing v1alpha1.SampleSetPhase = "Syncing"
 	// SampleSetPartialReady means
 	SampleSetPartialReady v1alpha1.SampleSetPhase = "PartialReady"
 	// SampleSetReady After data sync finish and SampleSet is ready to be use
-	SampleSetReady  v1alpha1.SampleSetPhase = "Ready"
+	SampleSetReady v1alpha1.SampleSetPhase = "Ready"
 	// SampleSetFailed Not bound to runtime, can be deleted
 	SampleSetFailed v1alpha1.SampleSetPhase = "Failed"
 )
@@ -79,7 +80,7 @@ const (
 const ResourceStorage = "10Pi"
 
 const (
-	PaddleLabel = "paddlepaddle.org"
+	PaddleLabel         = "paddlepaddle.org"
 	PaddleOperatorLabel = "paddle-operator"
 )
 
@@ -88,9 +89,9 @@ const (
 )
 
 const (
-	RuntimeContainerName = "runtime"
+	RuntimeContainerName  = "runtime"
 	RuntimeCacheMountPath = "/cache"
-	RuntimeDateMountPath = "/mnt"
+	RuntimeDateMountPath  = "/mnt"
 )
 
 const (

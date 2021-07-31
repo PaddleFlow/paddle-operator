@@ -239,6 +239,10 @@ func (j *JuiceFS) getMountOptions(sampleSet *v1alpha1.SampleSet) (string, error)
 func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx common.RequestContext) error {
 	label := j.GetLabel(ctx.Req.Name)
 	runtimeName := j.GetRuntimeName(ctx.Req.Name)
+	image, err := utils.GetRuntimeImage()
+	if err != nil {
+		return err
+	}
 
 	objectMeta := metav1.ObjectMeta{
 		Name: runtimeName,
@@ -252,16 +256,13 @@ func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx common.RequestContext
 	}
 	ds.ObjectMeta = objectMeta
 
-	volumes, volumeMounts, err := j.getVolumeInfo(ctx.PV)
+	volumes, volumeMounts, serverOpt, err := j.getVolumeInfo(ctx.PV)
 	if err != nil {
 		return fmt.Errorf("getVolumeInfo error: %s", err.Error())
 	}
-
-	//
-	//image, err := utils.GetRuntimeImage()
-	//if err != nil {
-	//	return err
-	//}
+	command := []string{common.CmdRoot}
+	args := utils.NoZeroOptionToArgs(serverOpt)
+	command = append(command, args...)
 
 	labelSelector := metav1.LabelSelector{
 		MatchLabels: map[string]string{
@@ -282,21 +283,14 @@ func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx common.RequestContext
 
 	container := v1.Container{
 		Name: common.RuntimeContainerName,
-		Image: "nginx:1.9.1",
+		Image: image,
 		Ports: []v1.ContainerPort{
 			{
 				Name: ctx.Req.Name,
-				ContainerPort: 80,
+				ContainerPort: common.RuntimeServicePort,
 			},
 		},
-		//Command: []string{
-		//
-		//},
-		//Args: []string{
-		//
-		//},
-		//WorkingDir: "",
-
+		Command: command,
 		VolumeMounts: volumeMounts,
 	}
 
@@ -341,16 +335,18 @@ func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx common.RequestContext
 	return nil
 }
 
-func (j *JuiceFS) getVolumeInfo(pv *v1.PersistentVolume) ([]v1.Volume, []v1.VolumeMount, error) {
+func (j *JuiceFS) getVolumeInfo(pv *v1.PersistentVolume) (
+	[]v1.Volume, []v1.VolumeMount, *common.ServerOptions, error) {
 	// Get cache dir configuration from PV
 	if pv.Spec.CSI == nil || pv.Spec.CSI.VolumeAttributes == nil {
-		return nil, nil, fmt.Errorf("pv csi field %s is not valid", pv.Name)
+		return nil, nil, nil, fmt.Errorf("pv csi field %s is not valid", pv.Name)
 	}
 	if _, exits := pv.Spec.CSI.VolumeAttributes["mountOptions"]; !exits {
-		return nil, nil, fmt.Errorf("pv mountOptions %s is not exist", pv.Name)
+		return nil, nil, nil, fmt.Errorf("pv mountOptions %s is not exist", pv.Name)
 	}
 	mountOptions := pv.Spec.CSI.VolumeAttributes["mountOptions"]
 	optionList := strings.Split(mountOptions, ",")
+	serverOpt := &common.ServerOptions{}
 
 	var cacheDirList []string
 	for _, option := range optionList {
@@ -361,7 +357,7 @@ func (j *JuiceFS) getVolumeInfo(pv *v1.PersistentVolume) ([]v1.Volume, []v1.Volu
 		cacheDirList = strings.Split(cacheDir, ":")
 	}
 	if len(cacheDirList) == 0 {
-		return nil, nil, fmt.Errorf("cache-dir is not valid")
+		return nil, nil, nil, fmt.Errorf("cache-dir is not valid")
 	}
 
 	var volumes []v1.Volume
@@ -389,6 +385,7 @@ func (j *JuiceFS) getVolumeInfo(pv *v1.PersistentVolume) ([]v1.Volume, []v1.Volu
 			MountPath: mountPath,
 		}
 		volumeMounts = append(volumeMounts, volumeMount)
+		serverOpt.CacheDirs = append(serverOpt.CacheDirs, mountPath)
 	}
 
 	// construct data persistent volume claim source pods
@@ -409,8 +406,9 @@ func (j *JuiceFS) getVolumeInfo(pv *v1.PersistentVolume) ([]v1.Volume, []v1.Volu
 		MountPath: mountPath,
 	}
 	volumeMounts = append(volumeMounts, volumeMount)
+	serverOpt.DataDir = mountPath
 
-	return volumes, volumeMounts, nil
+	return volumes, volumeMounts, serverOpt, nil
 }
 
 // CreateSyncJob create
@@ -426,22 +424,10 @@ func (j *JuiceFS) DoSyncJob(ctx context.Context, opt *v1alpha1.SyncJobOptions) e
 		return fmt.Errorf("destination is no valid: %s", opt.Destination)
 	}
 
+	syncArgs := utils.NoZeroOptionToArgs(&opt.JuiceFSSyncOptions)
+
 	args := []string{"sync"}
-
-	optionMap := make(map[string]reflect.Value)
-	utils.NoZeroOptionToMap(optionMap, &opt.JuiceFSSyncOptions)
-
-	for option, value := range optionMap {
-		var arg string
-		if value.Kind() == reflect.Bool {
-			arg = fmt.Sprintf("--%s", option)
-		} else if value.Kind() == reflect.String {
-			arg = fmt.Sprintf(`--%s="%s"`, option, value)
-		} else {
-			arg = fmt.Sprintf("--%s=%+v", option, value)
-		}
-		args = append(args, arg)
-	}
+	args = append(args, syncArgs...)
 	args = append(args, opt.Source)
 	args = append(args, opt.Destination)
 
@@ -460,22 +446,10 @@ func (j *JuiceFS) DoWarmupJob(ctx context.Context, opt *v1alpha1.WarmupJobOption
 	if len(opt.Paths) == 0 {
 		return errors.New("warmup job option paths not set")
 	}
+	warmupArgs := utils.NoZeroOptionToArgs(&opt.JuiceFSWarmupOptions)
+
 	args := []string{"warmup"}
-
-	optionMap := make(map[string]reflect.Value)
-	utils.NoZeroOptionToMap(optionMap, &opt.JuiceFSWarmupOptions)
-	for option, value := range optionMap {
-		var arg string
-		if value.Kind() == reflect.Bool {
-			arg = fmt.Sprintf("--%s", option)
-		} else if value.Kind() == reflect.String {
-			arg = fmt.Sprintf(`--%s="%s"`, option, value)
-		} else {
-			arg = fmt.Sprintf("--%s=%+v", option, value)
-		}
-		args = append(args, arg)
-	}
-
+	args = append(args, warmupArgs...)
 	for _, path := range opt.Paths {
 		if !strings.HasPrefix(path, "/") {
 			return fmt.Errorf("path %s is not valid", path)

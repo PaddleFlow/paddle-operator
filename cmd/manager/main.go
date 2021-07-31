@@ -118,6 +118,7 @@ func init() {
 	serverCmd.Flags().StringSliceVar(&serverOptions.CacheDirs, "cacheDirs", nil, "cache data directories that mounted to the container")
 	serverCmd.Flags().StringVar(&serverOptions.DataDir, "dataDir", "", "the sample set data path mounted to the container")
 	serverCmd.Flags().Int64Var(&serverOptions.Interval, "interval", 120, "time interval for writing cache status to specified path")
+	serverCmd.Flags().Int64Var(&serverOptions.Timeout, "timeout", 120, "The timeout period of the command to collect cached data information")
 
 	// initialize options for sync job command
 	syncJobCmd.Flags().StringVar(&syncJobOptions.Source, "source", "", "data source that need sync to cache engine")

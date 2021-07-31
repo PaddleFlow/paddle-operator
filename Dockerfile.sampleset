@@ -7,7 +7,6 @@ COPY go.mod go.mod
 COPY go.sum go.sum
 
 ENV GOPROXY="https://goproxy.cn,direct"
-ENV RUNTIME_IMAGE=$EXECUTOR_IMG:$GIT_VERSION
 # cache deps before building and copying source so that we don't need to re-download as much
 # and so that source changes don't invalidate our downloaded layer
 RUN go mod download
@@ -24,6 +23,9 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a -o manager 
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM bitnami/minideb:stretch
 WORKDIR /
+
+ENV RUNTIME_IMAGE=$EXECUTOR_IMG:$GIT_VERSION
+
 COPY --from=builder /workspace/manager .
 USER 65532:65532
 
