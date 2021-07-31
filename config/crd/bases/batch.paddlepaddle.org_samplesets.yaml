@@ -201,7 +201,7 @@ spec:
             properties:
               cacheStatus:
                 properties:
-                  cached_files:
+                  cachedFiles:
                     type: integer
                   cachedSize:
                     type: string
@@ -219,8 +219,6 @@ spec:
                     type: integer
                   totalSize:
                     type: string
-                required:
-                - cached_files
                 type: object
               jobsName:
                 properties:

@@ -34,6 +34,5 @@ RUN apt-get update && apt-get install -y wget && \
     chmod +x juicefs && mv juicefs ${JUICEFS_PATH}
 
 COPY --from=builder /workspace/nuwa /usr/bin/nuwa
-USER 65532:65532
 
 CMD ["nuwa", "server"]
