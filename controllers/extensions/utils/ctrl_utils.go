@@ -16,6 +16,7 @@ package utils
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -24,6 +25,7 @@ import (
 	"os/exec"
 	"reflect"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -95,14 +97,45 @@ func NoZeroOptionToMap(optionMap map[string]reflect.Value, i interface{}) {
 	}
 }
 
-func DiskUsageOfPaths(paths... string) (string, error) {
+func NoZeroOptionToArgs(options interface{}) []string {
+	var args []string
+
+	elem := reflect.ValueOf(options).Elem()
+	for i := 0; i < elem.NumField(); i++ {
+		v := elem.Field(i)
+		if v.IsZero() {
+			continue
+		}
+		field := elem.Type().Field(i)
+		tag := field.Tag.Get("json")
+		opt := strings.Split(tag, ",")[0]
+		switch v.Kind() {
+		case reflect.Bool:
+			args = append(args, fmt.Sprintf("--%s", opt))
+		case reflect.String:
+			args = append(args, fmt.Sprintf(`--%s="%s"`, opt, v))
+		case reflect.Slice:  // []string
+			for j := 0; j < v.Len(); j++ {
+				args = append(args, fmt.Sprintf(`--%s="%+v"`, opt, v.Index(j)))
+			}
+		default:  // int int64 ...
+			args = append(args, fmt.Sprintf("--%s=%+v", opt, v))
+		}
+	}
+	return args
+}
+
+func DiskUsageOfPaths(timeout time.Duration, paths... string) (string, error) {
 	var stdout, stderr bytes.Buffer
 	args := []string{"-sch"}
 	for _, path := range paths {
 		args = append(args, path)
 	}
 
-	cmd := exec.Command("du", args...)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout * time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "du", args...)
 	fmt.Printf("total size cmd: %s\n", cmd.String())
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
@@ -124,14 +157,38 @@ func DiskUsageOfPaths(paths... string) (string, error) {
 	return totalSlice[0], nil
 }
 
-func DiskSpaceOfPaths(paths... string) ([]string, error) {
+func FileNumberOfPaths(timeout time.Duration, paths... string) (int, error) {
+	filePaths := strings.Join(paths, " ")
+	arg := "ls -lR " + filePaths + "| grep \"^-\" | wc -l"
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout * time.Second)
+	defer cancel()
+
+	var stdout, stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, "bash", "-c", arg)
+	fmt.Printf("ls file number cmd: %s\n", cmd.String())
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
+		return 0, fmt.Errorf("cmd:%s, error: %s", cmd.String(), stderr.String())
+	}
+	fileNum, err := strconv.Atoi(strings.TrimSpace(stdout.String()))
+	if err != nil {
+		return 0, fmt.Errorf("cmd:%s, atoi error: %s", cmd.String(), err)
+	}
+	return fileNum, nil
+}
+
+func DiskSpaceOfPaths(timeout time.Duration, paths... string) ([]string, error) {
 	var stdout, stderr bytes.Buffer
 	args := []string{"--total", "-h"}
 	for _, path := range paths {
 		args = append(args, path)
 	}
 
-	cmd := exec.Command("df", args...)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout * time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "df", args...)
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
 		return nil, fmt.Errorf("cmd:%s, error: %s", cmd.String(), stderr.String())

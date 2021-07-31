@@ -23,8 +23,8 @@ spec:
     - jsonPath: .status.cacheStatus.cachedSize
       name: CACHED SIZE
       type: string
-    - jsonPath: .status.cacheStatus.cacheCapacity
-      name: CACHE CAPACITY
+    - jsonPath: .status.cacheStatus.diskAvail
+      name: AVAIL SPACE
       type: string
     - jsonPath: .status.runtimeStatus.runtimeReady
       name: Runtime
@@ -201,18 +201,26 @@ spec:
             properties:
               cacheStatus:
                 properties:
-                  cacheCapacity:
-                    type: string
-                  cachedPercentage:
-                    type: string
+                  cached_files:
+                    type: integer
                   cachedSize:
+                    type: string
+                  diskAvail:
+                    type: string
+                  diskSize:
+                    type: string
+                  diskUsageRate:
+                    type: string
+                  diskUsed:
                     type: string
                   errorMassage:
                     type: string
                   totalFiles:
-                    type: string
+                    type: integer
                   totalSize:
                     type: string
+                required:
+                - cached_files
                 type: object
               jobsName:
                 properties:

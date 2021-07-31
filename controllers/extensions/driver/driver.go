@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	appv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -71,7 +72,7 @@ type Driver interface {
 	// GetRuntimeName get the runtime StatefulSet name
 	GetRuntimeName(sampleSetName string) string
 
-	//CreateSyncJob(job *v1alpha1.SampleJob, ctx common.RequestContext) error
+	CreateSyncJob(job *v1alpha1.SampleJob, ctx common.RequestContext) error
 
 	GetCacheStatus(opt *common.ServerOptions, status *v1alpha1.CacheStatus) error
 
@@ -208,24 +209,42 @@ func (d *BaseDriver) GetCacheStatus(opt *common.ServerOptions, status *v1alpha1.
 	}
 
 	var errs []string
+	timeout := time.Duration(opt.Timeout)
+
 	// get total data size from data mount path
-	totalSize, err := utils.DiskUsageOfPaths(opt.DataDir)
+	totalSize, err := utils.DiskUsageOfPaths(timeout, opt.DataDir)
 	if err == nil {
 		status.TotalSize = totalSize
 	} else {
 		errs = append(errs, fmt.Sprintf("get totalSize error: %s", err.Error()))
 	}
 
-	// get cache data size from cache data mount path
-	cacheSize, err := utils.DiskUsageOfPaths(opt.CacheDirs...)
+	// get total data file number from data mount path
+	totalFiles, err := utils.FileNumberOfPaths(timeout, opt.DataDir)
+	if err == nil {
+		status.TotalFiles = totalFiles
+	} else {
+		errs = append(errs, fmt.Sprintf("get totalFiles error: %s", err.Error()))
+	}
+
+	// get cache data size from cache data mount paths
+	cacheSize, err := utils.DiskUsageOfPaths(timeout, opt.CacheDirs...)
 	if err == nil {
 		status.CachedSize = cacheSize
 	} else {
-		errs = append(errs, fmt.Sprintf("get cacheSize error: %s", err.Error()))
+		errs = append(errs, fmt.Sprintf("get cachedSize error: %s", err.Error()))
+	}
+
+	// get cache data file number from cache data mount paths
+	cachedFiles, err := utils.FileNumberOfPaths(timeout, opt.CacheDirs...)
+	if err == nil {
+		status.CachedFiles = cachedFiles
+	} else {
+		errs = append(errs, fmt.Sprintf("get cachedFiles error: %s", err.Error()))
 	}
 
 	// get disk space status of cache paths
-	diskStatus, err := utils.DiskSpaceOfPaths(opt.CacheDirs...)
+	diskStatus, err := utils.DiskSpaceOfPaths(timeout, opt.CacheDirs...)
 	if err == nil {
 		status.DiskSize = strings.TrimSpace(diskStatus[1])
 		status.DiskUsed = strings.TrimSpace(diskStatus[2])

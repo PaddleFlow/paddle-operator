@@ -74,11 +74,18 @@ type RootCmdOptions struct {
 }
 
 type ServerOptions struct {
+	// the port for runtime service
 	ServerPort int      `json:"serverPort,omitempty"`
+	// the root dir static file service
 	ServerDir  string   `json:"serverDir,omitempty"`
+	// cache data directories that mounted to the container
 	CacheDirs  []string `json:"cacheDirs,omitempty"`
+	// the sample set data path mounted to the container
 	DataDir    string   `json:"dataDir,omitempty"`
+	// time interval for writing cache status to specified path
 	Interval   int64    `json:"interval,omitempty"`
+	// The timeout period of the command to collect cached data information
+	Timeout    int64    `json:"timeout,omitempty"`
 }
 
 type JobStatus string
