@@ -16,10 +16,10 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"github.com/spf13/cobra"
 	"log"
 	"os"
+
+	"github.com/spf13/cobra"
 
 	"github.com/paddleflow/paddle-operator/api/v1alpha1"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
@@ -45,8 +45,6 @@ var serverCmd = &cobra.Command{
 	Use: common.CmdServer,
 	Short: "run data management server",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("rootCmdOptions=== ", rootCmdOptions)
-		fmt.Println("serverOptions=== ", serverOptions)
 		server, err := manager.NewServer(&rootCmdOptions, &serverOptions)
 		if err != nil {
 			log.Fatalf("create server error: %s", err.Error())
@@ -131,7 +129,7 @@ func init() {
 	syncJobCmd.Flags().BoolVar(&syncJobOptions.ForceUpdate, "force-update", false, "always update existing file (default: false)")
 	syncJobCmd.Flags().BoolVar(&syncJobOptions.Perms, "perms", false, "preserve permissions (default: false)")
 	syncJobCmd.Flags().BoolVar(&syncJobOptions.Dirs, "dirs", false, "Sync directories or holders (default: false)")
-	syncJobCmd.Flags().BoolVar(&syncJobOptions.Dirs, "dry", false, "Don't copy file (default: false)")
+	syncJobCmd.Flags().BoolVar(&syncJobOptions.Dry, "dry", false, "Don't copy file (default: false)")
 	syncJobCmd.Flags().BoolVar(&syncJobOptions.DeleteSrc, "delete-src", false, "delete objects from source after synced (default: false)")
 	syncJobCmd.Flags().BoolVar(&syncJobOptions.DeleteDst, "delete-dst", false, "delete extraneous objects from destination (default: false)")
 	syncJobCmd.Flags().StringVar(&syncJobOptions.Exclude, "exclude", "", "exclude keys containing PATTERN (POSIX regular expressions)")

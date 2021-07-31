@@ -112,14 +112,12 @@ func NoZeroOptionToArgs(options interface{}) []string {
 		switch v.Kind() {
 		case reflect.Bool:
 			args = append(args, fmt.Sprintf("--%s", opt))
-		case reflect.String:
-			args = append(args, fmt.Sprintf(`--%s="%s"`, opt, v))
 		case reflect.Slice:  // []string
 			for j := 0; j < v.Len(); j++ {
-				args = append(args, fmt.Sprintf(`--%s="%+v"`, opt, v.Index(j)))
+				args = append(args, fmt.Sprintf(`--%s=%v`, opt, v.Index(j)))
 			}
-		default:  // int int64 ...
-			args = append(args, fmt.Sprintf("--%s=%+v", opt, v))
+		default:
+			args = append(args, fmt.Sprintf("--%s=%v", opt, v))
 		}
 	}
 	return args

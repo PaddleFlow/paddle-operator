@@ -5,7 +5,7 @@ metadata:
 spec:
   partitions: 2
   source:
-    uri: https://imagenet.bj.bcebos.com/juicefs
+    uri: bos://zhouti-mcp-edge.gz.bcebos.com/sync-source
   secretRef:
     name: imagenet
   csi:
@@ -17,7 +17,7 @@ spec:
     levels:
       - mediumType: MEM
         path: /dev/shm/imagenet-0:/dev/shm/imagenet-1
-        cacheSize: 1024
+        cacheSize: 10240
 #      - mediumType: HDD
 #        path: /data/imagenet
 #        cacheSize: 1024

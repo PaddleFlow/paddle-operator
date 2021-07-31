@@ -31,8 +31,9 @@ type DriverName string
 
 // Source describes a mounting. <br>
 type Source struct {
-	// The uri of source data from remote storage
-	// Cannot be update after SampleSet sync data to cache engine
+	// URI should be in the following format: [NAME://]BUCKET[.ENDPOINT][/PREFIX]
+	// Cannot be updated after SampleSet sync data to cache engine
+	// More info: https://github.com/juicedata/juicesync
 	// +kubebuilder:validation:MinLength=10
 	// +required
 	URI string `json:"uri,omitempty"`
@@ -92,7 +93,7 @@ type CacheStatus struct {
 	// CachedSize the total size of cached data in all nodes
 	CachedSize string `json:"cachedSize,omitempty"`
 	// CachedFiles the total file number of cached data
-	CachedFiles int `json:"cached_files"`
+	CachedFiles int `json:"cachedFiles,omitempty"`
 	// DiskSize disk space on file system containing cache data
 	DiskSize string `json:"diskSize,omitempty"`
 	// DiskUsed disk space already been used, display by command df

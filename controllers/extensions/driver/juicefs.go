@@ -260,7 +260,12 @@ func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx common.RequestContext
 	if err != nil {
 		return fmt.Errorf("getVolumeInfo error: %s", err.Error())
 	}
-	command := []string{common.CmdRoot}
+
+	//common.RootCmdOptions{
+	//	Development: false,
+	//}
+
+	command := []string{common.CmdRoot, common.CmdServer}
 	args := utils.NoZeroOptionToArgs(serverOpt)
 	command = append(command, args...)
 
