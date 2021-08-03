@@ -19,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/dustin/go-humanize"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
 	"os/exec"
@@ -122,23 +123,15 @@ func NoZeroOptionToArgs(options interface{}) []string {
 	return args
 }
 
-// TODO: fix total
-// Filesystem      Size  Used Avail Use% Mounted on
-// tmpfs           7.9G     0  7.9G   0% /cache/dev-shm-imagenet-0
-// tmpfs           7.9G     0  7.9G   0% /cache/dev-shm-imagenet-1
-// total            16G     0   16G   0% -
 func DiskUsageOfPaths(timeout time.Duration, paths... string) (string, error) {
-	var stdout, stderr bytes.Buffer
-	args := []string{"-sch"}
-	for _, path := range paths {
-		args = append(args, path)
-	}
+	args := []string{"-scb"}
+	args = append(args, paths...)
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout * time.Second)
 	defer cancel()
 
+	var stdout, stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, "du", args...)
-	fmt.Printf("total size cmd: %s\n", cmd.String())
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("cmd:%s, error: %s", cmd.String(), stderr.String())
@@ -155,11 +148,16 @@ func DiskUsageOfPaths(timeout time.Duration, paths... string) (string, error) {
 	if len(totalSlice) == 0 {
 		return "", fmt.Errorf("cmd:%s, output:%s", cmd.String(), stdout.String())
 	}
+	totalSizeStr := strings.TrimSpace(totalSlice[0])
+	_, err := strconv.ParseUint(totalSizeStr, 10, 64)
+	if err != nil {
+		return "", fmt.Errorf("cmd:%s, parseUint error: %s", cmd.String(), err.Error())
+	}
 
-	return totalSlice[0], nil
+	return totalSizeStr, nil
 }
 
-func FileNumberOfPaths(timeout time.Duration, paths... string) (int, error) {
+func FileNumberOfPaths(timeout time.Duration, paths... string) (string, error) {
 	filePaths := strings.Join(paths, " ")
 	arg := "ls -lR " + filePaths + "| grep \"^-\" | wc -l"
 
@@ -168,44 +166,119 @@ func FileNumberOfPaths(timeout time.Duration, paths... string) (int, error) {
 
 	var stdout, stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, "bash", "-c", arg)
-	fmt.Printf("ls file number cmd: %s\n", cmd.String())
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
-		return 0, fmt.Errorf("cmd:%s, error: %s", cmd.String(), stderr.String())
+		return "", fmt.Errorf("cmd:%s, error: %s", cmd.String(), stderr.String())
 	}
-	fileNum, err := strconv.Atoi(strings.TrimSpace(stdout.String()))
+	fileNum, err := strconv.ParseInt(strings.TrimSpace(stdout.String()), 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("cmd:%s, atoi error: %s", cmd.String(), err)
+		return "", fmt.Errorf("cmd:%s, parseUint error: %s", cmd.String(), err)
 	}
-	return fileNum, nil
+
+	return humanize.Comma(fileNum), nil
 }
 
-func DiskSpaceOfPaths(timeout time.Duration, paths... string) ([]string, error) {
+func JuiceFileNumberOfPath(timeout time.Duration, path... string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout * time.Second)
+	defer cancel()
+
+	args := []string{"info"}
+	args = append(args, path...)
+
 	var stdout, stderr bytes.Buffer
-	args := []string{"--total", "-h"}
-	for _, path := range paths {
-		args = append(args, path)
+	cmd := exec.CommandContext(ctx, "juicefs", args...)
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("cmd:%s, error: %s", cmd.String(), stderr.String())
 	}
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	if len(lines) == 0 {
+		return "", fmt.Errorf("cmd:%s, output:%s", cmd.String(), stdout.String())
+	}
+	var fileLines []string
+	for _, line := range lines {
+		if strings.Contains(line, "files") {
+			fileLines = append(fileLines, line)
+		}
+	}
+
+	var fileNumTotal int64
+	for _, fileLine := range fileLines {
+		if fileLine == "" || len(strings.Split(fileLine, ":")) != 2 {
+			return "", fmt.Errorf("cmd:%s, fileLine:%s", cmd.String(), fileLine)
+		}
+		fileNumStr := strings.TrimSpace(strings.Split(fileLine, ":")[1])
+		fileNum, err := strconv.ParseInt(fileNumStr, 10, 64)
+		if err != nil {
+			return "", fmt.Errorf("cmd:%s, parseInt error: %s", cmd.String(), err)
+		}
+		fileNumTotal += fileNum
+
+	}
+
+	return humanize.Comma(fileNumTotal), nil
+}
+
+func DiskSpaceOfPaths(timeout time.Duration, paths... string) (map[string]string, error) {
+	args := []string{"--output=fstype,size,used,avail", "-BK"}
+	args = append(args, paths...)
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout * time.Second)
 	defer cancel()
 
+	var stdout, stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, "df", args...)
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
 		return nil, fmt.Errorf("cmd:%s, error: %s", cmd.String(), stderr.String())
 	}
 	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
-	if len(lines) == 0 {
+	if len(lines) <= 1 {
 		return nil, fmt.Errorf("cmd:%s, output:%s", cmd.String(), stdout.String())
 	}
-	total := strings.TrimSpace(lines[len(lines)-1])
-	if !strings.Contains(total, "total") {
-		return nil, fmt.Errorf("cmd:%s, output:%s", cmd.String(), stdout.String())
-	}
-	totalSlice := strings.FieldsFunc(total, func(r rune) bool { return r == ' ' || r == '\t' })
 
-	return totalSlice, nil
+	infoMap := make(map[string][]string)
+	for _, line := range lines[1:] {
+		infoStr := strings.TrimSpace(line)
+		infoList := strings.FieldsFunc(infoStr, func(r rune) bool { return r == ' ' || r == '\t' })
+		if len(infoList) != 4 {
+			return nil, fmt.Errorf("cmd:%s, output:%s", cmd.String(), stdout.String())
+		}
+		fsType := strings.TrimSpace(infoList[0])
+		infoMap[fsType] = infoList
+	}
+
+	var diskSizeTotal, diskUsedTotal, diskAvailTotal uint64
+	for _, infoList := range infoMap {
+		diskSizeStr := strings.TrimSuffix(strings.TrimSpace(infoList[1]), "K")
+		diskSize, err := strconv.ParseUint(diskSizeStr, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("cmd:%s, output:%s", cmd.String(), stdout.String())
+		}
+		diskSizeTotal += diskSize
+
+		diskUsedStr := strings.TrimSuffix(strings.TrimSpace(infoList[2]), "K")
+		diskUsed, err := strconv.ParseUint(diskUsedStr, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("cmd:%s, output:%s", cmd.String(), stdout.String())
+		}
+		diskUsedTotal += diskUsed
+
+		diskAvailStr := strings.TrimSuffix(strings.TrimSpace(infoList[3]), "K")
+		diskAvail, err := strconv.ParseUint(diskAvailStr, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("cmd:%s, output:%s", cmd.String(), stdout.String())
+		}
+		diskAvailTotal += diskAvail
+	}
+
+	diskStatus := map[string]string{
+		"diskSize": strconv.FormatUint(diskSizeTotal, 10),
+		"diskUsed": strconv.FormatUint(diskUsedTotal, 10),
+		"diskAvail": strconv.FormatUint(diskAvailTotal, 10),
+	}
+
+	return diskStatus, nil
 }
 
 func GetRuntimeImage() (string, error) {

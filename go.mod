@@ -3,6 +3,7 @@ module github.com/paddleflow/paddle-operator
 go 1.15
 
 require (
+	github.com/dustin/go-humanize v1.0.0
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/go-logr/logr v0.3.0
 	github.com/onsi/ginkgo v1.14.1

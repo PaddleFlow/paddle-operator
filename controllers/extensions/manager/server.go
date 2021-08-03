@@ -18,17 +18,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-logr/logr"
 	zapOpt "go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"io/ioutil"
 	"k8s.io/apimachinery/pkg/util/json"
-	"net/http"
-	"os"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"strings"
-	"time"
 
 	"github.com/paddleflow/paddle-operator/api/v1alpha1"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
@@ -388,7 +389,7 @@ func (s *Server) writeCacheStatus() {
 		}
 
 		status := &v1alpha1.CacheStatus{}
-		err := s.GetCacheStatus(s.svrOpt, status)
+		err := s.CreateCacheStatus(s.svrOpt, status)
 		if err != nil {
 			status.ErrorMassage = err.Error()
 			s.Log.Error(err, "")

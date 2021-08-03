@@ -68,7 +68,7 @@ func TestBaseDriver_GetCacheStatus(t *testing.T) {
 
 	status := &v1alpha1.CacheStatus{}
 	d, _ := GetDriver("juicefs")
-	err = d.GetCacheStatus(svrOpt, status)
+	err = d.CreateCacheStatus(svrOpt, status)
 	if status.TotalSize == "" {
 		t.Error(err)
 	}
