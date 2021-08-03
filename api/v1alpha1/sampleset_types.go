@@ -35,7 +35,7 @@ type Source struct {
 	// Cannot be updated after SampleSet sync data to cache engine
 	// More info: https://github.com/juicedata/juicesync
 	// +kubebuilder:validation:MinLength=10
-	// +required
+	// +kubebuilder:validation:Required
 	URI string `json:"uri,omitempty"`
 	// If the remote storage requires additional authorization information, set this secret reference
 	// +optional
@@ -54,7 +54,7 @@ type CSI struct {
 	// Name of cache runtime driver, now only support juicefs.
 	// +kubebuilder:validation:Enum=juicefs
 	// +kubebuilder:default=juicefs
-	// +required
+	// +kubebuilder:validation:Required
 	Driver DriverName `json:"driver,omitempty"`
 	// Namespace of the runtime object
 	// +optional
@@ -65,12 +65,12 @@ type CSI struct {
 type CacheLevel struct {
 	// Medium Type of the tier. One of the three types: `MEM`, `SSD`, `HDD`
 	// +kubebuilder:validation:Enum=MEM;SSD;HDD
-	// +required
+	// +kubebuilder:validation:Required
 	MediumType MediumType `json:"mediumType,omitempty"`
 	// directory paths of local cache, use colon to separate multiple paths
 	// For example: "/dev/shm/cache1:/dev/ssd/cache2:/mnt/cache3".
 	// +kubebuilder:validation:MinLength=1
-	// +required
+	// +kubebuilder:validation:Required
 	Path string `json:"path,omitempty"`
 	// CacheSize size of cached objects in MiB
 	// If multiple paths used for this, the cache size is total amount of cache objects in all paths
@@ -81,6 +81,8 @@ type CacheLevel struct {
 // Cache used to describe how cache data store
 type Cache struct {
 	// configurations for multiple storage tier
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:Required
 	Levels []CacheLevel `json:"levels,omitempty"`
 }
 
@@ -128,13 +130,13 @@ type JobsName struct {
 type SampleSetSpec struct {
 	// Partitions is the number of SampleSet partitions, partition means cache node.
 	// +kubebuilder:validation:Minimum=1
-	// +required
+	// +kubebuilder:validation:Required
 	Partitions int32 `json:"partitions,omitempty"`
 	// Source describes the information of data source uri and secret name.
-	// +required
+	// +optional
 	Source *Source `json:"source,omitempty"`
 	// SecretRef is reference to the authentication secret for source storage and cache engine.
-	// +required
+	// +kubebuilder:validation:Required
 	SecretRef *corev1.LocalObjectReference `json:"secretRef,omitempty"`
 	// If the data is already in cache engine backend storage, can set NoSync as true to skip Syncing phase.
 	// +optional

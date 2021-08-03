@@ -47,18 +47,12 @@ type ReconcileContext struct {
 }
 
 type RequestContext struct {
-	//
-	Req *ctrl.Request
-
-	//
 	SampleSet *v1alpha1.SampleSet
+	SampleJob *v1alpha1.SampleJob
 
-	//
+	Req *ctrl.Request
 	Secret *v1.Secret
-
-	//
 	PV *v1.PersistentVolume
-
 	Service *v1.Service
 }
 
@@ -68,9 +62,9 @@ type JobsName atomic.Value
 type RootCmdOptions struct {
 	// container storage interface driver name,
 	// the value of it should in v1alpha1.DriverName
-	Driver string
+	Driver string `json:"driver,omitempty"`
 	// configures the logger to use a Zap development config
-	Development bool
+	Development bool `json:"development,omitempty"`
 }
 
 type ServerOptions struct {

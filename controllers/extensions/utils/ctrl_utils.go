@@ -17,7 +17,6 @@ package utils
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -123,6 +122,11 @@ func NoZeroOptionToArgs(options interface{}) []string {
 	return args
 }
 
+// TODO: fix total
+// Filesystem      Size  Used Avail Use% Mounted on
+// tmpfs           7.9G     0  7.9G   0% /cache/dev-shm-imagenet-0
+// tmpfs           7.9G     0  7.9G   0% /cache/dev-shm-imagenet-1
+// total            16G     0   16G   0% -
 func DiskUsageOfPaths(timeout time.Duration, paths... string) (string, error) {
 	var stdout, stderr bytes.Buffer
 	args := []string{"-sch"}
@@ -202,11 +206,6 @@ func DiskSpaceOfPaths(timeout time.Duration, paths... string) ([]string, error) 
 	totalSlice := strings.FieldsFunc(total, func(r rune) bool { return r == ' ' || r == '\t' })
 
 	return totalSlice, nil
-}
-
-func Base64Decode(data []byte) (string, error) {
-	s, err := base64.StdEncoding.DecodeString(string(data))
-	return string(s), err
 }
 
 func GetRuntimeImage() (string, error) {

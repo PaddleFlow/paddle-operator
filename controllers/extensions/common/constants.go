@@ -75,6 +75,8 @@ const (
 	ErrorDeleteService   = "ErrorDeleteService"
 	ErrorDeletePVC       = "ErrorDeletePersistentVolumeClaim"
 	ErrorDeletePV        = "ErrorDeletePersistentVolume"
+
+	ErrorCreateSyncJobOption = "ErrorCreateSyncJobOption"
 )
 
 const ResourceStorage = "10Pi"
@@ -111,7 +113,7 @@ const (
 	PathClearOptions  = "/clearOptions"
 	PathRmrOptions    = "/rmrOptions"
 	PathWarmupOptions = "/warmupOptions"
-	FilePathCacheInfo = "/cacheInfo.json"
+	FilePathCacheInfo = "cacheInfo.json"
 	TerminateSignal   = "delete"
 )
 
@@ -119,4 +121,50 @@ const (
 	JobStatusRunning JobStatus = "running"
 	JobStatusSuccess JobStatus = "success"
 	JobStatusFail    JobStatus = "fail"
+)
+
+const (
+	// StorageBOS Baidu Cloud Object Storage
+	StorageBOS   = "bos"
+	// StorageS3 Amazon S3
+	StorageS3    = "s3"
+	// StorageHDFS Hadoop File System (HDFS)
+	StorageHDFS  = "hdfs"
+	// StorageGCS Google Cloud Storage
+	StorageGCS   = "gcs"
+	// StorageWASB Windows Azure Blob Storage
+	StorageWASB  = "wasb"
+	// StorageOSS Aliyun OSS
+	StorageOSS   = "oss"
+	// StorageCOS Tencent Cloud COS
+	StorageCOS   = "cos"
+	// StorageKS3 KSYun KS3
+	StorageKS3   = "ks3"
+	// StorageUFILE UCloud UFile
+	StorageUFILE = "ufile"
+	// StorageQingStor Qingcloud QingStor
+	StorageQingStor = "qingstor"
+	// StorageJSS JCloud Object Storage
+	StorageJSS   = "jss"
+	// StorageQiNiu Qiniu
+	StorageQiNiu = "qiniu"
+	// StorageB2 Backblaze B2
+	StorageB2    = "b2"
+	// StorageSpace Digital Ocean Space
+	StorageSpace = "space"
+	// StorageOBS Huawei Object Storage Service
+	StorageOBS   = "obs"
+	// StorageOOS CTYun OOS
+	StorageOOS   = "oos"
+	// StorageSCW Scaleway Object Storage
+	StorageSCW   = "scw"
+	// StorageMinio MinIO
+	StorageMinio = "minio"
+	// StorageSCS Sina Cloud Storage
+	StorageSCS   = "scs"
+)
+
+const (
+	StrategyRandom   = "random"
+	StrategySequence = "sequence"
 )

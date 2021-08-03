@@ -59,13 +59,13 @@ const (
 
 var (
 	JuiceFSSecretDataKeys      []string
+	JuiceFSSupportStorage      []string
 	JuiceFSDefaultMountOptions *v1alpha1.JuiceFSMountOptions
 )
 
 func init() {
 	// data keys of secret must contains when use JuiceFS as csi driver
 	JuiceFSSecretDataKeys = []string{
-		JuiceFSSecretSK, JuiceFSSecretAK,
 		JuiceFSSecretName, JuiceFSSecretStorage,
 		JuiceFSSecretMetaURL, JuiceFSSecretBucket,
 	}
@@ -76,6 +76,16 @@ func init() {
 		AttrCache: 7200, EntryCache: 7200,
 		DirEntryCache: 7200, Prefetch: 1,
 		BufferSize: 1024, CacheDir: "/dev/shm/",
+	}
+
+	JuiceFSSupportStorage = []string{
+		common.StorageBOS, common.StorageS3, common.StorageHDFS,
+		common.StorageGCS, common.StorageWASB, common.StorageOSS,
+		common.StorageCOS, common.StorageKS3, common.StorageUFILE,
+		common.StorageQingStor, common.StorageJSS, common.StorageQiNiu,
+		common.StorageB2, common.StorageSpace, common.StorageOBS,
+		common.StorageOOS, common.StorageSCW, common.StorageMinio,
+		common.StorageSCS,
 	}
 
 }
@@ -261,13 +271,15 @@ func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx common.RequestContext
 		return fmt.Errorf("getVolumeInfo error: %s", err.Error())
 	}
 
-	//common.RootCmdOptions{
-	//	Development: false,
-	//}
-
+	rootOpt := &common.RootCmdOptions{
+		Driver: string(j.Name),
+		Development: true,
+	}
 	command := []string{common.CmdRoot, common.CmdServer}
-	args := utils.NoZeroOptionToArgs(serverOpt)
-	command = append(command, args...)
+	rootArgs := utils.NoZeroOptionToArgs(rootOpt)
+	serverArgs := utils.NoZeroOptionToArgs(serverOpt)
+	command = append(command, rootArgs...)
+	command = append(command, serverArgs...)
 
 	labelSelector := metav1.LabelSelector{
 		MatchLabels: map[string]string{
@@ -286,6 +298,7 @@ func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx common.RequestContext
 		},
 	}
 
+	isPrivileged := true
 	container := v1.Container{
 		Name: common.RuntimeContainerName,
 		Image: image,
@@ -294,6 +307,9 @@ func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx common.RequestContext
 				Name: ctx.Req.Name,
 				ContainerPort: common.RuntimeServicePort,
 			},
+		},
+		SecurityContext: &v1.SecurityContext{
+			Privileged: &isPrivileged,
 		},
 		Command: command,
 		VolumeMounts: volumeMounts,
@@ -365,6 +381,9 @@ func (j *JuiceFS) getVolumeInfo(pv *v1.PersistentVolume) (
 		return nil, nil, nil, fmt.Errorf("cache-dir is not valid")
 	}
 
+	hostPathType := v1.HostPathDirectoryOrCreate
+	mountPropagation := v1.MountPropagationBidirectional
+
 	var volumes []v1.Volume
 	var volumeMounts []v1.VolumeMount
 	// construct cache host path volume
@@ -372,7 +391,6 @@ func (j *JuiceFS) getVolumeInfo(pv *v1.PersistentVolume) (
 		pathTrimPrefix := strings.TrimPrefix(path, "/")
 		name := strings.ReplaceAll(pathTrimPrefix, "/", "-")
 
-		hostPathType := v1.HostPathDirectoryOrCreate
 		hostPath := v1.HostPathVolumeSource{
 			Path: path,
 			Type: &hostPathType,
@@ -388,6 +406,7 @@ func (j *JuiceFS) getVolumeInfo(pv *v1.PersistentVolume) (
 		volumeMount := v1.VolumeMount{
 			Name: name,
 			MountPath: mountPath,
+			MountPropagation: &mountPropagation,
 		}
 		volumeMounts = append(volumeMounts, volumeMount)
 		serverOpt.CacheDirs = append(serverOpt.CacheDirs, mountPath)
@@ -409,6 +428,7 @@ func (j *JuiceFS) getVolumeInfo(pv *v1.PersistentVolume) (
 	volumeMount := v1.VolumeMount{
 		Name: pv.Name,
 		MountPath: mountPath,
+		MountPropagation: &mountPropagation,
 	}
 	volumeMounts = append(volumeMounts, volumeMount)
 	serverOpt.DataDir = mountPath
@@ -416,19 +436,7 @@ func (j *JuiceFS) getVolumeInfo(pv *v1.PersistentVolume) (
 	return volumes, volumeMounts, serverOpt, nil
 }
 
-// CreateSyncJob create
-func (j *JuiceFS) CreateSyncJob(job *v1alpha1.SampleJob, ctx common.RequestContext) error {
-	return nil
-}
-
 func (j *JuiceFS) DoSyncJob(ctx context.Context, opt *v1alpha1.SyncJobOptions) error {
-	if !strings.Contains(opt.Source, "://") {
-		return fmt.Errorf("source is no valid: %s", opt.Source)
-	}
-	if !strings.Contains(opt.Destination, "://") {
-		return fmt.Errorf("destination is no valid: %s", opt.Destination)
-	}
-
 	syncArgs := utils.NoZeroOptionToArgs(&opt.JuiceFSSyncOptions)
 
 	args := []string{"sync"}
@@ -437,13 +445,9 @@ func (j *JuiceFS) DoSyncJob(ctx context.Context, opt *v1alpha1.SyncJobOptions) e
 	args = append(args, opt.Destination)
 
 	cmd := exec.CommandContext(ctx,"juicefs", args...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("juice sync cmd: %s; error: %s; stderr: %s",
-			cmd.String(), err.Error(), stderr.String())
+		return fmt.Errorf("juice sync cmd: %s; error: %s", cmd.String(), err.Error())
 	}
-	fmt.Print(stdout)
 	return nil
 }
 
@@ -469,28 +473,85 @@ func (j *JuiceFS) DoWarmupJob(ctx context.Context, opt *v1alpha1.WarmupJobOption
 		return fmt.Errorf("juice warmup cmd: %s; error: %s; stderr: %s",
 			cmd.String(), err.Error(), stderr.String())
 	}
-	fmt.Print(stdout)
 	return nil
 }
 
+// DoRmrJob delete the data of JuiceFS storage backend under the specified paths.
+// (TODO) there some bugs in JuiceFS rmr command, after rmr paths the sync command
+// can't work correctly in container, but posix rm can work well with JuiceFS sync command.
 func (j *JuiceFS) DoRmrJob(ctx context.Context, opt *v1alpha1.RmrJobOptions) error {
 	if len(opt.Paths) == 0 {
 		return errors.New("rmr job option paths not set")
 	}
-	args := []string{"rmr"}
+	//args := []string{"rmr"}
+	args := []string{"-rf"}
 	for _, path := range opt.Paths {
 		if !strings.HasPrefix(path, "/") {
 			return fmt.Errorf("path %s is not valid", path)
 		}
 		args = append(args, path)
 	}
-	cmd := exec.CommandContext(ctx,"juicefs", args...)
+	//cmd := exec.CommandContext(ctx,"juicefs", args...)
+	cmd := exec.CommandContext(ctx,"rm", args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("juice rmr cmd: %s; error: %s; stderr: %s",
 			cmd.String(), err.Error(), stderr.String())
 	}
-	fmt.Print(stdout)
+	return nil
+}
+
+// CreateSyncJobOptions create sync job options by the information from request context, the options is used by
+// controller to request runtime server do sync data task asynchronously。
+// TODO: Support different uri format for all storage in JuiceFSSupportStorage,
+// some data storage may need additional secret setting in v1alpha1.Source.SecretRef
+// more info: https://github.com/juicedata/juicesync
+func (j *JuiceFS) CreateSyncJobOptions(opt *v1alpha1.SyncJobOptions, ctx common.RequestContext) error {
+
+	// if SampleJob is not nil, use syncJobOptions from SampleJob
+	if ctx.SampleJob != nil && ctx.SampleJob.Spec.SyncOptions != nil {
+		ctx.SampleJob.Spec.SyncOptions.DeepCopyInto(opt)
+		if opt.Source != "" && !strings.Contains(opt.Source, "://") {
+			return fmt.Errorf("the format of spec.syncOption.source is not support")
+		}
+		if opt.Source != "" && len(strings.Split(opt.Source, "://")) != 2 {
+			return fmt.Errorf("the format of spec.syncOption.source is not support")
+		}
+		if opt.Source != "" {
+			storage := strings.TrimSpace(strings.Split(opt.Source, "://")[0])
+			if !utils.ContainsString(JuiceFSSupportStorage, storage) {
+				return fmt.Errorf("the object storage %s is not support", storage)
+			}
+		}
+		if opt.Destination != "" && !strings.Contains(opt.Destination, "://") {
+			return fmt.Errorf("the format of spec.syncOption.destination is not support")
+		}
+		// if source and destination option from SampleSet is not empty
+		if opt.Source != "" && opt.Destination != "" { return nil }
+	}
+
+
+	if ctx.SampleSet.Spec.Source == nil {
+		return fmt.Errorf("spec source cannot be empty")
+	}
+	sourceUri := ctx.SampleSet.Spec.Source.URI
+	if !strings.Contains(sourceUri, "://") || len(strings.Split(sourceUri, "://")) != 2 {
+		return fmt.Errorf("the format of spec.source.uri is not support")
+	}
+	storage := strings.TrimSpace(strings.Split(sourceUri, "://")[0])
+	if !utils.ContainsString(JuiceFSSupportStorage, storage) {
+		return fmt.Errorf("the object storage %s is not support", storage)
+	}
+
+	if akByte, exist := ctx.Secret.Data[JuiceFSSecretAK]; exist && len(akByte) > 0 {
+
+	}
+
+
+	return nil
+}
+
+func (j *JuiceFS) CreateWarmupJobOptions(opt *v1alpha1.WarmupJobOptions, ctx common.RequestContext) error {
 	return nil
 }

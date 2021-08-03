@@ -593,22 +593,46 @@ func (s *SampleSetReconcilePhase) reconcileBound() (ctrl.Result, error) {
 	return utils.NoRequeue()
 }
 
-// reconcileMount After create runtime daemon set and mounted,
+// reconcileMount After create runtime daemon set and mounted, before syncing data
 func (s *SampleSetReconcilePhase) reconcileMount() (ctrl.Result, error) {
 	s.Log.WithName("reconcileMount")
 
-	// list
-	//if s.SampleSet.Spec.NoSync {
-	//
-	//
-	//
-	//}
+	runtimeName := s.GetRuntimeName(s.Req.Name)
+	serviceName := s.GetServiceName(s.Req.Name)
+	baseUri := utils.GetBaseUri(runtimeName, serviceName, 0)
 
 	//
-	//serviceName := s.GetServiceName(s.Req.Name)
+	if !s.SampleSet.Spec.NoSync {
+		secretName := s.SampleSet.Spec.SecretRef.Name
+		secretKey := client.ObjectKey{
+			Name: secretName,
+			Namespace: s.Req.Namespace,
+		}
 
+		secret := &v1.Secret{}
+		if err := s.Get(s.Ctx, secretKey, secret); err != nil {
+			e := fmt.Errorf("get secret %s error: %s", secretName, err.Error())
+			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorSecretNotExist, e.Error())
+			return utils.RequeueWithError(e)
+		}
 
+		rc := common.RequestContext{Secret: secret}
 
+		options := &v1alpha1.SyncJobOptions{}
+		if err := s.CreateSyncJobOptions(options, rc); err != nil {
+			s.Log.Error(err, "create sync job options error")
+			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorCreateSyncJobOption, err.Error())
+			return utils.NoRequeue()
+		}
+	}
+
+	// get the cache status
+	status := &v1alpha1.CacheStatus{}
+	err := utils.GetCacheStatus(baseUri, status)
+	if err != nil {
+		s.Log.Error(err, "get cache status error")
+		return utils.RequeueAfter(10 * time.Second)
+	}
 
 	s.Log.Info("************")
 	return utils.NoRequeue()

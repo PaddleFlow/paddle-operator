@@ -15,8 +15,14 @@
 package utils
 
 import (
+	"fmt"
+	"github.com/paddleflow/paddle-operator/api/v1alpha1"
 	"io"
+	"io/ioutil"
+	"k8s.io/apimachinery/pkg/util/json"
 	"net/http"
+
+	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
 )
 
 var DefaultClient = &HttpClient{}
@@ -41,4 +47,60 @@ func Post(url, filename string, body io.Reader) (resp *http.Response, err error)
 
 func Get(url string, filename string) (resp *http.Response, err error) {
 	return DefaultClient.Get(url + "/" + filename)
+}
+
+func GetBaseUri(runtimeName, serviceName string, index int) string {
+	return fmt.Sprintf("http://%s-%d.%s:%d", runtimeName, index, serviceName, common.RuntimeServicePort)
+}
+
+func GetUploadUri(baseUri, uploadPath string) string {
+	return baseUri + common.PathUploadPrefix + uploadPath
+}
+
+func GetResultUri(baseUri, resultPath string) string {
+	return baseUri + resultPath
+}
+
+func GetCacheStatus(baseUri string, status *v1alpha1.CacheStatus) error {
+	resultUri := GetResultUri(baseUri, common.PathCacheStatus)
+	resp, err := Get(resultUri, common.FilePathCacheInfo)
+	if err != nil {
+		return fmt.Errorf("get uri %s, error: %s", resultUri, err.Error())
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("resp status code not ok: %d", resp.StatusCode)
+	}
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read resp body error: %s", err.Error())
+	}
+	defer resp.Body.Close()
+
+	err = json.Unmarshal(body, status)
+	if err != nil {
+		return fmt.Errorf("unmarshal resp body error: %s", err.Error())
+	}
+	return nil
+}
+
+func GetJobResult(result *common.JobResult, baseUri, resultPath, fileName string) error {
+	resultUri := GetResultUri(baseUri, resultPath)
+	resp, err := Get(resultUri, fileName)
+	if err != nil {
+		return fmt.Errorf("get uri %s, filename: %s, error: %s", resultUri, fileName, err.Error())
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("resp status code not ok: %d", resp.StatusCode)
+	}
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read resp body error: %s", err.Error())
+	}
+	defer resp.Body.Close()
+
+	err = json.Unmarshal(body, result)
+	if err != nil {
+		return fmt.Errorf("unmarshal resp body error: %s", err.Error())
+	}
+	return nil
 }

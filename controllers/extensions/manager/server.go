@@ -18,18 +18,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"net/http"
-	"os"
-	"strings"
-	"time"
-
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-logr/logr"
 	zapOpt "go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"io/ioutil"
 	"k8s.io/apimachinery/pkg/util/json"
+	"net/http"
+	"os"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"strings"
+	"time"
 
 	"github.com/paddleflow/paddle-operator/api/v1alpha1"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
@@ -376,12 +375,17 @@ func (s *Server) addUploadHandlers(patterns... string) {
 
 func (s *Server) writeCacheStatus() {
 	filePath := s.svrOpt.ServerDir +
-		common.PathCacheStatus +
+		common.PathCacheStatus + "/" +
 		common.FilePathCacheInfo
-	interval := time.Duration(s.svrOpt.Interval)
+	var interval int64 = 10
 
 	for {
-		time.Sleep(interval * time.Second)
+		if interval >= s.svrOpt.Interval {
+			time.Sleep(time.Duration(s.svrOpt.Interval) * time.Second)
+		} else {
+			time.Sleep(time.Duration(interval) * time.Second)
+			interval += 10
+		}
 
 		status := &v1alpha1.CacheStatus{}
 		err := s.GetCacheStatus(s.svrOpt, status)
