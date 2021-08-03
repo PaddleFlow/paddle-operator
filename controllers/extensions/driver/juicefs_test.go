@@ -16,15 +16,15 @@ package driver
 
 import (
 	"context"
-	"encoding/base64"
-	"github.com/paddleflow/paddle-operator/controllers/extensions/utils"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/paddleflow/paddle-operator/api/v1alpha1"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/utils"
 )
 
 func TestJuiceFS_getMountOptions(t *testing.T) {
@@ -171,11 +171,3 @@ func TestNoZeroOptionToArgs(t *testing.T) {
 	t.Log(strings.Join(args, " "))
 }
 
-func TestB64(t *testing.T)  {
-	s := "cmVkaXM6Ly9kZWZhdWx0OnBhZGRsZTEyM0AxOTIuMTY4LjcuMjI3OjYzNzkvMA=="
-	b, err := base64.StdEncoding.DecodeString(s)
-	if err != nil {
-		t.Error(err)
-	}
-	t.Log(string(b))
-}

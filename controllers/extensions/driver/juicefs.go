@@ -19,15 +19,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os/exec"
-	"reflect"
-	"strconv"
-	"strings"
-
 	appv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"os/exec"
+	"reflect"
+	"strconv"
+	"strings"
 
 	"github.com/paddleflow/paddle-operator/api/v1alpha1"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
@@ -503,51 +502,62 @@ func (j *JuiceFS) DoRmrJob(ctx context.Context, opt *v1alpha1.RmrJobOptions) err
 }
 
 // CreateSyncJobOptions create sync job options by the information from request context, the options is used by
-// controller to request runtime server do sync data task asynchronously。
+// controller to request runtime server do sync data task asynchronously.
 // TODO: Support different uri format for all storage in JuiceFSSupportStorage,
 // some data storage may need additional secret setting in v1alpha1.Source.SecretRef
 // more info: https://github.com/juicedata/juicesync
 func (j *JuiceFS) CreateSyncJobOptions(opt *v1alpha1.SyncJobOptions, ctx common.RequestContext) error {
-
-	// if SampleJob is not nil, use syncJobOptions from SampleJob
+	// if SampleJob is not nil, use sync job options from SampleJob
 	if ctx.SampleJob != nil && ctx.SampleJob.Spec.SyncOptions != nil {
 		ctx.SampleJob.Spec.SyncOptions.DeepCopyInto(opt)
-		if opt.Source != "" && !strings.Contains(opt.Source, "://") {
-			return fmt.Errorf("the format of spec.syncOption.source is not support")
-		}
-		if opt.Source != "" && len(strings.Split(opt.Source, "://")) != 2 {
-			return fmt.Errorf("the format of spec.syncOption.source is not support")
-		}
-		if opt.Source != "" {
-			storage := strings.TrimSpace(strings.Split(opt.Source, "://")[0])
-			if !utils.ContainsString(JuiceFSSupportStorage, storage) {
-				return fmt.Errorf("the object storage %s is not support", storage)
-			}
-		}
-		if opt.Destination != "" && !strings.Contains(opt.Destination, "://") {
-			return fmt.Errorf("the format of spec.syncOption.destination is not support")
-		}
-		// if source and destination option from SampleSet is not empty
-		if opt.Source != "" && opt.Destination != "" { return nil }
 	}
-
-
-	if ctx.SampleSet.Spec.Source == nil {
-		return fmt.Errorf("spec source cannot be empty")
+	// if SampleJob is nil or source has not been set, use source from SampleSet
+	if opt.Source == "" && ctx.SampleSet.Spec.Source != nil {
+		opt.Source = ctx.SampleSet.Spec.Source.URI
 	}
-	sourceUri := ctx.SampleSet.Spec.Source.URI
-	if !strings.Contains(sourceUri, "://") || len(strings.Split(sourceUri, "://")) != 2 {
-		return fmt.Errorf("the format of spec.source.uri is not support")
+	// if source has not been set in SampleSet or SampleJob return error
+	if opt.Source == "" {
+		return fmt.Errorf("data source cannot be empty")
 	}
-	storage := strings.TrimSpace(strings.Split(sourceUri, "://")[0])
+	// verify the format of data source uri
+	if !strings.Contains(opt.Source, "://") || len(strings.Split(opt.Source, "://")) != 2 {
+		return fmt.Errorf("the format of data source uri is not support")
+	}
+	// verify the data source storage is supported
+	storage := strings.TrimSpace(strings.Split(opt.Source, "://")[0])
 	if !utils.ContainsString(JuiceFSSupportStorage, storage) {
-		return fmt.Errorf("the object storage %s is not support", storage)
+		return fmt.Errorf("the object storage %s of is not support", storage)
 	}
 
+	var secretKeys string
+	delimiter := "://"
+	if strings.Contains(opt.Source, ":///") && len(strings.Split(opt.Source, ":///")) == 2 {
+		delimiter = ":///"
+	}
+	path := strings.TrimSpace(strings.Split(opt.Source, delimiter)[1])
+	// add access key to source uri if exists in secret
 	if akByte, exist := ctx.Secret.Data[JuiceFSSecretAK]; exist && len(akByte) > 0 {
-
+		secretKeys = string(akByte)
+	}
+	// add secret key to source uri if exists in secret
+	if skByte, exist := ctx.Secret.Data[JuiceFSSecretSK]; exist && len(skByte) > 0 {
+		secretKeys = secretKeys + ":" + string(skByte)
+	}
+	if secretKeys != "" {
+		opt.Source = storage + delimiter + secretKeys + "@" + path
 	}
 
+	// add relative path to sync destination uri
+	mountPath := "file://"  + j.getRuntimeDataMountPath(ctx.SampleSet.Name)
+	if opt.Destination != "" {
+		opt.Destination = mountPath + "/" + strings.TrimPrefix(opt.Destination, "/")
+	}
+
+	// source and destination should both end with / or not
+	if strings.HasSuffix(opt.Source, "/") != strings.HasSuffix(opt.Destination, "/") {
+		opt.Source = strings.TrimSuffix(opt.Source, "/") + "/"
+		opt.Destination = strings.TrimSuffix(opt.Destination, "/") + "/"
+	}
 
 	return nil
 }

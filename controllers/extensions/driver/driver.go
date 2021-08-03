@@ -80,7 +80,7 @@ type Driver interface {
 
 	CreateClearJobOptions(opt *v1alpha1.ClearJobOptions, ctx common.RequestContext) error
 
-	GetCacheStatus(opt *common.ServerOptions, status *v1alpha1.CacheStatus) error
+	CreateCacheStatus(opt *common.ServerOptions, status *v1alpha1.CacheStatus) error
 
 	DoSyncJob(ctx context.Context, opt *v1alpha1.SyncJobOptions) error
 
@@ -203,7 +203,7 @@ func (d *BaseDriver) DoClearJob(ctx context.Context, opt *v1alpha1.ClearJobOptio
 	return nil
 }
 
-func (d *BaseDriver) GetCacheStatus(opt *common.ServerOptions, status *v1alpha1.CacheStatus) error {
+func (d *BaseDriver) CreateCacheStatus(opt *common.ServerOptions, status *v1alpha1.CacheStatus) error {
 	if opt.CacheDirs == nil || len(opt.CacheDirs) == 0 {
 		return fmt.Errorf("option cacheDirs not set")
 	}
@@ -225,8 +225,14 @@ func (d *BaseDriver) GetCacheStatus(opt *common.ServerOptions, status *v1alpha1.
 		errs = append(errs, fmt.Sprintf("get totalSize error: %s", err.Error()))
 	}
 
+	var fileNumberOfPaths func(timeout time.Duration, paths... string) (string, error)
+	if d.Name == JuiceFSDriver {
+		fileNumberOfPaths = utils.JuiceFileNumberOfPath
+	} else {
+		fileNumberOfPaths = utils.FileNumberOfPaths
+	}
 	// get total data file number from data mount path
-	totalFiles, err := utils.FileNumberOfPaths(timeout, opt.DataDir)
+	totalFiles, err := fileNumberOfPaths(timeout, opt.DataDir)
 	if err == nil {
 		status.TotalFiles = totalFiles
 	} else {
@@ -241,21 +247,12 @@ func (d *BaseDriver) GetCacheStatus(opt *common.ServerOptions, status *v1alpha1.
 		errs = append(errs, fmt.Sprintf("get cachedSize error: %s", err.Error()))
 	}
 
-	// get cache data file number from cache data mount paths
-	cachedFiles, err := utils.FileNumberOfPaths(timeout, opt.CacheDirs...)
-	if err == nil {
-		status.CachedFiles = cachedFiles
-	} else {
-		errs = append(errs, fmt.Sprintf("get cachedFiles error: %s", err.Error()))
-	}
-
 	// get disk space status of cache paths
 	diskStatus, err := utils.DiskSpaceOfPaths(timeout, opt.CacheDirs...)
 	if err == nil {
-		status.DiskSize = strings.TrimSpace(diskStatus[1])
-		status.DiskUsed = strings.TrimSpace(diskStatus[2])
-		status.DiskAvail = strings.TrimSpace(diskStatus[3])
-		status.DiskUsageRate = strings.TrimSpace(diskStatus[4])
+		status.DiskSize = diskStatus["diskSize"]
+		status.DiskUsed = diskStatus["diskUsed"]
+		status.DiskAvail = diskStatus["diskAvail"]
 	} else {
 		errs = append(errs, fmt.Sprintf("get disk status error: %s", err.Error()))
 	}

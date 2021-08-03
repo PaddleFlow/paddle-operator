@@ -25,6 +25,7 @@ import (
 	appv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -82,6 +83,7 @@ func (r *SampleSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 	CSIDriver, err := driver.GetDriver(driverName)
 	if err != nil {
+		r.Log.Error(err, "get driver error")
 		r.Recorder.Event(&sampleSet, v1.EventTypeWarning,
 			common.ErrorDriverNotExist, err.Error())
 		return utils.NoRequeue()
@@ -157,13 +159,14 @@ func (s *SampleSetReconcilePhase) reconcilePhase() (ctrl.Result, error) {
 		return s.reconcilePartialReady()
 	case common.SampleSetReady:
 		return s.reconcileReady()
-	//default:
-	//	return utils.NoRequeue()
 	}
+	s.Log.Error(fmt.Errorf("phase %s not support", s.SampleSet.Status.Phase), "")
 	return utils.NoRequeue()
 }
 
 func (s *SampleSetReconcilePhase) deleteResource() (ctrl.Result, error) {
+	s.Log.WithValues("phase", "deleteResource")
+
 	// 1. 等待正在运行的PaddleJob 和 SampleJob任务完成
 	// 2. 提交SampleJob deleteCache 任务, 并禁止提交其他的SampleJob
 	// 3. 等待deleteCache任务完成以后, 删除缓存节点上的Labels
@@ -309,7 +312,8 @@ func (s *SampleSetReconcilePhase) deleteResource() (ctrl.Result, error) {
 
 // reconcileNone After user create SampleSet CR then create PV and PVC automatically
 func (s *SampleSetReconcilePhase) reconcileNone() (ctrl.Result, error) {
-	s.Log.WithName("reconcileNone")
+	s.Log.WithValues("phase", "reconcileNone")
+
 	sampleSetName := s.Req.Name
 	label := s.GetLabel(sampleSetName)
 
@@ -348,7 +352,8 @@ func (s *SampleSetReconcilePhase) reconcileNone() (ctrl.Result, error) {
 
 	// 2. check if secret name is none or secret not exist
 	if s.SampleSet.Spec.SecretRef == nil {
-		e := errors.New("secretRef is empty")
+		e := errors.New("spec.secretRef should not be empty")
+		s.Log.Error(e, "spec.secretRef is nil")
 		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorSecretNotExist, e.Error())
 		return utils.NoRequeue()
 	}
@@ -364,7 +369,8 @@ func (s *SampleSetReconcilePhase) reconcileNone() (ctrl.Result, error) {
 			return utils.RequeueWithError(e)
 		}
 	} else {
-		err := errors.New("secretRef name is not set")
+		err := errors.New("spec.secretRef.name is not set")
+		s.Log.Error(err, "spec.secretRef.name is empty string")
 		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorSecretNotExist, err.Error())
 		return utils.NoRequeue()
 	}
@@ -375,8 +381,8 @@ func (s *SampleSetReconcilePhase) reconcileNone() (ctrl.Result, error) {
 
 	// 3. create persistent volume and set its name as the SampleSet
 	if err := s.CreatePV(pv, rc); err != nil {
-		e := fmt.Errorf("create pv %s error: %s", sampleSetName, err.Error())
-		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorCreatePV, e.Error())
+		s.Log.Error(err, "create pv error", "pv", sampleSetName)
+		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorCreatePV, err.Error())
 		return utils.NoRequeue()
 	}
 	if err := s.Create(s.Ctx, pv); err != nil {
@@ -407,8 +413,8 @@ func (s *SampleSetReconcilePhase) reconcileNone() (ctrl.Result, error) {
 
 	// 5. create persistent volume claim and set its name as the SampleSet
 	if err := s.CreatePVC(pvc, rc); err != nil {
-		e := fmt.Errorf("create pvc %s error: %s", namespacedName, err.Error())
-		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorCreatePVC, e.Error())
+		s.Log.Error(err, "create pvc error", "pvc", namespacedName)
+		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorCreatePVC, err.Error())
 		return utils.NoRequeue()
 	}
 	if err := s.Create(s.Ctx, pvc); err != nil {
@@ -428,13 +434,14 @@ func (s *SampleSetReconcilePhase) reconcileNone() (ctrl.Result, error) {
 
 	s.Recorder.Eventf(s.SampleSet, v1.EventTypeNormal, common.EventCreate,
 		"create pv and pvc: %s successful", sampleSetName)
-	//return utils.RequeueAfter(1 * time.Second)
+
 	return utils.NoRequeue()
 }
 
 // reconcileBound After create PV/PVC then create runtime StatefulSet
 func (s *SampleSetReconcilePhase) reconcileBound() (ctrl.Result, error) {
-	s.Log.WithName("reconcileBound")
+	s.Log.WithValues("phase", "reconcileBound")
+
 	runtimeName := s.GetRuntimeName(s.Req.Name)
 	serviceName := s.GetServiceName(s.Req.Name)
 	runtimeKey := client.ObjectKey{
@@ -460,8 +467,8 @@ func (s *SampleSetReconcilePhase) reconcileBound() (ctrl.Result, error) {
 		}
 		// if service is not exist then create service for runtime server
 		if err := s.CreateService(service, rc); err != nil {
-			e := fmt.Errorf("create service %s error: %s", serviceName, err.Error())
-			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorCreateService, e.Error())
+			s.Log.Error(err, "create service error", "service", serviceName)
+			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorCreateService, err.Error())
 			return utils.NoRequeue()
 		}
 		if err := s.Create(s.Ctx, service); err != nil {
@@ -505,7 +512,6 @@ func (s *SampleSetReconcilePhase) reconcileBound() (ctrl.Result, error) {
 				return utils.RequeueWithError(e)
 			}
 			s.Log.V(1).Info("update statefulset replicas")
-			//return utils.RequeueAfter(5 * time.Second)
 			return utils.NoRequeue()
 		}
 
@@ -525,7 +531,6 @@ func (s *SampleSetReconcilePhase) reconcileBound() (ctrl.Result, error) {
 				return utils.RequeueWithError(err)
 			}
 			s.Log.V(1).Info("update sampleset phase to mount")
-			//return utils.RequeueAfter(1 * time.Second)
 			return utils.NoRequeue()
 		}
 
@@ -569,8 +574,8 @@ func (s *SampleSetReconcilePhase) reconcileBound() (ctrl.Result, error) {
 
 	// 4. create runtime StatefulSet
 	if err := s.CreateRuntime(statefulSet, rc); err != nil {
-		e := fmt.Errorf("create runtime %s error: %s", statefulSetName, err.Error())
-		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorCreateRuntime, e.Error())
+		s.Log.Error(err, "create runtime error", "runtime", statefulSetName)
+		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorCreateRuntime, err.Error())
 		return utils.NoRequeue()
 	}
 	if err := s.Create(s.Ctx, statefulSet); err != nil {
@@ -595,28 +600,25 @@ func (s *SampleSetReconcilePhase) reconcileBound() (ctrl.Result, error) {
 
 // reconcileMount After create runtime daemon set and mounted, before syncing data
 func (s *SampleSetReconcilePhase) reconcileMount() (ctrl.Result, error) {
-	s.Log.WithName("reconcileMount")
+	s.Log.WithValues("phase", "reconcileMount")
 
 	runtimeName := s.GetRuntimeName(s.Req.Name)
 	serviceName := s.GetServiceName(s.Req.Name)
-	baseUri := utils.GetBaseUri(runtimeName, serviceName, 0)
 
-	//
+	// upload syncJobOptions to runtime server and trigger it to do sync data job
 	if !s.SampleSet.Spec.NoSync {
 		secretName := s.SampleSet.Spec.SecretRef.Name
 		secretKey := client.ObjectKey{
 			Name: secretName,
 			Namespace: s.Req.Namespace,
 		}
-
 		secret := &v1.Secret{}
 		if err := s.Get(s.Ctx, secretKey, secret); err != nil {
 			e := fmt.Errorf("get secret %s error: %s", secretName, err.Error())
 			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorSecretNotExist, e.Error())
 			return utils.RequeueWithError(e)
 		}
-
-		rc := common.RequestContext{Secret: secret}
+		rc := common.RequestContext{Secret: secret, SampleSet: s.SampleSet}
 
 		options := &v1alpha1.SyncJobOptions{}
 		if err := s.CreateSyncJobOptions(options, rc); err != nil {
@@ -624,30 +626,83 @@ func (s *SampleSetReconcilePhase) reconcileMount() (ctrl.Result, error) {
 			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorCreateSyncJobOption, err.Error())
 			return utils.NoRequeue()
 		}
+		syncJobName := uuid.NewUUID()
+		baseUri := utils.GetBaseUri(runtimeName, serviceName, 0)
+		if err := utils.PostJobOptions(options, syncJobName, baseUri, common.PathSyncOptions); err != nil {
+			e := fmt.Errorf("post sync job options error: %s", err.Error())
+			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorUploadSyncJobOption, e.Error())
+			return utils.RequeueWithError(err)
+		}
+
+		// Add jobsName to SampleSet
+		jobsName := v1alpha1.JobsName{SyncJobName: syncJobName}
+		s.SampleSet.Status.JobsName = &jobsName
+		// update SampleSet phase to syncing
+		s.SampleSet.Status.Phase = common.SampleSetSyncing
+
+		if err := s.Update(s.Ctx, s.SampleSet); err != nil {
+			e := fmt.Errorf("update sampleset %s error: %s", s.Req.Name, err.Error())
+			return utils.RequeueWithError(e)
+		}
+		return utils.NoRequeue()
 	}
 
-	// get the cache status
-	status := &v1alpha1.CacheStatus{}
-	err := utils.GetCacheStatus(baseUri, status)
+	// wait util the first runtime server produce cache info file
+	status, err := utils.CollectAllCacheStatus(runtimeName, serviceName, 1)
 	if err != nil {
 		s.Log.Error(err, "get cache status error")
 		return utils.RequeueAfter(10 * time.Second)
 	}
+	if status.ErrorMassage != "" {
+		s.Log.Error(errors.New(status.ErrorMassage), "error massage from cache status")
+	}
+	s.SampleSet.Status.CacheStatus = status
 
-	s.Log.Info("************")
+	// get runtime StatefulSet
+	runtimeKey := client.ObjectKey{
+		Name: runtimeName,
+		Namespace: s.Req.Namespace,
+	}
+	statefulSetName := runtimeKey.String()
+	statefulSet := &appv1.StatefulSet{}
+
+	if err := s.Get(s.Ctx, runtimeKey, statefulSet); err != nil {
+		e := fmt.Errorf("get statefulset %s error: %s", statefulSetName, err.Error())
+		return utils.RequeueWithError(e)
+	}
+	// if StatefulSet ready replicas equal to SampleSet partitions, update phase to Ready otherwise PartialReady
+	if statefulSet.Status.ReadyReplicas == s.SampleSet.Spec.Partitions {
+		s.SampleSet.Status.Phase = common.SampleSetReady
+	} else {
+		s.SampleSet.Status.Phase = common.SampleSetPartialReady
+	}
+
+	if err := s.Update(s.Ctx, s.SampleSet); err != nil {
+		e := fmt.Errorf("update sampleset %s error: %s", s.Req.Name, err.Error())
+		return utils.RequeueWithError(e)
+	}
 	return utils.NoRequeue()
 }
 
+// reconcileSyncing wait the sync data job done and update SampleSet phase to ready or partial ready
 func (s *SampleSetReconcilePhase) reconcileSyncing() (ctrl.Result, error) {
+	s.Log.WithValues("phase", "reconcileSyncing")
+
+	//
+
+
 	return utils.NoRequeue()
 }
 
 func (s *SampleSetReconcilePhase) reconcilePartialReady() (ctrl.Result, error) {
+	s.Log.WithValues("phase", "reconcilePartialReady")
 	return utils.NoRequeue()
 }
 
 // reconcileReady
 func (s *SampleSetReconcilePhase) reconcileReady() (ctrl.Result, error) {
+	s.Log.WithValues("phase", "reconcilePartialReady")
+
 	return utils.NoRequeue()
 }
 

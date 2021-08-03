@@ -91,11 +91,9 @@ type CacheStatus struct {
 	// TotalSize the total size of SampleSet data
 	TotalSize string `json:"totalSize,omitempty"`
 	// TotalFiles the total file number of SampleSet data
-	TotalFiles int `json:"totalFiles,omitempty"`
+	TotalFiles string `json:"totalFiles,omitempty"`
 	// CachedSize the total size of cached data in all nodes
 	CachedSize string `json:"cachedSize,omitempty"`
-	// CachedFiles the total file number of cached data
-	CachedFiles int `json:"cachedFiles,omitempty"`
 	// DiskSize disk space on file system containing cache data
 	DiskSize string `json:"diskSize,omitempty"`
 	// DiskUsed disk space already been used, display by command df

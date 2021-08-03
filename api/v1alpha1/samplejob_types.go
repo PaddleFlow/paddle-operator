@@ -140,7 +140,7 @@ type JuiceFSSyncOptions struct {
 
 // JuiceFSWarmupOptions describes the JuiceFS warmup options which user can set by SampleSet
 type JuiceFSWarmupOptions struct {
-	// file containing a list of paths
+	// the path of file that containing a list of data file paths
 	// +optional
 	File string `json:"file,omitempty"`
 	// number of concurrent workers (default: 50)
@@ -150,10 +150,11 @@ type JuiceFSWarmupOptions struct {
 
 // SyncJobOptions the options for sync data to cache engine
 type SyncJobOptions struct {
-	// data source that need sync to cache engine
+	// data source that need sync to cache engine, the format of it should be
+	// [NAME://]BUCKET[.ENDPOINT][/PREFIX]
 	// +optional
 	Source string `json:"source,omitempty"`
-	// the destination path for data sync to
+	// the relative path in mount volume for data sync to, eg: /train
 	// +option
 	Destination string `json:"destination,omitempty"`
 	// JuiceFS sync command options
