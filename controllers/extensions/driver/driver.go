@@ -72,7 +72,13 @@ type Driver interface {
 	// GetRuntimeName get the runtime StatefulSet name
 	GetRuntimeName(sampleSetName string) string
 
-	CreateSyncJob(job *v1alpha1.SampleJob, ctx common.RequestContext) error
+	CreateSyncJobOptions(opt *v1alpha1.SyncJobOptions, ctx common.RequestContext) error
+
+	CreateWarmupJobOptions(opt *v1alpha1.WarmupJobOptions, ctx common.RequestContext) error
+
+	CreateRmrJobOptions(opt *v1alpha1.RmrJobOptions, ctx common.RequestContext) error
+
+	CreateClearJobOptions(opt *v1alpha1.ClearJobOptions, ctx common.RequestContext) error
 
 	GetCacheStatus(opt *common.ServerOptions, status *v1alpha1.CacheStatus) error
 
@@ -257,6 +263,14 @@ func (d *BaseDriver) GetCacheStatus(opt *common.ServerOptions, status *v1alpha1.
 	if len(errs) != 0 {
 		return errors.New(strings.Join(errs, ";"))
 	}
+	return nil
+}
+
+func (d *BaseDriver) CreateRmrJobOptions(opt *v1alpha1.RmrJobOptions, ctx common.RequestContext) error {
+	return nil
+}
+
+func (d *BaseDriver) CreateClearJobOptions(opt *v1alpha1.ClearJobOptions, ctx common.RequestContext) error {
 	return nil
 }
 

@@ -112,7 +112,8 @@ docker-build-all: docker-build docker-build-sampleset docker-build-samplejob doc
 
 # Build sampleset controller image
 docker-build-sampleset: test
-	docker build . -f Dockerfile.sampleset -t ${SAMPLESET_IMG}:${GIT_VERSION}
+	docker build . --build-arg MANAGER_IMG=${MANAGER_IMG} --build-arg GIT_VERSION=${GIT_VERSION} \
+		-f Dockerfile.sampleset -t ${SAMPLESET_IMG}:${GIT_VERSION}
 
 # Build samplejob controller image
 docker-build-samplejob: test
