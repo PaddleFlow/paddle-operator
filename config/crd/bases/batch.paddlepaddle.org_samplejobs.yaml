@@ -33,6 +33,7 @@ spec:
                   paths:
                     items:
                       type: string
+                    minItems: 1
                     type: array
                 type: object
               rmrOptions:
@@ -40,6 +41,7 @@ spec:
                   paths:
                     items:
                       type: string
+                    minItems: 1
                     type: array
                 type: object
               sampleset:
@@ -99,10 +101,21 @@ spec:
                 properties:
                   file:
                     type: string
+                  partitions:
+                    format: int32
+                    minimum: 1
+                    type: integer
                   paths:
                     items:
                       type: string
+                    minItems: 1
                     type: array
+                  strategyName:
+                    default: random
+                    enum:
+                    - random
+                    - sequence
+                    type: string
                   threads:
                     type: integer
                 type: object
