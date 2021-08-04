@@ -25,6 +25,7 @@ import (
 	appv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -598,15 +599,20 @@ func (s *SampleSetReconcilePhase) reconcileBound() (ctrl.Result, error) {
 	return utils.NoRequeue()
 }
 
-// reconcileMount After create runtime daemon set and mounted, before syncing data
+// reconcileMount After create runtime daemon set and mounted, before sync data job done
 func (s *SampleSetReconcilePhase) reconcileMount() (ctrl.Result, error) {
 	s.Log.WithValues("phase", "reconcileMount")
 
 	runtimeName := s.GetRuntimeName(s.Req.Name)
 	serviceName := s.GetServiceName(s.Req.Name)
+	var syncJobName types.UID
+	if s.SampleSet.Status.JobsName != nil {
+		s.Log.Info("jobName is not nil....")
+		syncJobName = s.SampleSet.Status.JobsName.SyncJobName
+	}
 
-	// upload syncJobOptions to runtime server and trigger it to do sync data job
-	if !s.SampleSet.Spec.NoSync {
+	// 1. upload syncJobOptions to runtime server and trigger it to do sync data job
+	if !s.SampleSet.Spec.NoSync && syncJobName == "" {
 		secretName := s.SampleSet.Spec.SecretRef.Name
 		secretKey := client.ObjectKey{
 			Name: secretName,
@@ -618,6 +624,7 @@ func (s *SampleSetReconcilePhase) reconcileMount() (ctrl.Result, error) {
 			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorSecretNotExist, e.Error())
 			return utils.RequeueWithError(e)
 		}
+		s.Log.Info("get secret successful")
 		rc := common.RequestContext{Secret: secret, SampleSet: s.SampleSet}
 
 		options := &v1alpha1.SyncJobOptions{}
@@ -626,24 +633,29 @@ func (s *SampleSetReconcilePhase) reconcileMount() (ctrl.Result, error) {
 			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorCreateSyncJobOption, err.Error())
 			return utils.NoRequeue()
 		}
-		syncJobName := uuid.NewUUID()
+		s.Log.Info("create sync job options successful")
+
+		syncJobName = uuid.NewUUID()
 		baseUri := utils.GetBaseUri(runtimeName, serviceName, 0)
 		if err := utils.PostJobOptions(options, syncJobName, baseUri, common.PathSyncOptions); err != nil {
 			e := fmt.Errorf("post sync job options error: %s", err.Error())
 			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorUploadSyncJobOption, e.Error())
 			return utils.RequeueWithError(err)
 		}
+		s.Log.Info("post sync job successfully")
 
 		// Add jobsName to SampleSet
-		jobsName := v1alpha1.JobsName{SyncJobName: syncJobName}
-		s.SampleSet.Status.JobsName = &jobsName
-		// update SampleSet phase to syncing
+		if s.SampleSet.Status.JobsName == nil {
+			s.SampleSet.Status.JobsName = &v1alpha1.JobsName{}
+		}
+		s.SampleSet.Status.JobsName.SyncJobName = syncJobName
 		s.SampleSet.Status.Phase = common.SampleSetSyncing
 
-		if err := s.Update(s.Ctx, s.SampleSet); err != nil {
+		if err := s.Status().Update(s.Ctx, s.SampleSet); err != nil {
 			e := fmt.Errorf("update sampleset %s error: %s", s.Req.Name, err.Error())
 			return utils.RequeueWithError(e)
 		}
+		s.Log.Info("update sampleset phase to syncing")
 		return utils.NoRequeue()
 	}
 
@@ -657,6 +669,7 @@ func (s *SampleSetReconcilePhase) reconcileMount() (ctrl.Result, error) {
 		s.Log.Error(errors.New(status.ErrorMassage), "error massage from cache status")
 	}
 	s.SampleSet.Status.CacheStatus = status
+	s.Log.Info("collect all cache status successful")
 
 	// get runtime StatefulSet
 	runtimeKey := client.ObjectKey{
@@ -684,13 +697,46 @@ func (s *SampleSetReconcilePhase) reconcileMount() (ctrl.Result, error) {
 	return utils.NoRequeue()
 }
 
-// reconcileSyncing wait the sync data job done and update SampleSet phase to ready or partial ready
+// reconcileSyncing wait the sync data job done and return to mount phase
 func (s *SampleSetReconcilePhase) reconcileSyncing() (ctrl.Result, error) {
 	s.Log.WithValues("phase", "reconcileSyncing")
 
-	//
+	// 1. get the result of sync data job
+	runtimeName := s.GetRuntimeName(s.Req.Name)
+	serviceName := s.GetServiceName(s.Req.Name)
+	baseUri := utils.GetBaseUri(runtimeName, serviceName, 0)
+	filename := s.SampleSet.Status.JobsName.SyncJobName
 
+	result := &common.JobResult{}
+	err := utils.GetJobResult(result, filename, baseUri, common.PathSyncResult)
+	if err != nil {
+		e := fmt.Errorf("get sync job result error: %s", err.Error())
+		return utils.RequeueWithError(e)
+	}
+	if result.Status == common.JobStatusRunning {
+		s.Log.Info("wait util sync job done")
+		return utils.RequeueAfter(30 * time.Second)
+	}
+	// 2. if sync job status is failed, then delete syncJobName
+	if result.Status == common.JobStatusFail {
+		s.SampleSet.Status.JobsName.SyncJobName = ""
+		e := errors.New(result.Message)
+		s.Log.Error(e, "sync job error", "jobName", filename)
+		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorDoSyncJob, e.Error())
+	}
+	// 3. recorder event to SampleSet if success
+	if result.Status == common.JobStatusSuccess {
+		s.Log.Info("sync job success")
+		s.Recorder.Event(s.SampleSet, v1.EventTypeNormal, common.EventCreate, "data is synchronized")
+	}
 
+	// 3. after sync job finish return SampleSet phase to Mount
+	s.SampleSet.Status.Phase = common.SampleSetMount
+	if err := s.Status().Update(s.Ctx, s.SampleSet); err != nil {
+		e := fmt.Errorf("update sampleset %s error: %s", s.Req.Name, err.Error())
+		return utils.RequeueWithError(e)
+	}
+	s.Log.Info("return SampleSet phase to mount")
 	return utils.NoRequeue()
 }
 

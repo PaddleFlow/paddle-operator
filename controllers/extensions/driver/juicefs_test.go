@@ -170,4 +170,3 @@ func TestNoZeroOptionToArgs(t *testing.T) {
 	args := utils.NoZeroOptionToArgs(&options)
 	t.Log(strings.Join(args, " "))
 }
-
