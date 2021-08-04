@@ -163,7 +163,7 @@ type SyncJobOptions struct {
 }
 
 type SampleStrategy struct {
-	// +kubebuilder:validation:Enum=random,sequence
+	// +kubebuilder:validation:Enum=random;sequence
 	// +kubebuilder:validation:Required
 	// +kubebuilder:default=random
 	Name string `json:"strategyName,omitempty"`
