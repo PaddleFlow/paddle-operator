@@ -155,6 +155,14 @@ func CollectAllCacheStatus(runtimeName, serviceName string, partitions int) (*v1
 	statusAll.DiskUsed = humanize.IBytes(diskUsedTotal)
 	statusAll.DiskAvail = humanize.IBytes(diskAvailTotal)
 
+	var diskUsageRate float64
+	if diskSizeTotal == 0 {
+		diskUsageRate = 0.0
+	} else {
+		diskUsageRate = float64(diskUsedTotal)/float64(diskSizeTotal)*100
+	}
+	statusAll.DiskUsageRate = fmt.Sprintf("%.1f%%", diskUsageRate)
+
 	if len(errStrList) != 0 {
 		statusAll.ErrorMassage = strings.Join(errStrList, "; ")
 	}
