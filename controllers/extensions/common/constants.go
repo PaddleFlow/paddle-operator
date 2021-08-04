@@ -75,9 +75,11 @@ const (
 	ErrorDeleteService   = "ErrorDeleteService"
 	ErrorDeletePVC       = "ErrorDeletePersistentVolumeClaim"
 	ErrorDeletePV        = "ErrorDeletePersistentVolume"
+	ErrorDoSyncJob       = "ErrorDoSyncJob"
 
 	ErrorCreateSyncJobOption = "ErrorCreateSyncJobOption"
 	ErrorUploadSyncJobOption = "ErrorUploadSyncJobOption"
+
 )
 
 const ResourceStorage = "10Pi"
