@@ -18,6 +18,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -45,11 +47,19 @@ type SampleSetReconciler struct {
 	Recorder record.EventRecorder
 }
 
-// +kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=samplesets,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=samplesets/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=samplesets/finalizers,verbs=update
-// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=events,verbs=get;list
+//+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=samplesets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=samplesets/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=samplesets/finalizers,verbs=update
+//+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=samplejobs,verbs=get;list;watch
+//+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=paddlejobs,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=secrets,verbs=get
+//+kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=services,verbs=get;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=statefulsets,verbs=get;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;update;patch
+//+kubebuilder:rbac:groups="",resources=pods,verbs=get;list
+//+kubebuilder:rbac:groups="",resources=events,verbs=get;list
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -158,6 +168,8 @@ func (s *SampleSetReconcilePhase) reconcilePhase() (ctrl.Result, error) {
 		return s.reconcileMount()
 	case common.SampleSetSyncing:
 		return s.reconcileSyncing()
+	case common.SampleSetSyncFailed:
+		return s.reconcileSyncFailed()
 	case common.SampleSetPartialReady:
 		return s.reconcilePartialReady()
 	case common.SampleSetReady:
@@ -506,27 +518,15 @@ func (s *SampleSetReconcilePhase) reconcileBound() (ctrl.Result, error) {
 			return utils.RequeueWithError(e)
 		}
 
-		// if SampleSet partitions is changed then update StatefulSet replicas
-		if *statefulSet.Spec.Replicas != s.SampleSet.Spec.Partitions {
-			replicas := s.SampleSet.Spec.Partitions
-			statefulSet.Spec.Replicas = &replicas
-			if err := s.Update(s.Ctx, statefulSet); err != nil {
-				e := fmt.Errorf("update statefulset %s error: %s", statefulSetName, err.Error())
-				return utils.RequeueWithError(e)
-			}
-			s.Log.V(1).Info("update statefulset replicas")
-			return utils.NoRequeue()
-		}
-
 		// wait util at least one replica ready and update the phase of SampleSet to Mount
 		if statefulSet.Status.ReadyReplicas > 0 {
 			s.SampleSet.Status.Phase = common.SampleSetMount
 			runtimeStatus := &v1alpha1.RuntimeStatus{
-				SpecReplicas: statefulSet.Spec.Replicas,
-				ReadyReplicas: &statefulSet.Status.ReadyReplicas,
+				SpecReplicas: s.SampleSet.Spec.Partitions,
+				ReadyReplicas: statefulSet.Status.ReadyReplicas,
 				RuntimeReady: fmt.Sprintf("%d/%d",
 					statefulSet.Status.ReadyReplicas,
-					*statefulSet.Spec.Replicas,
+					s.SampleSet.Spec.Partitions,
 				),
 			}
 			s.SampleSet.Status.RuntimeStatus = runtimeStatus
@@ -639,7 +639,7 @@ func (s *SampleSetReconcilePhase) reconcileMount() (ctrl.Result, error) {
 
 		syncJobName = uuid.NewUUID()
 		baseUri := utils.GetBaseUri(runtimeName, serviceName, 0)
-		if err := utils.PostJobOptions(options, syncJobName, baseUri, common.PathSyncOptions); err != nil {
+		if err := utils.PostJobOption(options, syncJobName, baseUri, common.PathSyncOptions); err != nil {
 			e := fmt.Errorf("post sync job options error: %s", err.Error())
 			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorUploadSyncJobOption, e.Error())
 			return utils.RequeueWithError(err)
@@ -661,7 +661,7 @@ func (s *SampleSetReconcilePhase) reconcileMount() (ctrl.Result, error) {
 		return utils.NoRequeue()
 	}
 
-	// wait util the first runtime server produce cache info file
+	// 2. wait util the first runtime server produce cache info file
 	status, err := utils.CollectAllCacheStatus(runtimeName, serviceName, 1)
 	if err != nil {
 		s.Log.Error(err, "get cache status error")
@@ -673,44 +673,39 @@ func (s *SampleSetReconcilePhase) reconcileMount() (ctrl.Result, error) {
 	s.SampleSet.Status.CacheStatus = status
 	s.Log.Info("collect all cache status successful")
 
-	// get runtime StatefulSet
-	runtimeKey := client.ObjectKey{
-		Name: runtimeName,
-		Namespace: s.Req.Namespace,
-	}
-	statefulSetName := runtimeKey.String()
-	statefulSet := &appv1.StatefulSet{}
-
-	if err := s.Get(s.Ctx, runtimeKey, statefulSet); err != nil {
-		e := fmt.Errorf("get statefulset %s error: %s", statefulSetName, err.Error())
-		return utils.RequeueWithError(e)
-	}
-	// if StatefulSet ready replicas equal to SampleSet partitions, update phase to Ready otherwise PartialReady
-	if statefulSet.Status.ReadyReplicas == s.SampleSet.Spec.Partitions {
-		s.SampleSet.Status.Phase = common.SampleSetReady
-	} else {
-		s.SampleSet.Status.Phase = common.SampleSetPartialReady
-	}
-
-	if err := s.Update(s.Ctx, s.SampleSet); err != nil {
+	// 3. update SampleSet phase to partial ready
+	s.SampleSet.Status.Phase = common.SampleSetPartialReady
+	if err := s.Status().Update(s.Ctx, s.SampleSet); err != nil {
 		e := fmt.Errorf("update sampleset %s error: %s", s.Req.Name, err.Error())
 		return utils.RequeueWithError(e)
 	}
+	s.Log.Info("update sampleset phase to partial ready")
+
 	return utils.NoRequeue()
 }
 
 // reconcileSyncing wait the sync data job done and return to mount phase
 func (s *SampleSetReconcilePhase) reconcileSyncing() (ctrl.Result, error) {
 	s.Log.WithValues("phase", "reconcileSyncing")
-
-	// 1. get the result of sync data job
 	runtimeName := s.GetRuntimeName(s.Req.Name)
 	serviceName := s.GetServiceName(s.Req.Name)
 	baseUri := utils.GetBaseUri(runtimeName, serviceName, 0)
 	filename := s.SampleSet.Status.JobsName.SyncJobName
 
-	result := &common.JobResult{}
-	err := utils.GetJobResult(result, filename, baseUri, common.PathSyncResult)
+	// 1. get the status of cache status from runtime server 0
+	status, err := utils.CollectAllCacheStatus(runtimeName, serviceName, 1)
+	if err != nil {
+		s.Log.Error(err, "get cache status error")
+		return utils.RequeueAfter(10 * time.Second)
+	}
+	if status.ErrorMassage != "" {
+		s.Log.Error(errors.New(status.ErrorMassage), "error massage from cache status")
+	}
+	s.SampleSet.Status.CacheStatus = status
+	s.Log.Info("collect all cache status successful")
+
+	// 2. get the result of sync data job
+	result, err := utils.GetJobResult(filename, baseUri, common.PathSyncResult)
 	if err != nil {
 		e := fmt.Errorf("get sync job result error: %s", err.Error())
 		return utils.RequeueWithError(e)
@@ -719,21 +714,21 @@ func (s *SampleSetReconcilePhase) reconcileSyncing() (ctrl.Result, error) {
 		s.Log.Info("wait util sync job done")
 		return utils.RequeueAfter(30 * time.Second)
 	}
-	// 2. if sync job status is failed, then delete syncJobName
+
+	// 3. if sync job status is failed, then update phase to SyncFailed
 	if result.Status == common.JobStatusFail {
-		s.SampleSet.Status.JobsName.SyncJobName = ""
 		e := errors.New(result.Message)
+		s.SampleSet.Status.Phase = common.SampleSetSyncFailed
 		s.Log.Error(e, "sync job error", "jobName", filename)
 		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorDoSyncJob, e.Error())
 	}
-	// 3. recorder event to SampleSet if success
+	// 3. if sync job status is success, then return phase to mount
 	if result.Status == common.JobStatusSuccess {
 		s.Log.Info("sync job success")
+		s.SampleSet.Status.Phase = common.SampleSetMount
 		s.Recorder.Event(s.SampleSet, v1.EventTypeNormal, common.EventCreate, "data is synchronized")
 	}
-
-	// 3. after sync job finish return SampleSet phase to Mount
-	s.SampleSet.Status.Phase = common.SampleSetMount
+	// 4. update SampleSet phase
 	if err := s.Status().Update(s.Ctx, s.SampleSet); err != nil {
 		e := fmt.Errorf("update sampleset %s error: %s", s.Req.Name, err.Error())
 		return utils.RequeueWithError(e)
@@ -742,53 +737,299 @@ func (s *SampleSetReconcilePhase) reconcileSyncing() (ctrl.Result, error) {
 	return utils.NoRequeue()
 }
 
+func (s *SampleSetReconcilePhase) reconcileSyncFailed() (ctrl.Result, error) {
+	s.Log.WithValues("phase", "reconcileSyncFailed")
+
+	// 1. if spec.noSync update to true, then return phase to mount
+	if s.SampleSet.Spec.NoSync {
+		s.SampleSet.Status.Phase = common.SampleSetMount
+		if err := s.Status().Update(s.Ctx, s.SampleSet); err != nil {
+			e := fmt.Errorf("update sampleset %s error: %s", s.Req.Name, err.Error())
+			return utils.RequeueWithError(e)
+		}
+		s.Log.Info("noSync is true, return SampleSet phase to mount")
+		return utils.NoRequeue()
+	}
+	runtimeName := s.GetRuntimeName(s.Req.Name)
+	serviceName := s.GetServiceName(s.Req.Name)
+	filename := s.SampleSet.Status.JobsName.SyncJobName
+	baseUri := utils.GetBaseUri(runtimeName, serviceName, 0)
+
+	// 2. get syncJobOptions from runtime server
+	oldOptions := &v1alpha1.SyncJobOptions{}
+	err := utils.GetJobOption(oldOptions, filename, baseUri, common.PathSyncOptions)
+	if err != nil {
+		e := fmt.Errorf("get sync job option error: %s", err.Error())
+		return utils.RequeueWithError(e)
+	}
+
+	// 3. create syncJobOptions for check if SampleSet is update by
+	secretName := s.SampleSet.Spec.SecretRef.Name
+	secretKey := client.ObjectKey{
+		Name: secretName,
+		Namespace: s.Req.Namespace,
+	}
+	secret := &v1.Secret{}
+	if err := s.Get(s.Ctx, secretKey, secret); err != nil {
+		e := fmt.Errorf("get secret %s error: %s", secretName, err.Error())
+		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorSecretNotExist, e.Error())
+		return utils.RequeueWithError(e)
+	}
+	s.Log.Info("get secret successful")
+	rc := common.RequestContext{Secret: secret, SampleSet: s.SampleSet}
+
+	newOptions := &v1alpha1.SyncJobOptions{}
+	if err := s.CreateSyncJobOptions(newOptions, rc); err != nil {
+		s.Log.Error(err, "create sync job options error")
+		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorCreateSyncJobOption, err.Error())
+		return utils.NoRequeue()
+	}
+
+	// 4. if syncJobOptions have not updated, then no requeue
+	if reflect.DeepEqual(oldOptions, newOptions) {
+		s.Log.Info("syncJobOptions has not update")
+		return utils.NoRequeue()
+	}
+
+	// 5. if SampleSet updated by user and syncJobOptions has changed,
+	// then delete old syncJobName and return SampleSet phase to mount.
+	s.SampleSet.Status.JobsName.SyncJobName = ""
+	s.SampleSet.Status.Phase = common.SampleSetMount
+	if err := s.Status().Update(s.Ctx, s.SampleSet); err != nil {
+		e := fmt.Errorf("update sampleset %s error: %s", s.Req.Name, err.Error())
+		return utils.RequeueWithError(e)
+	}
+	s.Log.Info("syncJobOptions changed, return SampleSet phase to mount")
+	return utils.NoRequeue()
+}
+
 func (s *SampleSetReconcilePhase) reconcilePartialReady() (ctrl.Result, error) {
 	s.Log.WithValues("phase", "reconcilePartialReady")
-	return utils.NoRequeue()
+
+	needUpdateStatefulSet := false
+	label := s.GetLabel(s.Req.Name)
+	runtimeName := s.GetRuntimeName(s.Req.Name)
+	serviceName := s.GetServiceName(s.Req.Name)
+
+	// 1. get runtime StatefulSet
+	runtimeKey := client.ObjectKey{
+		Name: runtimeName,
+		Namespace: s.Req.Namespace,
+	}
+	statefulSetName := runtimeKey.String()
+	statefulSet := &appv1.StatefulSet{}
+	if err := s.Get(s.Ctx, runtimeKey, statefulSet); err != nil {
+		e := fmt.Errorf("get statefulset %s error: %s", statefulSetName, err.Error())
+		return utils.RequeueWithError(e)
+	}
+
+	// 2. list runtime server pods
+	podList := &v1.PodList{}
+	nOpt := client.InNamespace(s.Req.Namespace)
+	lOpt := client.MatchingLabels(statefulSet.Spec.Selector.MatchLabels)
+	if err := s.List(s.Ctx, podList, nOpt, lOpt); err != nil {
+		e := fmt.Errorf("list pods error: %s", err.Error())
+		return utils.RequeueWithError(e)
+	}
+	nodePodMap := make(map[string]string)
+	for _, pod := range podList.Items {
+		if pod.Status.Phase == v1.PodRunning {
+			nodeName := pod.Spec.NodeName
+			nodePodMap[nodeName] = pod.Name
+		}
+	}
+
+	// 3. clean the cache data before terminate runtime pods
+	specReplicas := *statefulSet.Spec.Replicas
+	partitions := s.SampleSet.Spec.Partitions
+	if partitions < specReplicas {
+		if err := s.cleanCacheData(nodePodMap, partitions); err != nil {
+			e := fmt.Errorf("clean cache data error: %s", err.Error())
+			return utils.RequeueWithError(e)
+		}
+		s.Log.Info("clean data before terminate runtime pods")
+	}
+
+	// 3. update nodes label
+	for nodeName, value := range nodePodMap {
+		node := &v1.Node{}
+		key := client.ObjectKey{Name: nodeName}
+		if err := s.Get(s.Ctx, key, node); err != nil {
+			e := fmt.Errorf("get node %s error: %s", nodeName, err.Error())
+			return utils.RequeueWithError(e)
+		}
+		// if label is exist and the value is equal to the name of pod, continue
+		if v, exist := node.Labels[label]; exist && v == value { continue }
+
+		// update the label of node
+		node.Labels[label] = value
+		if err := s.Update(s.Ctx, node); err != nil {
+			e := fmt.Errorf("get node %s error: %s", nodeName, err.Error())
+			return utils.RequeueWithError(e)
+		}
+		s.Log.Info("label node successful", "name", nodeName, "label", value)
+	}
+
+	// 4. list nodes with label
+	nodeList := &v1.NodeList{}
+	opt := client.HasLabels{label}
+	if err := s.List(s.Ctx, nodeList, opt); err != nil {
+		e := fmt.Errorf("list nodes error: %s", err.Error())
+		return utils.RequeueWithError(e)
+	}
+
+	// 5. remove the label of nodes with terminate runtime pod
+	for _, node := range nodeList.Items {
+		labelValue := node.Labels[label]
+		podName, exist := nodePodMap[node.Name]
+		if exist && labelValue == podName {
+			continue
+		}
+		delete(node.Labels, label)
+		err := s.Update(s.Ctx, &node)
+		if err != nil {
+			e := fmt.Errorf("remove nodes %s label error: %s", node.Name, err.Error())
+			return utils.RequeueWithError(e)
+		}
+		s.Log.Info("remove label from node success", "node", node.Name)
+	}
+
+	// 6. collect all cache status from running runtime server
+	status, err := utils.CollectAllCacheStatus(runtimeName, serviceName, len(nodePodMap))
+	if err != nil {
+		s.Log.Error(err, "get cache status error")
+		return utils.RequeueAfter(10 * time.Second)
+	}
+	if status.ErrorMassage != "" {
+		s.Log.Error(errors.New(status.ErrorMassage), "error massage from cache status")
+	}
+	if !reflect.DeepEqual(status, s.SampleSet.Status.CacheStatus) {
+		needUpdateStatefulSet = true
+		s.SampleSet.Status.CacheStatus = status
+		s.Log.Info("cache status has changed")
+	}
+	s.Log.Info("collect all cache status successful")
+
+	// 7. update StatefulSet if spec replicas is not equal to the partitions of SampleSet
+	if specReplicas != partitions {
+		statefulSet.Spec.Replicas = &partitions
+		if err := s.Update(s.Ctx, statefulSet); err != nil {
+			e := fmt.Errorf("update statefulset %s error: %s", statefulSetName, err.Error())
+			return utils.RequeueWithError(e)
+		}
+		s.Log.Info("update statefulset spec.replicas successful")
+	}
+
+	// 7. update SampleSet RuntimeStatus and phase
+	newReadyReplicas := statefulSet.Status.ReadyReplicas
+	oldSpecReplicas := s.SampleSet.Status.RuntimeStatus.SpecReplicas
+	oldReadyReplicas := s.SampleSet.Status.RuntimeStatus.ReadyReplicas
+	if oldSpecReplicas != partitions || oldReadyReplicas != newReadyReplicas {
+		needUpdateStatefulSet = true
+		s.SampleSet.Status.RuntimeStatus.SpecReplicas = partitions
+		s.SampleSet.Status.RuntimeStatus.ReadyReplicas = newReadyReplicas
+		s.SampleSet.Status.RuntimeStatus.RuntimeReady = fmt.Sprintf(
+			"%d/%d", newReadyReplicas, partitions)
+	}
+
+	allReady := partitions == specReplicas
+	allReady = allReady && specReplicas == newReadyReplicas
+	allReady = allReady && len(nodePodMap) == int(newReadyReplicas)
+	if allReady {
+		s.SampleSet.Status.Phase = common.SampleSetReady
+	}
+
+	if needUpdateStatefulSet || allReady {
+		if err := s.Status().Update(s.Ctx, s.SampleSet); err != nil {
+			e := fmt.Errorf("update sampleset %s error: %s", s.Req.Name, err.Error())
+			return utils.RequeueWithError(e)
+		}
+		s.Log.Info("update sampleset phase to ready")
+		return utils.NoRequeue()
+	}
+	return utils.RequeueAfter(60 * time.Second)
 }
 
-// reconcileReady
+func (s *SampleSetReconcilePhase) cleanCacheData(nodePodMap map[string]string, partitions int32) error {
+	// get the name of running pod with need to clean cache data
+	var indexList []int
+	for _, podName := range nodePodMap {
+		nameList := strings.Split(podName, "-")
+		if len(nameList) == 0 { continue }
+		indexStr := nameList[len(nameList)-1]
+		index, err := strconv.Atoi(indexStr)
+		if err != nil { continue }
+		if index+1 <= int(partitions) { continue }
+		indexList = append(indexList, index)
+	}
+	opt := &v1alpha1.ClearJobOptions{}
+	err := s.CreateClearJobOptions(opt, common.RequestContext{})
+	if err != nil {
+		return err
+	}
+
+	runtimeName := s.GetRuntimeName(s.Req.Name)
+	serviceName := s.GetServiceName(s.Req.Name)
+	for _, index := range indexList {
+		baseUri := utils.GetBaseUri(runtimeName, serviceName, index)
+		err := utils.PostJobOption(opt, uuid.NewUUID(), baseUri, common.PathClearOptions)
+		if err != nil { return err }
+	}
+	return nil
+}
+
+// reconcileReady reconcile
 func (s *SampleSetReconcilePhase) reconcileReady() (ctrl.Result, error) {
 	s.Log.WithValues("phase", "reconcilePartialReady")
+	runtimeName := s.GetRuntimeName(s.Req.Name)
+	serviceName := s.GetServiceName(s.Req.Name)
+
+	// 1. check whether spec.partitions is changed, if partitions is changed,
+	// update the replicas of StatefulSet and update SampleSet phase to partial ready.
+	runtimeKey := client.ObjectKey{
+		Name: runtimeName,
+		Namespace: s.Req.Namespace,
+	}
+	statefulSetName := runtimeKey.String()
+	statefulSet := &appv1.StatefulSet{}
+	if err := s.Get(s.Ctx, runtimeKey, statefulSet); err != nil {
+		e := fmt.Errorf("get statefulset %s error: %s", statefulSetName, err.Error())
+		return utils.RequeueWithError(e)
+	}
+	specReplicas := *statefulSet.Spec.Replicas
+	readyReplicas := statefulSet.Status.ReadyReplicas
+	partitions := s.SampleSet.Spec.Partitions
+	// if runtime server ready replicas not equal SampleSet spec partitions, then update phase to partial ready
+	if specReplicas != partitions || readyReplicas != partitions {
+		s.SampleSet.Status.Phase = common.SampleSetPartialReady
+		if err := s.Status().Update(s.Ctx, s.SampleSet); err != nil {
+			e := fmt.Errorf("update sampleset %s error: %s", s.Req.Name, err.Error())
+			return utils.RequeueWithError(e)
+		}
+		s.Log.Info("update sampleset phase to partial ready")
+	}
+
+	// 2. get the cache status from runtime servers
+	newStatus, err := utils.CollectAllCacheStatus(runtimeName, serviceName, int(partitions))
+	if err != nil {
+		s.Log.Error(err, "get cache status error")
+		return utils.RequeueAfter(10 * time.Second)
+	}
+	if newStatus.ErrorMassage != "" {
+		s.Log.Error(errors.New(newStatus.ErrorMassage), "error massage from cache status")
+	}
+	s.Log.Info("collect all cache status successful")
+	if !reflect.DeepEqual(newStatus, s.SampleSet.Status.CacheStatus) {
+		s.SampleSet.Status.CacheStatus = newStatus
+		if err := s.Status().Update(s.Ctx, s.SampleSet); err != nil {
+			e := fmt.Errorf("update sampleset %s error: %s", s.Req.Name, err.Error())
+			return utils.RequeueWithError(e)
+		}
+		s.Log.Info("updated sampleset cache status")
+	}
 
 	return utils.NoRequeue()
 }
-
-//func (s *SampleSetReconcilePhase) labelNodes(statefulSet *appv1.StatefulSet) error {
-//	podList := &v1.PodList{}
-//	label := s.GetLabel(s.Req.Name)
-//	prefix := s.GetRuntimeName(s.Req.Name)
-//	listOption :=  client.MatchingLabels{
-//		label: "true",
-//		"name": prefix,
-//	}
-//	if err := s.List(s.Ctx, podList, listOption); err != nil {
-//		return fmt.Errorf("list pods by label %s error: %s", label, err.Error())
-//	}
-//	nodePodMap := make(map[string]v1.Pod)
-//	for _, pod := range podList.Items {
-//		if !strings.HasPrefix(pod.Name, prefix) {
-//			continue
-//		}
-//		if pod.Spec.NodeName == "" {
-//			continue
-//		}
-//		nodePodMap[pod.Spec.NodeName] = pod
-//	}
-//	if len(nodePodMap) != int(s.SampleSet.Spec.Partitions) {
-//		return fmt.Errorf("the options of list statefulset pods is not valid")
-//	}
-//
-//	// update the label of cache nodes and update pod nodeAffinity
-//	for nodeName, podName := range nodePodMap {
-//		node := &v1.Node{}
-//		nodeKey := client.ObjectKey{Name: nodeName}
-//		if err := s.Get(s.Ctx, nodeKey, node); err != nil {
-//			return fmt.Errorf("get node %s error: %s", nodeName, err.Error())
-//		}
-//		index := strings.TrimPrefix(podName, prefix+"-")
-//	}
-//}
 
 func GetSampleSetFinalizer(name string) string {
 	return common.PaddleLabel + "/" + "sampleset-" + name

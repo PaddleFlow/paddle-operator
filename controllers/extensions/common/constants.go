@@ -27,18 +27,19 @@ const (
 
 const (
 	// SampleSetNone After create SampleSet CR, before create PV/PVC
-	SampleSetNone v1alpha1.SampleSetPhase = ""
+	SampleSetNone    v1alpha1.SampleSetPhase = ""
 	// SampleSetBound After create PV/PVC, before create runtime daemon set
-	SampleSetBound v1alpha1.SampleSetPhase = "Bound"
+	SampleSetBound   v1alpha1.SampleSetPhase = "Bound"
 	// SampleSetMount After create runtime daemon set, before data syncing.
 	SampleSetMount   v1alpha1.SampleSetPhase = "Mount"
+	// SampleSetSyncing syncing data to cache engine backend
 	SampleSetSyncing v1alpha1.SampleSetPhase = "Syncing"
+	// SampleSetSyncFailed if sync job is fail
+	SampleSetSyncFailed   v1alpha1.SampleSetPhase = "SyncFailed"
 	// SampleSetPartialReady means
 	SampleSetPartialReady v1alpha1.SampleSetPhase = "PartialReady"
 	// SampleSetReady After data sync finish and SampleSet is ready to be use
-	SampleSetReady v1alpha1.SampleSetPhase = "Ready"
-	// SampleSetFailed Not bound to runtime, can be deleted
-	SampleSetFailed v1alpha1.SampleSetPhase = "Failed"
+	SampleSetReady   v1alpha1.SampleSetPhase = "Ready"
 )
 
 const (
@@ -97,6 +98,7 @@ const (
 	RuntimeContainerName  = "runtime"
 	RuntimeCacheMountPath = "/cache"
 	RuntimeDateMountPath  = "/mnt"
+	RuntimeCacheInterval  = 120
 )
 
 const (
