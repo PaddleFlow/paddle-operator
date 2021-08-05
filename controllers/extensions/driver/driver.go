@@ -268,6 +268,7 @@ func (d *BaseDriver) CreateRmrJobOptions(opt *v1alpha1.RmrJobOptions, ctx common
 }
 
 func (d *BaseDriver) CreateClearJobOptions(opt *v1alpha1.ClearJobOptions, ctx common.RequestContext) error {
+	opt.Paths = append(opt.Paths, d.getRuntimeCacheMountPath(""))
 	return nil
 }
 

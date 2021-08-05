@@ -67,6 +67,10 @@ func GetResultUri(baseUri, resultPath string) string {
 	return baseUri + resultPath
 }
 
+func GetOptionUri(baseUri, optionPath string) string {
+	return baseUri + optionPath
+}
+
 func GetCacheStatusByIndex(runtimeName, serviceName string, index int) (*v1alpha1.CacheStatus, error) {
 	baseUri := GetBaseUri(runtimeName, serviceName, index)
 	resultUri := GetResultUri(baseUri, common.PathCacheStatus)
@@ -170,12 +174,36 @@ func CollectAllCacheStatus(runtimeName, serviceName string, partitions int) (*v1
 	return statusAll, nil
 }
 
-func GetJobResult(result *common.JobResult, filename types.UID, baseUri, resultPath string) error {
+func GetJobResult(filename types.UID, baseUri, resultPath string) (*common.JobResult, error) {
 	resultUri := GetResultUri(baseUri, resultPath)
 
 	resp, err := Get(resultUri, filename)
 	if err != nil {
-		return fmt.Errorf("get uri %s, filename: %s, error: %s", resultUri, filename, err.Error())
+		return nil, fmt.Errorf("get uri %s, filename: %s, error: %s", resultUri, filename, err.Error())
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("resp status code not ok: %d", resp.StatusCode)
+	}
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read resp body error: %s", err.Error())
+	}
+	defer resp.Body.Close()
+
+	result := &common.JobResult{}
+	err = json.Unmarshal(body, result)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal resp body error: %s", err.Error())
+	}
+	return result, nil
+}
+
+func GetJobOption(option interface{}, filename types.UID, baseUri, optionPath string) error {
+	optionUri := GetOptionUri(baseUri, optionPath)
+
+	resp, err := Get(optionUri, filename)
+	if err != nil {
+		return fmt.Errorf("get uri %s, filename: %s, error: %s", optionUri, filename, err.Error())
 	}
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("resp status code not ok: %d", resp.StatusCode)
@@ -186,14 +214,14 @@ func GetJobResult(result *common.JobResult, filename types.UID, baseUri, resultP
 	}
 	defer resp.Body.Close()
 
-	err = json.Unmarshal(body, result)
+	err = json.Unmarshal(body, option)
 	if err != nil {
 		return fmt.Errorf("unmarshal resp body error: %s", err.Error())
 	}
 	return nil
 }
 
-func PostJobOptions(option interface{}, filename types.UID, baseUri, optionPath string) error {
+func PostJobOption(option interface{}, filename types.UID, baseUri, optionPath string) error {
 	body, err := json.Marshal(option)
 	if err != nil {
 		return fmt.Errorf("marshal option %+v error: %s", option, err.Error())

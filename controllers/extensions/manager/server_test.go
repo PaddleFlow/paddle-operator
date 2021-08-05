@@ -127,8 +127,7 @@ func TestServer_Run(t *testing.T) {
 		t.Error(err)
 	}
 	syncOptUri := uri + common.PathUploadPrefix + common.PathSyncOptions
-	syncOptFileName := fmt.Sprintf("%s", uuid.NewUUID())
-	resp, err := utils.Post(syncOptUri, syncOptFileName, bytes.NewReader(syncBody))
+	resp, err := utils.Post(syncOptUri, uuid.NewUUID(), bytes.NewReader(syncBody))
 	if err != nil {
 		t.Error("post sync option error", uri, err.Error())
 		return
@@ -140,7 +139,7 @@ func TestServer_Run(t *testing.T) {
 	time.Sleep(5 * time.Second)
 	// get sync result
 	syncResUri := uri + common.PathSyncResult
-	resp, err = utils.Get(syncResUri, syncOptFileName)
+	resp, err = utils.Get(syncResUri, uuid.NewUUID())
 	if err != nil {
 		t.Error("get sync result file error: ", err.Error())
 		return
@@ -170,8 +169,7 @@ func TestServer_Run(t *testing.T) {
 		t.Error(err)
 	}
 	clearOptUri := uri + common.PathUploadPrefix + common.PathClearOptions
-	clearOptFile := fmt.Sprintf("%s", uuid.NewUUID())
-	resp, err = utils.Post(clearOptUri, clearOptFile, bytes.NewReader(clearBody))
+	resp, err = utils.Post(clearOptUri, uuid.NewUUID(), bytes.NewReader(clearBody))
 	if err != nil {
 		t.Error("post clear option error", uri, err.Error())
 		return
@@ -184,7 +182,7 @@ func TestServer_Run(t *testing.T) {
 
 	// get clear result
 	clearResUri := uri + common.PathClearResult
-	resp, err = utils.Get(clearResUri, clearOptFile)
+	resp, err = utils.Get(clearResUri, uuid.NewUUID())
 	if err != nil {
 		t.Error("get clear result file error: ", err.Error())
 		return

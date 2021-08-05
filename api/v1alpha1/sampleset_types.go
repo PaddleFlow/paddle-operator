@@ -111,9 +111,9 @@ type RuntimeStatus struct {
 	// RuntimeReady is use to display SampleSet Runtime pods status, format like {ReadyReplicas}/{SpecReplicas}.
 	RuntimeReady string `json:"runtimeReady,omitempty"`
 	// SpecReplicas is the number of Pods should be created by Runtime StatefulSet.
-	SpecReplicas *int32 `json:"specReplicas,omitempty"`
+	SpecReplicas int32 `json:"specReplicas,omitempty"`
 	// ReadyReplicas is the number of Pods created by the Runtime StatefulSet that have a Ready Condition.
-	ReadyReplicas *int32 `json:"readyReplicas,omitempty"`
+	ReadyReplicas int32 `json:"readyReplicas,omitempty"`
 }
 
 // JobsName record the name of jobs triggered by SampleSet controller, it should store and load atomically.
@@ -131,29 +131,32 @@ type SampleSetSpec struct {
 	// +kubebuilder:validation:Required
 	Partitions int32 `json:"partitions,omitempty"`
 	// Source describes the information of data source uri and secret name.
+	// cannot update after data sync finish
 	// +optional
 	Source *Source `json:"source,omitempty"`
 	// SecretRef is reference to the authentication secret for source storage and cache engine.
+	// cannot update after SampleSet phase is Bound
 	// +kubebuilder:validation:Required
 	SecretRef *corev1.LocalObjectReference `json:"secretRef,omitempty"`
 	// If the data is already in cache engine backend storage, can set NoSync as true to skip Syncing phase.
+	// cannot update after data sync finish
 	// +optional
 	NoSync bool `json:"noSync,omitempty"`
 	// CSI defines the csi driver and mount options for supporting dataset.
-	// Cannot be update after SampleSet phase is Bound
+	// Cannot update after SampleSet phase is Bound
 	// +optional
 	CSI *CSI `json:"csi,omitempty"`
 	// Cache options used by cache runtime engine
-	// Cannot be update after SampleSet phase is Bound
+	// Cannot update after SampleSet phase is Bound
 	// +optional
 	Cache Cache `json:"cache,omitempty"`
 	// NodeAffinity defines constraints that limit what nodes this SampleSet can be cached to.
 	// This field influences the scheduling of pods that use the cached dataset.
-	// Cannot be update
+	// Cannot update after SampleSet phase is Bound
 	// +optional
 	NodeAffinity *corev1.VolumeNodeAffinity `json:"nodeAffinity,omitempty"`
 	// If specified, the pod's tolerations.
-	// Cannot be update
+	// Cannot update after SampleSet phase is Bound
 	// +optional
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }
