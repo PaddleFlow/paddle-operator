@@ -17,16 +17,18 @@ package manager
 import (
 	"bytes"
 	"fmt"
-	"github.com/paddleflow/paddle-operator/api/v1alpha1"
-	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
-	"github.com/paddleflow/paddle-operator/controllers/extensions/utils"
 	"io/ioutil"
-	"k8s.io/apimachinery/pkg/util/json"
-	"k8s.io/apimachinery/pkg/util/uuid"
 	"net/http"
 	"os"
 	"testing"
 	"time"
+
+	"k8s.io/apimachinery/pkg/util/json"
+	"k8s.io/apimachinery/pkg/util/uuid"
+
+	"github.com/paddleflow/paddle-operator/api/v1alpha1"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/utils"
 )
 
 func TestServer_Run(t *testing.T) {
