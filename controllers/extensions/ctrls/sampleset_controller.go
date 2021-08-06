@@ -76,7 +76,6 @@ func (r *SampleSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// 1. Get SampleSet
 	var sampleSet v1alpha1.SampleSet
 	if err := r.Get(ctx, req.NamespacedName, &sampleSet); err != nil {
-		r.Log.Error(err, "unable to fetch SampleSet")
 		return utils.RequeueWithError(client.IgnoreNotFound(err))
 	}
 
@@ -144,12 +143,9 @@ func (r *SampleSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 type SampleSetReconcilePhase struct {
-	//
-	*common.ReconcileContext
-	//
-	SampleSet *v1alpha1.SampleSet
-	//
 	driver.Driver
+	*common.ReconcileContext
+	SampleSet *v1alpha1.SampleSet
 }
 
 func (s *SampleSetReconcilePhase) reconcilePhase() (ctrl.Result, error) {
@@ -181,23 +177,40 @@ func (s *SampleSetReconcilePhase) reconcilePhase() (ctrl.Result, error) {
 
 func (s *SampleSetReconcilePhase) deleteResource() (ctrl.Result, error) {
 	s.Log.WithValues("phase", "deleteResource")
-
-	// 1. 等待正在运行的PaddleJob 和 SampleJob任务完成
-	// 2. 提交SampleJob deleteCache 任务, 并禁止提交其他的SampleJob
-	// 3. 等待deleteCache任务完成以后, 删除缓存节点上的Labels
-	// 4. 删除 Runtime DaemonSet
-	// 5. 删除pvc
-	// 6. 删除pv资源
-
 	sampleSetName := s.SampleSet.Name
 	label := s.GetLabel(sampleSetName)
+	serviceName := s.GetServiceName(sampleSetName)
+	runtimeName := s.GetRuntimeName(sampleSetName)
 
-	// delete label of cache nodes
+	// 2. request runtime server to delete cache data
+	podList := &v1.PodList{}
+	nOpt := client.InNamespace(s.Req.Namespace)
+	lOpt := client.MatchingLabels(map[string]string{
+		label: "true", "name": runtimeName,
+	})
+	if err := s.List(s.Ctx, podList, nOpt, lOpt); err != nil {
+		s.Log.Error(err, "fetch statefulset pod list error")
+		return utils.RequeueWithError(err)
+	}
+
+	// 3. delete label of cache nodes
+	nodeList := &v1.NodeList{}
+	if err := s.List(s.Ctx, nodeList,  client.HasLabels{label}); err != nil {
+		e := fmt.Errorf("list nodes error: %s", err.Error())
+		return utils.RequeueWithError(e)
+	}
+	for _, node := range nodeList.Items {
+		delete(node.Labels, label)
+		if err := s.Update(s.Ctx, &node); err != nil {
+			e := fmt.Errorf("remove nodes %s label error: %s", node.Name, err.Error())
+			return utils.RequeueWithError(e)
+		}
+		s.Log.Info("remove label from node success", "node", node.Name)
+	}
 
 	// 4. delete runtime StatefulSet
 	runtimeFinalizer := GetRuntimeFinalizer(sampleSetName)
 	if utils.HasFinalizer(&s.SampleSet.ObjectMeta, runtimeFinalizer) {
-		runtimeName := s.GetRuntimeName(sampleSetName)
 		runtimeKey := client.ObjectKey{
 			Name: runtimeName,
 			Namespace: s.Req.Namespace,
@@ -225,15 +238,6 @@ func (s *SampleSetReconcilePhase) deleteResource() (ctrl.Result, error) {
 	}
 
 	// 5. wait all StatefulSet replicas deleted
-	podList := &v1.PodList{}
-	lOpt := client.MatchingLabels(
-		map[string]string{
-			label: "true",
-		})
-	if err := s.List(s.Ctx, podList, lOpt); err != nil {
-		s.Log.Error(err, "fetch statefulset pod list error")
-		return utils.RequeueWithError(err)
-	}
 	if len(podList.Items) > 0 {
 		s.Log.V(1).Info("wait all statefulset replicas deleted")
 		return utils.RequeueAfter(5 * time.Second)
@@ -242,7 +246,6 @@ func (s *SampleSetReconcilePhase) deleteResource() (ctrl.Result, error) {
 	// 5. delete runtime service
 	serviceFinalizer := GetServiceFinalizer(sampleSetName)
 	if utils.HasFinalizer(&s.SampleSet.ObjectMeta, serviceFinalizer) {
-		serviceName := s.GetServiceName(sampleSetName)
 		serviceKey := client.ObjectKey{
 			Name: serviceName,
 			Namespace: s.Req.Namespace,
@@ -408,7 +411,7 @@ func (s *SampleSetReconcilePhase) reconcileNone() (ctrl.Result, error) {
 	s.SampleSet.Finalizers = append(s.SampleSet.Finalizers, GetPVFinalizer(sampleSetName))
 	s.Log.V(1).Info("create pv successful")
 
-	// 4. check if persistent volume claim is exist and have same name as the SampleSet
+	// 4. check if persistent volume claim is exist and named as the SampleSet
 	pvc := &v1.PersistentVolumeClaim{}
 	namespacedName := s.Req.NamespacedName.String()
 	err = s.Get(s.Ctx, s.Req.NamespacedName, pvc)
