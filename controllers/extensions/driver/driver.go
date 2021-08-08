@@ -52,33 +52,33 @@ func init() {
 
 type Driver interface {
 	// CreatePV create persistent volume by specified driver
-	CreatePV(pv *v1.PersistentVolume, ctx common.RequestContext) error
+	CreatePV(pv *v1.PersistentVolume, ctx *common.RequestContext) error
 
 	// CreatePVC create persistent volume claim for PaddleJob
-	CreatePVC(pvc *v1.PersistentVolumeClaim, ctx common.RequestContext) error
+	CreatePVC(pvc *v1.PersistentVolumeClaim, ctx *common.RequestContext) error
 
 	// GetLabel get the label to mark pv、pvc and nodes which have cached data
 	GetLabel(sampleSetName string) string
 
 	// CreateService create a service for runtime StatefulSet
-	CreateService(service *v1.Service, ctx common.RequestContext) error
+	CreateService(service *v1.Service, ctx *common.RequestContext) error
 
 	// GetServiceName get the name of runtime StatefulSet service
 	GetServiceName(sampleSetName string) string
 
 	// CreateRuntime create runtime StatefulSet to manager cache data
-	CreateRuntime(ds *appv1.StatefulSet, ctx common.RequestContext) error
+	CreateRuntime(ds *appv1.StatefulSet, ctx *common.RequestContext) error
 
 	// GetRuntimeName get the runtime StatefulSet name
 	GetRuntimeName(sampleSetName string) string
 
-	CreateSyncJobOptions(opt *v1alpha1.SyncJobOptions, ctx common.RequestContext) error
+	CreateSyncJobOptions(opt *v1alpha1.SyncJobOptions, ctx *common.RequestContext) error
 
-	CreateWarmupJobOptions(opt *v1alpha1.WarmupJobOptions, ctx common.RequestContext) error
+	CreateWarmupJobOptions(opt *v1alpha1.WarmupJobOptions, ctx *common.RequestContext) error
 
-	CreateRmrJobOptions(opt *v1alpha1.RmrJobOptions, ctx common.RequestContext) error
+	CreateRmrJobOptions(opt *v1alpha1.RmrJobOptions, ctx *common.RequestContext) error
 
-	CreateClearJobOptions(opt *v1alpha1.ClearJobOptions, ctx common.RequestContext) error
+	CreateClearJobOptions(opt *v1alpha1.ClearJobOptions, ctx *common.RequestContext) error
 
 	CreateCacheStatus(opt *common.ServerOptions, status *v1alpha1.CacheStatus) error
 
@@ -107,7 +107,7 @@ type BaseDriver struct {
 }
 
 // CreatePVC a
-func (d *BaseDriver) CreatePVC(pvc *v1.PersistentVolumeClaim, ctx common.RequestContext) error {
+func (d *BaseDriver) CreatePVC(pvc *v1.PersistentVolumeClaim, ctx *common.RequestContext) error {
 	label := d.GetLabel(ctx.Req.Name)
 	objectMeta := metav1.ObjectMeta{
 		Name: ctx.Req.Name,
@@ -143,7 +143,7 @@ func (d *BaseDriver) CreatePVC(pvc *v1.PersistentVolumeClaim, ctx common.Request
 }
 
 // CreateService create service for runtime StatefulSet server
-func (d *BaseDriver) CreateService(service *v1.Service, ctx common.RequestContext) error {
+func (d *BaseDriver) CreateService(service *v1.Service, ctx *common.RequestContext) error {
 	label := d.GetLabel(ctx.Req.Name)
 	serviceName := d.GetServiceName(ctx.Req.Name)
 	objectMeta := metav1.ObjectMeta{
@@ -263,11 +263,11 @@ func (d *BaseDriver) CreateCacheStatus(opt *common.ServerOptions, status *v1alph
 	return nil
 }
 
-func (d *BaseDriver) CreateRmrJobOptions(opt *v1alpha1.RmrJobOptions, ctx common.RequestContext) error {
+func (d *BaseDriver) CreateRmrJobOptions(opt *v1alpha1.RmrJobOptions, ctx *common.RequestContext) error {
 	return nil
 }
 
-func (d *BaseDriver) CreateClearJobOptions(opt *v1alpha1.ClearJobOptions, ctx common.RequestContext) error {
+func (d *BaseDriver) CreateClearJobOptions(opt *v1alpha1.ClearJobOptions, ctx *common.RequestContext) error {
 	opt.Paths = append(opt.Paths, d.getRuntimeCacheMountPath(""))
 	return nil
 }

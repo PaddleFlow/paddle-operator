@@ -65,22 +65,10 @@ const EventCreate = "SuccessfulCreate"
 const (
 	ErrorDriverNotExist  = "ErrorDriverNotExist"
 	ErrorSecretNotExist  = "ErrorSecretNotExist"
-	ErrorPVAlreadyExist  = "ErrorPersistentVolumeAlreadyExist"
-	ErrorCreatePV        = "ErrorCreatePersistentVolume"
-	ErrorPVCAlreadyExist = "ErrorPersistentVolumeClaimAlreadyExist"
-	ErrorCreatePVC       = "ErrorCreatePersistentVolumeClaim"
-	ErrorSSAlreadyExist  = "ErrorStatefulSetAlreadyExist"
-	ErrorCreateService   = "ErrorCreateService"
-	ErrorCreateRuntime   = "ErrorCreateRuntime"
-	ErrorDeleteRuntime   = "ErrorDeleteRuntime"
-	ErrorDeleteService   = "ErrorDeleteService"
-	ErrorDeletePVC       = "ErrorDeletePersistentVolumeClaim"
-	ErrorDeletePV        = "ErrorDeletePersistentVolume"
 	ErrorDoSyncJob       = "ErrorDoSyncJob"
-
-	ErrorCreateSyncJobOption = "ErrorCreateSyncJobOption"
-	ErrorUploadSyncJobOption = "ErrorUploadSyncJobOption"
-
+	ErrorDoClearJob      = "ErrorDoClearJob"
+	ErrorDoWarmupJob     = "ErrorDoWarmupJob"
+	ErrorDoRmrJob        = "ErrorDoRmrJob"
 )
 
 const ResourceStorage = "10Pi"

@@ -55,8 +55,12 @@ func Get(url string, filename types.UID) (resp *http.Response, err error) {
 	return DefaultClient.Get(url + "/" + string(filename))
 }
 
-func GetBaseUri(runtimeName, serviceName string, index int) string {
+func GetBaseUriByIndex(runtimeName, serviceName string, index int) string {
 	return fmt.Sprintf("http://%s-%d.%s:%d", runtimeName, index, serviceName, common.RuntimeServicePort)
+}
+
+func GetBaseUriByName(runtimePodName, serviceName string) string {
+	return fmt.Sprintf("http://%s.%s:%d", runtimePodName, serviceName, common.RuntimeServicePort)
 }
 
 func GetUploadUri(baseUri, uploadPath string) string {
@@ -72,7 +76,7 @@ func GetOptionUri(baseUri, optionPath string) string {
 }
 
 func GetCacheStatusByIndex(runtimeName, serviceName string, index int) (*v1alpha1.CacheStatus, error) {
-	baseUri := GetBaseUri(runtimeName, serviceName, index)
+	baseUri := GetBaseUriByIndex(runtimeName, serviceName, index)
 	resultUri := GetResultUri(baseUri, common.PathCacheStatus)
 	resp, err := Get(resultUri, common.FilePathCacheInfo)
 	if err != nil {
