@@ -16,33 +16,23 @@ package common
 
 import (
 	"context"
+
 	"github.com/go-logr/logr"
-	"github.com/paddleflow/paddle-operator/api/v1alpha1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sync/atomic"
+
+	"github.com/paddleflow/paddle-operator/api/v1alpha1"
 )
 
 type ReconcileContext struct {
-	//
 	client.Client
-
-	//
 	Ctx context.Context
-
-	//
 	Req *ctrl.Request
-
-	//
 	Log logr.Logger
-
-	//
 	Scheme *runtime.Scheme
-
-	//
 	Recorder record.EventRecorder
 }
 
@@ -55,8 +45,6 @@ type RequestContext struct {
 	PV *v1.PersistentVolume
 	Service *v1.Service
 }
-
-type JobsName atomic.Value
 
 // RootCmdOptions the
 type RootCmdOptions struct {

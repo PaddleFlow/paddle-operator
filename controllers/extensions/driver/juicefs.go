@@ -35,15 +35,9 @@ import (
 )
 
 const (
-	// JuiceFSDriver a
 	JuiceFSDriver v1alpha1.DriverName = "juicefs"
-
-	// JuiceFSCacheDirOption a
 	JuiceFSCacheDirOption = "cache-dir"
-
 	JuiceFSCacheSizeOption = "cache-size"
-
-	// JuiceFSCSIDriverName a
 	JuiceFSCSIDriverName = "csi.juicefs.com"
 )
 
@@ -104,7 +98,7 @@ func NewJuiceFSDriver() *JuiceFS {
 
 // CreatePV create JuiceFS persistent volume with mount options.
 // How to set parameters of pv can refer to https://github.com/juicedata/juicefs-csi-driver/tree/master/examples/static-provisioning-mount-options
-func (j *JuiceFS) CreatePV(pv *v1.PersistentVolume, ctx common.RequestContext) error {
+func (j *JuiceFS) CreatePV(pv *v1.PersistentVolume, ctx *common.RequestContext) error {
 	if !j.isSecretValid(ctx.Secret) {
 		return fmt.Errorf("secret %s is not valid", ctx.Secret.Name)
 	}
@@ -246,7 +240,7 @@ func (j *JuiceFS) getMountOptions(sampleSet *v1alpha1.SampleSet) (string, error)
 	return strings.Join(optionSlice, ","), nil
 }
 
-func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx common.RequestContext) error {
+func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx *common.RequestContext) error {
 	label := j.GetLabel(ctx.Req.Name)
 	runtimeName := j.GetRuntimeName(ctx.Req.Name)
 	image, err := utils.GetRuntimeImage()
@@ -507,7 +501,7 @@ func (j *JuiceFS) DoRmrJob(ctx context.Context, opt *v1alpha1.RmrJobOptions) err
 // TODO: Support different uri format for all storage in JuiceFSSupportStorage,
 // some data storage may need additional secret setting in v1alpha1.Source.SecretRef
 // more info: https://github.com/juicedata/juicesync
-func (j *JuiceFS) CreateSyncJobOptions(opt *v1alpha1.SyncJobOptions, ctx common.RequestContext) error {
+func (j *JuiceFS) CreateSyncJobOptions(opt *v1alpha1.SyncJobOptions, ctx *common.RequestContext) error {
 	// if SampleJob is not nil, use sync job options from SampleJob
 	if ctx.SampleJob != nil && ctx.SampleJob.Spec.SyncOptions != nil {
 		ctx.SampleJob.Spec.SyncOptions.DeepCopyInto(opt)
@@ -563,6 +557,6 @@ func (j *JuiceFS) CreateSyncJobOptions(opt *v1alpha1.SyncJobOptions, ctx common.
 	return nil
 }
 
-func (j *JuiceFS) CreateWarmupJobOptions(opt *v1alpha1.WarmupJobOptions, ctx common.RequestContext) error {
+func (j *JuiceFS) CreateWarmupJobOptions(opt *v1alpha1.WarmupJobOptions, ctx *common.RequestContext) error {
 	return nil
 }
