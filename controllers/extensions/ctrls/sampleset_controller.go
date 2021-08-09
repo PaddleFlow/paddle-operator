@@ -315,8 +315,6 @@ func (s *SampleSetController) reconcileBound() (ctrl.Result, error) {
 func (s *SampleSetController) reconcileMount() (ctrl.Result, error) {
 	s.Log.WithValues("phase", "reconcileMount")
 
-	runtimeName := s.GetRuntimeName(s.Req.Name)
-	serviceName := s.GetServiceName(s.Req.Name)
 	var syncJobName types.UID
 	if s.SampleSet.Status.JobsName != nil {
 		s.Log.Info("jobName is not nil")
@@ -348,16 +346,11 @@ func (s *SampleSetController) reconcileMount() (ctrl.Result, error) {
 	}
 
 	// 2. wait util the first runtime server produce cache info file
-	status, err := utils.CollectAllCacheStatus(runtimeName, serviceName, 1)
+	status, err := s.CollectCacheStatusByIndex(0)
 	if err != nil {
-		s.Log.Error(err, "get cache status error")
 		return utils.RequeueAfter(10 * time.Second)
 	}
-	if status.ErrorMassage != "" {
-		s.Log.Error(errors.New(status.ErrorMassage), "error massage from cache status")
-	}
 	s.SampleSet.Status.CacheStatus = status
-	s.Log.Info("collect all cache status successful")
 
 	// 3. update SampleSet phase to partial ready
 	s.SampleSet.Status.Phase = common.SampleSetPartialReady
@@ -370,20 +363,13 @@ func (s *SampleSetController) reconcileMount() (ctrl.Result, error) {
 // reconcileSyncing wait the sync data job done and return to mount phase
 func (s *SampleSetController) reconcileSyncing() (ctrl.Result, error) {
 	s.Log.WithValues("phase", "reconcileSyncing")
-	runtimeName := s.GetRuntimeName(s.Req.Name)
-	serviceName := s.GetServiceName(s.Req.Name)
 
 	// 1. get the status of cache status from runtime server 0
-	status, err := utils.CollectAllCacheStatus(runtimeName, serviceName, 1)
+	status, err := s.CollectCacheStatusByIndex(0)
 	if err != nil {
-		s.Log.Error(err, "get cache status error")
 		return utils.RequeueAfter(10 * time.Second)
 	}
-	if status.ErrorMassage != "" {
-		s.Log.Error(errors.New(status.ErrorMassage), "error massage from cache status")
-	}
 	s.SampleSet.Status.CacheStatus = status
-	s.Log.Info("collect all cache status successful")
 
 	// 2. get the result of sync data job
 	filename := s.SampleSet.Status.JobsName.SyncJobName
@@ -418,8 +404,6 @@ func (s *SampleSetController) reconcileSyncing() (ctrl.Result, error) {
 // reconcileReady reconcile
 func (s *SampleSetController) reconcileReady() (ctrl.Result, error) {
 	s.Log.WithValues("phase", "reconcilePartialReady")
-	runtimeName := s.GetRuntimeName(s.Req.Name)
-	serviceName := s.GetServiceName(s.Req.Name)
 
 	// 1. check whether spec.partitions is changed, if partitions is changed,
 	// update the replicas of StatefulSet and update SampleSet phase to partial ready.
@@ -445,15 +429,10 @@ func (s *SampleSetController) reconcileReady() (ctrl.Result, error) {
 	}
 
 	// 2. get the cache status from runtime servers
-	newStatus, err := utils.CollectAllCacheStatus(runtimeName, serviceName, int(partitions))
+	newStatus, err := s.CollectCacheStatusByPartitions(int(partitions))
 	if err != nil {
-		s.Log.Error(err, "get cache status error")
 		return utils.RequeueAfter(10 * time.Second)
 	}
-	if newStatus.ErrorMassage != "" {
-		s.Log.Error(errors.New(newStatus.ErrorMassage), "error massage from cache status")
-	}
-	s.Log.Info("collect all cache status successful")
 	if !reflect.DeepEqual(newStatus, s.SampleSet.Status.CacheStatus) {
 		s.SampleSet.Status.CacheStatus = newStatus
 		err = s.UpdateResourceStatus(s.SampleSet, SampleSet)
@@ -481,7 +460,7 @@ func (s *SampleSetController) deleteResource() (ctrl.Result, error) {
 	if clearJobName == "" {
 		clearJobName = uuid.NewUUID()
 		// TODO: 给ClearJob的URI带上 ?delete=true
-		if err := s.PostJobOptions(clearJobName, ClearJob); err != nil {
+		if err := s.PostJobOptionsWithTerminate(clearJobName, ClearJob); err != nil {
 			return utils.RequeueWithError(err)
 		}
 		s.SampleSet.Status.JobsName.ClearJobName = clearJobName
@@ -611,8 +590,6 @@ func (s *SampleSetController) reconcilePartialReady() (ctrl.Result, error) {
 	s.Log.WithValues("phase", "reconcilePartialReady")
 
 	label := s.GetLabel(s.Req.Name)
-	runtimeName := s.GetRuntimeName(s.Req.Name)
-	serviceName := s.GetServiceName(s.Req.Name)
 
 	// 1. get runtime StatefulSet
 	statefulSet := &appv1.StatefulSet{}
@@ -625,10 +602,12 @@ func (s *SampleSetController) reconcilePartialReady() (ctrl.Result, error) {
 	if err := s.ListResources(podList, RuntimePod); err != nil {
 		return utils.RequeueWithError(err)
 	}
+	var runtimePodNames []string
 	nodePodMap := make(map[string]string)
 	for _, pod := range podList.Items {
 		nodeName := pod.Spec.NodeName
 		nodePodMap[nodeName] = pod.Name
+		runtimePodNames = append(runtimePodNames, pod.Name)
 	}
 
 	// 3. clean the cache data before terminate runtime pods
@@ -639,11 +618,12 @@ func (s *SampleSetController) reconcilePartialReady() (ctrl.Result, error) {
 		clearJobTmp := getClearJobType(podNames)
 
 		filename := uuid.NewUUID()
-		err := s.PostJobOptions(filename, clearJobTmp)
+		err := s.PostJobOptionsWithTerminate(filename, clearJobTmp)
 		if err != nil {
 			return utils.RequeueWithError(err)
 		}
-		time.Sleep(5 * time.Second)
+		wait := time.Duration(len(podNames) * 3)
+		time.Sleep(wait * time.Second)
 		result, err := s.GetJobResult(filename, clearJobTmp)
 		if err != nil {
 			return utils.RequeueWithError(err)
@@ -680,6 +660,7 @@ func (s *SampleSetController) reconcilePartialReady() (ctrl.Result, error) {
 	if err := s.ListResources(nodeList, Node); err != nil {
 		return utils.RequeueWithError(err)
 	}
+
 	// 6. remove the label of nodes with terminate runtime pod
 	for _, node := range nodeList.Items {
 		labelValue := node.Labels[label]
@@ -695,14 +676,11 @@ func (s *SampleSetController) reconcilePartialReady() (ctrl.Result, error) {
 	}
 
 	needUpdateStatefulSet := false
+
 	// 7. collect all cache status from running runtime server
-	status, err := utils.CollectAllCacheStatus(runtimeName, serviceName, len(nodePodMap))
+	status, err := s.CollectCacheStatus(runtimePodNames)
 	if err != nil {
-		s.Log.Error(err, "get cache status error")
 		return utils.RequeueAfter(10 * time.Second)
-	}
-	if status.ErrorMassage != "" {
-		s.Log.Error(errors.New(status.ErrorMassage), "error massage from cache status")
 	}
 	if !reflect.DeepEqual(status, s.SampleSet.Status.CacheStatus) {
 		needUpdateStatefulSet = true

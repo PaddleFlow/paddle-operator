@@ -19,15 +19,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/dustin/go-humanize"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
 	"os/exec"
 	"reflect"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/dustin/go-humanize"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 // HasDeletionTimestamp method to check if an object need to delete.
@@ -51,10 +52,6 @@ func NoRequeue() (ctrl.Result, error) {
 
 func RequeueWithError(err error) (ctrl.Result, error) {
 	return ctrl.Result{}, err
-}
-
-func RequeueImmediately() (ctrl.Result, error) {
-	return ctrl.Result{Requeue: true}, nil
 }
 
 func RequeueAfter(requeueAfter time.Duration) (ctrl.Result, error) {

@@ -75,8 +75,8 @@ func GetOptionUri(baseUri, optionPath string) string {
 	return baseUri + optionPath
 }
 
-func GetCacheStatusByIndex(runtimeName, serviceName string, index int) (*v1alpha1.CacheStatus, error) {
-	baseUri := GetBaseUriByIndex(runtimeName, serviceName, index)
+func GetCacheStatus(runtimePodName, serviceName string) (*v1alpha1.CacheStatus, error) {
+	baseUri := GetBaseUriByName(runtimePodName, serviceName)
 	resultUri := GetResultUri(baseUri, common.PathCacheStatus)
 	resp, err := Get(resultUri, common.FilePathCacheInfo)
 	if err != nil {
@@ -104,24 +104,24 @@ type CacheStatusResult struct {
 	Error  error
 }
 
-func CollectAllCacheStatus(runtimeName, serviceName string, partitions int) (*v1alpha1.CacheStatus, error) {
-	resultChan := make(chan *CacheStatusResult, partitions)
+func CollectAllCacheStatus(runtimePodNames []string, serviceName string) (*v1alpha1.CacheStatus, error) {
+	resultChan := make(chan *CacheStatusResult, len(runtimePodNames))
 
-	for i := 0; i < partitions; i++ {
-		go func(index int) {
-			status, err := GetCacheStatusByIndex(runtimeName, serviceName, index)
+	for _, runtimePodName := range runtimePodNames {
+		go func(podName string) {
+			status, err := GetCacheStatus(podName, serviceName)
 			if err != nil {
-				err = fmt.Errorf("get cache status from node %d error: %s", index, err.Error())
+				err = fmt.Errorf("get cache status from server %s error: %s", podName, err.Error())
 			}
 			cacheStatusResult := &CacheStatusResult{Status: status, Error: err}
 			resultChan <- cacheStatusResult
-		}(i)
+		}(runtimePodName)
 	}
 
 	var errStrList []string
 	var statusList []*v1alpha1.CacheStatus
 
-	for i := 0; i < partitions; i++ {
+	for i := 0; i < len(runtimePodNames); i++ {
 		result := <- resultChan
 		if result.Error != nil {
 			return nil, result.Error
@@ -225,12 +225,15 @@ func GetJobOption(option interface{}, filename types.UID, baseUri, optionPath st
 	return nil
 }
 
-func PostJobOption(option interface{}, filename types.UID, baseUri, optionPath string) error {
+func PostJobOption(option interface{}, filename types.UID, baseUri, optionPath, param string) error {
 	body, err := json.Marshal(option)
 	if err != nil {
 		return fmt.Errorf("marshal option %+v error: %s", option, err.Error())
 	}
 	uploadUri := GetUploadUri(baseUri, optionPath)
+	if param != "" {
+		uploadUri = uploadUri + param
+	}
 	resp, err := Post(uploadUri, filename, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("post uri %s, filename: %s, error: %s", uploadUri, filename, err.Error())
