@@ -645,7 +645,7 @@ func (c *Controller) GetRequestContext(d Dependence) (*common.RequestContext, er
 	return ctx, nil
 }
 
-func (c *Controller) PostJobOptions(filename types.UID, j *JobType) error {
+func (c *Controller) PostJobOptionsWithParam(filename types.UID, j *JobType, param string) error {
 	c.Log.WithValues("jobName", j.Name, "filename", filename)
 	// 1. check if functions is implement in jobType
 	if j.Options == nil {
@@ -680,7 +680,7 @@ func (c *Controller) PostJobOptions(filename types.UID, j *JobType) error {
 				"baseUri", baseUri, "OptionPath", j.OptionPath)
 			continue
 		}
-		err = utils.PostJobOption(opt, filename, baseUri, j.OptionPath)
+		err = utils.PostJobOption(opt, filename, baseUri, j.OptionPath, param)
 		if err != nil {
 			return err
 		}
@@ -688,6 +688,15 @@ func (c *Controller) PostJobOptions(filename types.UID, j *JobType) error {
 			"baseUri", baseUri, "OptionPath", j.OptionPath)
 	}
 	return nil
+}
+
+func (c *Controller) PostJobOptions(filename types.UID, j *JobType) error {
+	return c.PostJobOptionsWithParam(filename, j, "")
+}
+
+func (c *Controller) PostJobOptionsWithTerminate(filename types.UID, j *JobType) error {
+	param := "?" + common.TerminateSignal + "=true"
+	return c.PostJobOptionsWithParam(filename, j, param)
 }
 
 func (c *Controller) GetJobResult(filename types.UID, j *JobType) (*common.JobResult, error) {
@@ -719,6 +728,35 @@ func (c *Controller) GetJobResult(filename types.UID, j *JobType) (*common.JobRe
 	c.Recorder.Eventf(c.Sample, v1.EventTypeNormal, j.DoJobSuccessfully(),
 		"do %s successfully", j.Name)
 	return nil, nil
+}
+
+func (c *Controller) CollectCacheStatus(podNames []string) (*v1alpha1.CacheStatus, error) {
+	serviceName := c.GetServiceName(c.Req.Name)
+	status, err := utils.CollectAllCacheStatus(podNames, serviceName)
+	if err != nil {
+		c.Log.Error(err, "get cache status error", "podNames", podNames)
+		return nil, err
+	}
+	if status.ErrorMassage != "" {
+		c.Log.Error(fmt.Errorf(status.ErrorMassage), "error massage from cache status")
+	}
+	c.Log.Info("collect cache status successfully", "podNames", podNames)
+	return status, nil
+}
+
+func (c *Controller) CollectCacheStatusByIndex(index int) (*v1alpha1.CacheStatus, error) {
+	runtimeName := c.GetRuntimeName(c.Req.Name)
+	podName := fmt.Sprintf("%s-%d", runtimeName, index)
+	return c.CollectCacheStatus([]string{podName})
+}
+
+func (c *Controller) CollectCacheStatusByPartitions(partitions int) (*v1alpha1.CacheStatus, error) {
+	runtimeName := c.GetRuntimeName(c.Req.Name)
+	var podNames []string
+	for i := 0; i < partitions; i++ {
+		podNames = append(podNames, fmt.Sprintf("%s-%d", runtimeName, i))
+	}
+	return c.CollectCacheStatus(podNames)
 }
 
 func GetSampleSetFinalizer(name string) string {
