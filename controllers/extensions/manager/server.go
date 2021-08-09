@@ -159,7 +159,6 @@ func (s *Server) Run() error {
 
 func (s *Server) uploadHandleFunc(pattern string) func(w http.ResponseWriter, req *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
-		s.Log.WithValues("route", pattern)
 		if req.Method != http.MethodPost {
 			err := fmt.Errorf("http method %s not support", req.Method)
 			s.Log.Error(err, "error occur when upload sync options")
@@ -197,7 +196,7 @@ func (s *Server) uploadHandleFunc(pattern string) func(w http.ResponseWriter, re
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		s.Log.V(1).Info("upload options success", "file", filePath)
+		s.Log.V(1).Info("upload options success", "file", filePath, "route", pattern)
 
 		w.WriteHeader(http.StatusOK)
 		return
@@ -264,7 +263,6 @@ func (s *Server) do(pattern string, optionFile string) {
 }
 
 func (s *Server) writeResultFile(status common.JobStatus, message string, pattern string, optionFile string) {
-	s.Log.WithValues("pattern", pattern)
 	if message != "" {
 		err := errors.New(message)
 		s.Log.Error(err, "")
@@ -292,7 +290,8 @@ func (s *Server) writeResultFile(status common.JobStatus, message string, patter
 	if err := ioutil.WriteFile(filePath, body, os.ModePerm); err != nil {
 		s.Log.Error(err, "write file error", "file", filePath)
 	}
-	s.Log.V(1).Info("write result success", "file", filePath, "result", result)
+	s.Log.V(1).Info("write result success",
+		"file", filePath, "result", result, "pattern", pattern)
 }
 
 func (s *Server) doSync(body []byte) error {

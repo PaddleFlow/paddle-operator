@@ -6,6 +6,7 @@ spec:
   partitions: 2
   source:
     uri: bos://zhouti-mcp-edge.gz.bcebos.com/sync-source
+  noSync: true
   secretRef:
     name: imagenet
   csi:

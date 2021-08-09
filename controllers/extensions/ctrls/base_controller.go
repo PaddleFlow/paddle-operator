@@ -59,7 +59,6 @@ func init() {
 	PV.Object = PVObject
 	PV.ObjectKey = NameObjectKey
 	PV.CreateObject = PVCreateObject
-	PV.Dependents = []*Resource{Secret, SampleSet}
 
 	// get create delete exist
 	PVC = NewResource("PVC")
@@ -105,7 +104,6 @@ func init() {
 	StatefulSet.Object = StatefulSetObject
 	StatefulSet.ObjectKey = StatefulSetObjectKey
 	StatefulSet.CreateObject = StatefulSetCreateObject
-	StatefulSet.Dependents = []*Resource{PV, SampleSet}
 
 	// list
 	RuntimePod = NewResource("Pod")
@@ -119,7 +117,6 @@ func init() {
 	SyncJob.CreateOptions = SyncCreateOptions
 	SyncJob.OptionPath = common.PathSyncOptions
 	SyncJob.ResultPath = common.PathSyncResult
-	SyncJob.Dependents = []*Resource{Secret, SampleSet}
 
 	// warmup job options
 	WarmupJob = NewJobOptions("WarmupJob")
@@ -144,6 +141,11 @@ func init() {
 	RmrJob.CreateOptions = RmrCreateOptions
 	RmrJob.OptionPath = common.PathRmrOptions
 	RmrJob.ResultPath = common.PathRmrResult
+
+	// dependents
+	PV.Dependents = []*Resource{Secret, SampleSet}
+	SyncJob.Dependents = []*Resource{Secret, SampleSet}
+	StatefulSet.Dependents = []*Resource{PV, SampleSet}
 }
 
 type OptionError struct {}
@@ -303,7 +305,9 @@ func RuntimePodListOptions(c *Controller) []client.ListOption {
 	lOpt := client.MatchingLabels(map[string]string{
 		label: "true", "name": runtimeName,
 	})
-	fOpt := client.MatchingFields{"status.phase": string(v1.PodRunning)}
+	fOpt := client.MatchingFields{
+		common.IndexerKeyRuntime: string(v1.PodRunning),
+	}
 	return []client.ListOption{nOpt,lOpt, fOpt}
 }
 
@@ -425,8 +429,6 @@ type Controller struct {
 }
 
 func (c *Controller) GetResource(object client.Object, r *Resource) error {
-	c.Log.WithValues("resource", r.Name)
-	
 	if r.ObjectKey == nil {
 		panic(fmt.Errorf("%s ObjectKey function not implement", r.Name))
 	}
@@ -439,7 +441,7 @@ func (c *Controller) GetResource(object client.Object, r *Resource) error {
 	}
 	// if is not labeled resource, then return without check label
 	if !r.WithLabel {
-		c.Log.Info("get resource successful",  "name", key.String())
+		c.Log.Info("get resource successful",  "resource", r.Name, "name", key.String())
 		return nil
 	}
 	// check if label in object, if not return already exist error
@@ -448,48 +450,44 @@ func (c *Controller) GetResource(object client.Object, r *Resource) error {
 		err := fmt.Errorf("%s %s is is already exist, delete it and try again", r.Name, key.String())
 		c.Recorder.Event(c.Sample, v1.EventTypeWarning, r.ErrorAlreadyExist(), err.Error())
 	}
-	c.Log.Info("get resource successfully",  "name", key.String())
+	c.Log.Info("get resource successfully",  "name", key.String(), "resource", r.Name)
 	return nil
 }
 
 func (c *Controller) ResourcesExist(r *Resource) (bool, error) {
-	c.Log.WithValues("resource", r.Name)
-	
 	if r.Object == nil {
 		panic(fmt.Errorf("%s Object function not implement", r.Name))
 	}
 	if err := c.GetResource(r.Object(), r); err != nil {
 		if errors.IsNotFound(err) {
-			c.Log.Info("resource not exist", "name", r.ObjectKey(c).String())
+			c.Log.Info("resource not exist", "resource", r.Name, "name", r.ObjectKey(c).String())
 			return false, nil
 		}
 		return false, err
 	}
-	c.Log.Info("resource exist", "name", r.ObjectKey(c).String())
+	c.Log.Info("resource exist", "resource", r.Name, "name", r.ObjectKey(c).String())
 	return true, nil
 }
 
 func (c *Controller) ResourcesExistWithObject(object client.Object, r *Resource) (bool, error) {
-	c.Log.WithValues("resource", r.Name)
-
 	if r.Object == nil {
 		panic(fmt.Errorf("%s Object function not implement", r.Name))
 	}
 
 	if err := c.GetResource(object, r); err != nil {
 		if errors.IsNotFound(err) {
-			c.Log.Info("resource not exist", "name", r.ObjectKey(c).String())
+			c.Log.Info("resource not exist",  "resource", r.Name,
+				"name", r.ObjectKey(c).String())
 			return false, nil
 		}
 		return false, err
 	}
-	c.Log.Info("resource exist", "name", r.ObjectKey(c).String())
+	c.Log.Info("resource exist", "resource", r.Name,
+		"name", r.ObjectKey(c).String())
 	return true, nil
 }
 
 func (c *Controller) ListResources(list client.ObjectList, r *Resource) error {
-	c.Log.WithValues("resource", r.Name)
-	
 	if r.ListOptions == nil {
 		panic(fmt.Errorf("%s ListOptions function not implement", r.Name))
 	}
@@ -497,13 +495,11 @@ func (c *Controller) ListResources(list client.ObjectList, r *Resource) error {
 	if err := c.List(c.Ctx, list, opts...); err != nil {
 		return fmt.Errorf("list %s error: %s", r.Name, err.Error())
 	}
-	c.Log.Info("list successfully")
+	c.Log.Info("list successfully", "resource", r.Name)
 	return nil
 }
 
 func (c *Controller) CreateResource(r *Resource) error {
-	c.Log.WithValues("resource", r.Name)
-
 	if r.CreateObject == nil {
 		panic(fmt.Errorf("%s CreateObject function not implement", r.Name))
 	}
@@ -528,15 +524,13 @@ func (c *Controller) CreateResource(r *Resource) error {
 		c.Recorder.Event(c.Sample, v1.EventTypeWarning, r.ErrorCreateObject(), e.Error())
 		return e
 	}
-	c.Log.Info("create resource successfully", "name", key)
+	c.Log.Info("create resource successfully", "name", key, "resource", r.Name)
 	c.Recorder.Eventf(c.Sample, v1.EventTypeNormal, r.CreateSuccessfully(), 
 		"create %s %s successfully", r.Name, key)
 	return nil
 }
 
 func (c *Controller) CreateJobOptions(opt interface{}, j *JobType) error {
-	c.Log.WithValues("jobName", j.Name)
-
 	if j.CreateOptions == nil {
 		panic(fmt.Errorf("%s CreateOptions function not implement", j.Name))
 	}
@@ -549,14 +543,14 @@ func (c *Controller) CreateJobOptions(opt interface{}, j *JobType) error {
 		c.Recorder.Event(c.Sample, v1.EventTypeWarning, j.ErrorCreateJob(), e.Error())
 		return optionError
 	}
-	c.Log.Info("create job successfully", "options", fmt.Sprintf("%+v", opt))
+	c.Log.Info("create job successfully", "jobName", j.Name,
+		"options", fmt.Sprintf("%+v", opt))
 	c.Recorder.Eventf(c.Sample, v1.EventTypeNormal, j.CreateSuccessfully(),
 		"create %s successfully", j.Name)
 	return nil
 }
 
 func (c *Controller) DeleteResource(r *Resource) error {
-	c.Log.WithValues("resource", r.Name)
 	if r.Object == nil {
 		panic(fmt.Errorf("%s Object function not implement", r.Name))
 	}
@@ -572,37 +566,33 @@ func (c *Controller) DeleteResource(r *Resource) error {
 		c.Recorder.Event(c.Sample, v1.EventTypeWarning, r.ErrorDeleteObject(), e.Error())
 		return e
 	}
-	c.Log.Info("delete resource successfully", "name", key)
+	c.Log.Info("delete resource successfully", "name", key, "resource", r.Name)
 	return nil
 }
 
 func (c *Controller) UpdateResource(object client.Object, r *Resource) error {
-	c.Log.WithValues("resource", r.Name)
 	if err := c.Update(c.Ctx, object); err != nil {
 		e := fmt.Errorf("update %s %s error %s", r.Name, object.GetName(), err.Error())
 		return e
 	}
-	c.Log.Info("update resource successfully", "name", object.GetName())
-	c.Recorder.Eventf(c.Sample, v1.EventTypeNormal, r.UpdateSuccessfully(),
-		"update %s %s successfully", r.Name, object.GetName())
+	c.Log.Info("update resource successfully", "name", object.GetName(), "resource", r.Name)
+	//c.Recorder.Eventf(c.Sample, v1.EventTypeNormal, r.UpdateSuccessfully(),
+	//	"update %s %s successfully", r.Name, object.GetName())
 	return nil
 }
 
 func (c *Controller) UpdateResourceStatus(object client.Object, r *Resource) error {
-	c.Log.WithValues("resource", r.Name)
 	if err := c.Status().Update(c.Ctx, object); err != nil {
 		e := fmt.Errorf("update %s %s status error %s", r.Name, object.GetName(), err.Error())
 		return e
 	}
-	c.Log.Info("update resource status successfully", "name", object.GetName())
-	c.Recorder.Eventf(c.Sample, v1.EventTypeNormal, r.UpdateSuccessfully(),
-		"update %s %s successfully", r.Name, object.GetName())
+	c.Log.Info("update resource status successfully", "name", object.GetName(), "resource", r.Name)
+	//c.Recorder.Eventf(c.Sample, v1.EventTypeNormal, r.UpdateSuccessfully(),
+	//	"update %s %s successfully", r.Name, object.GetName())
 	return nil
 }
 
 func (c *Controller) GetRequestContext(d Dependence) (*common.RequestContext, error) {
-	c.Log.WithValues("GetRequestContext", d.GetName())
-
 	ctx := &common.RequestContext{Req: c.Req}
 	// add Sample Resource to request context
 	switch c.Sample.(type) {
@@ -615,6 +605,9 @@ func (c *Controller) GetRequestContext(d Dependence) (*common.RequestContext, er
 	}
 	// add resource dependents in request context
 	for _, resource := range d.GetDependents() {
+		if resource.Object == nil {
+			panic(fmt.Errorf("%s Object function not implement", resource.Name))
+		}
 		object := resource.Object()
 		// SampleSet or SampleJob has been set then continue
 		switch object.(type) {
@@ -646,7 +639,6 @@ func (c *Controller) GetRequestContext(d Dependence) (*common.RequestContext, er
 }
 
 func (c *Controller) PostJobOptionsWithParam(filename types.UID, j *JobType, param string) error {
-	c.Log.WithValues("jobName", j.Name, "filename", filename)
 	// 1. check if functions is implement in jobType
 	if j.Options == nil {
 		panic(fmt.Errorf("%s CreateOptions function not implement", j.Name))
@@ -676,7 +668,7 @@ func (c *Controller) PostJobOptionsWithParam(filename types.UID, j *JobType, par
 		// if options has already upload to runtime
 		err = utils.GetJobOption(j.Options(), filename, baseUri, j.OptionPath)
 		if err == nil {
-			c.Log.Info("options has already upload to server",
+			c.Log.Info("options has already upload to server", "filename", filename,
 				"baseUri", baseUri, "OptionPath", j.OptionPath)
 			continue
 		}
@@ -684,7 +676,7 @@ func (c *Controller) PostJobOptionsWithParam(filename types.UID, j *JobType, par
 		if err != nil {
 			return err
 		}
-		c.Log.Info("upload options to server successfully",
+		c.Log.Info("upload options to server successfully", "filename", filename,
 			"baseUri", baseUri, "OptionPath", j.OptionPath)
 	}
 	return nil
@@ -700,7 +692,6 @@ func (c *Controller) PostJobOptionsWithTerminate(filename types.UID, j *JobType)
 }
 
 func (c *Controller) GetJobResult(filename types.UID, j *JobType) (*common.JobResult, error) {
-	c.Log.WithValues("jobName", j.Name, "filename", filename)
 	// 1. check if functions is implement in jobType
 	if j.BaseUris == nil {
 		panic(fmt.Errorf("%s BaseUris function not implement", j.Name))
@@ -720,7 +711,7 @@ func (c *Controller) GetJobResult(filename types.UID, j *JobType) (*common.JobRe
 		// if sync job status is success, job result nned not return
 		if result.Status == common.JobStatusSuccess { continue }
 		// if result status is running or fail return the result
-		c.Log.Info("get job result successfully",
+		c.Log.Info("get job result successfully", "filename", filename,
 			"baseUri", baseUri, "ResultPath", j.ResultPath)
 		return result, nil
 	}
@@ -767,7 +758,6 @@ func GetSampleJobFinalizer(name string) string {
 	return common.PaddleLabel + "/" + "samplejob-" + name
 }
 
-// EventIndexerFunc index
 func EventIndexerFunc(obj client.Object) []string {
 	event := obj.(*v1.Event)
 	keys := []string{
@@ -778,4 +768,9 @@ func EventIndexerFunc(obj client.Object) []string {
 	}
 	keyStr := strings.Join(keys, "-")
 	return []string{keyStr}
+}
+
+func RuntimePodIndexerFunc(obj client.Object) []string {
+	pod := obj.(*v1.Pod)
+	return []string{string(pod.Status.Phase)}
 }

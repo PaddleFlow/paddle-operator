@@ -60,8 +60,6 @@ const (
 	CmdClear  = "clear"
 )
 
-const EventCreate = "SuccessfulCreate"
-
 const (
 	ErrorDriverNotExist  = "ErrorDriverNotExist"
 	ErrorSecretNotExist  = "ErrorSecretNotExist"
@@ -80,6 +78,7 @@ const (
 
 const (
 	IndexerKeyEvent = "eventIndexerKey"
+	IndexerKeyRuntime = "runtimeIndexerKey"
 )
 
 const (
