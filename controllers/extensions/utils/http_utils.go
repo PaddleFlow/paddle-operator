@@ -17,13 +17,13 @@ package utils
 import (
 	"bytes"
 	"fmt"
-	"github.com/dustin/go-humanize"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"strconv"
 	"strings"
 
+	"github.com/dustin/go-humanize"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/json"
 

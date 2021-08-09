@@ -70,7 +70,6 @@ type SampleSetReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *SampleSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	r.Log.WithValues("SampleSet", req.NamespacedName)
 	r.Log.V(1).Info("===============  Reconcile  ==============")
 
 	// 1. Get SampleSet
@@ -132,9 +131,17 @@ func (r *SampleSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		EventIndexerFunc); err != nil {
 		return err
 	}
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1.Pod{},
+		common.IndexerKeyRuntime,
+		RuntimePodIndexerFunc); err != nil {
+		return err
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 			For(&v1alpha1.SampleSet{}).
 			Owns(&v1.Event{}).
+			Owns(&v1.Pod{}).
 			Complete(r)
 }
 
@@ -186,7 +193,7 @@ func (s *SampleSetController) reconcilePhase() (ctrl.Result, error) {
 
 // reconcileNone After user create SampleSet CR then create PV and PVC automatically
 func (s *SampleSetController) reconcileNone() (ctrl.Result, error) {
-	s.Log.WithValues("phase", "reconcileNone")
+	s.Log.Info("==== reconcileNone ====")
 
 	// 1. check if pv and pvc is already exist
 	pv := &v1.PersistentVolume{}
@@ -251,7 +258,7 @@ func (s *SampleSetController) reconcileNone() (ctrl.Result, error) {
 
 // reconcileBound After create PV/PVC then create runtime StatefulSet
 func (s *SampleSetController) reconcileBound() (ctrl.Result, error) {
-	s.Log.WithValues("phase", "reconcileBound")
+	s.Log.Info("==== reconcileBound ====")
 
 	// 1. check if Service and StatefulSet is already exist
 	serviceExists, err := s.ResourcesExist(Service)
@@ -313,7 +320,7 @@ func (s *SampleSetController) reconcileBound() (ctrl.Result, error) {
 
 // reconcileMount After create runtime daemon set and mounted, before sync data job done
 func (s *SampleSetController) reconcileMount() (ctrl.Result, error) {
-	s.Log.WithValues("phase", "reconcileMount")
+	s.Log.Info("==== reconcileMount ====")
 
 	var syncJobName types.UID
 	if s.SampleSet.Status.JobsName != nil {
@@ -351,6 +358,7 @@ func (s *SampleSetController) reconcileMount() (ctrl.Result, error) {
 		return utils.RequeueAfter(10 * time.Second)
 	}
 	s.SampleSet.Status.CacheStatus = status
+	s.SampleSet.Status.CacheStatus = &v1alpha1.CacheStatus{}
 
 	// 3. update SampleSet phase to partial ready
 	s.SampleSet.Status.Phase = common.SampleSetPartialReady
@@ -362,7 +370,7 @@ func (s *SampleSetController) reconcileMount() (ctrl.Result, error) {
 
 // reconcileSyncing wait the sync data job done and return to mount phase
 func (s *SampleSetController) reconcileSyncing() (ctrl.Result, error) {
-	s.Log.WithValues("phase", "reconcileSyncing")
+	s.Log.Info("==== reconcileSyncing ====")
 
 	// 1. get the status of cache status from runtime server 0
 	status, err := s.CollectCacheStatusByIndex(0)
@@ -403,7 +411,7 @@ func (s *SampleSetController) reconcileSyncing() (ctrl.Result, error) {
 
 // reconcileReady reconcile
 func (s *SampleSetController) reconcileReady() (ctrl.Result, error) {
-	s.Log.WithValues("phase", "reconcilePartialReady")
+	s.Log.Info("==== reconcileReady ====")
 
 	// 1. check whether spec.partitions is changed, if partitions is changed,
 	// update the replicas of StatefulSet and update SampleSet phase to partial ready.
@@ -446,7 +454,8 @@ func (s *SampleSetController) reconcileReady() (ctrl.Result, error) {
 }
 
 func (s *SampleSetController) deleteResource() (ctrl.Result, error) {
-	s.Log.WithValues("phase", "deleteResource")
+	s.Log.Info("==== deleteResource ====")
+
 	sampleSetName := s.SampleSet.Name
 	label := s.GetLabel(sampleSetName)
 
@@ -459,7 +468,6 @@ func (s *SampleSetController) deleteResource() (ctrl.Result, error) {
 	}
 	if clearJobName == "" {
 		clearJobName = uuid.NewUUID()
-		// TODO: 给ClearJob的URI带上 ?delete=true
 		if err := s.PostJobOptionsWithTerminate(clearJobName, ClearJob); err != nil {
 			return utils.RequeueWithError(err)
 		}
@@ -533,7 +541,7 @@ func (s *SampleSetController) deleteResource() (ctrl.Result, error) {
 }
 
 func (s *SampleSetController) reconcileSyncFailed() (ctrl.Result, error) {
-	s.Log.WithValues("phase", "reconcileSyncFailed")
+	s.Log.Info("==== reconcileSyncFailed ====")
 
 	// 1. if spec.noSync update to true, then return phase to mount
 	if s.SampleSet.Spec.NoSync {
@@ -587,7 +595,7 @@ func (s *SampleSetController) reconcileSyncFailed() (ctrl.Result, error) {
 }
 
 func (s *SampleSetController) reconcilePartialReady() (ctrl.Result, error) {
-	s.Log.WithValues("phase", "reconcilePartialReady")
+	s.Log.Info("==== reconcilePartialReady ====")
 
 	label := s.GetLabel(s.Req.Name)
 
@@ -633,7 +641,6 @@ func (s *SampleSetController) reconcilePartialReady() (ctrl.Result, error) {
 			s.Log.Error(e, "clear job error", "filename", filename)
 			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorDoClearJob, e.Error())
 		}
-
 		s.Log.Info("clean data before terminate runtime pods")
 	}
 
@@ -687,7 +694,6 @@ func (s *SampleSetController) reconcilePartialReady() (ctrl.Result, error) {
 		s.SampleSet.Status.CacheStatus = status
 		s.Log.Info("cache status has changed")
 	}
-	s.Log.Info("collect all cache status successful")
 
 	// 8. update StatefulSet if spec replicas is not equal to the partitions of SampleSet
 	if specReplicas != partitions {
@@ -720,9 +726,10 @@ func (s *SampleSetController) reconcilePartialReady() (ctrl.Result, error) {
 		if err := s.UpdateResourceStatus(s.SampleSet, SampleSet); err != nil {
 			return utils.RequeueWithError(err)
 		}
-		s.Log.Info("update sampleset phase to ready")
+		s.Log.Info("update sampleset status")
 		return utils.NoRequeue()
 	}
+	s.Log.Info("wait all runtime server ready")
 	return utils.RequeueAfter(30 * time.Second)
 }
 
