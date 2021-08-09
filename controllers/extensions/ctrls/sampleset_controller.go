@@ -107,7 +107,7 @@ func (r *SampleSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		Scheme:   r.Scheme,
 		Recorder: r.Recorder,
 	}
-	// 4. construct SampleSet Reconcile Phase
+	// 4. construct SampleSet Controller
 	ssc := NewSampleSetController(&sampleSet, CSIDriver, RCtx)
 	return ssc.reconcilePhase()
 }
@@ -167,7 +167,7 @@ func NewSampleSetController(
 func (s *SampleSetController) reconcilePhase() (ctrl.Result, error) {
 	// if SampleSet has deletion timestamp the delete all resource create by this controller
 	if utils.HasDeletionTimestamp(&s.SampleSet.ObjectMeta) {
-		return s.deleteResource()
+		return s.deleteSampleSet()
 	}
 
 	// Reconcile the phase of SampleSet from None to Ready
@@ -395,7 +395,7 @@ func (s *SampleSetController) reconcileSyncing() (ctrl.Result, error) {
 		e := errors.New(result.Message)
 		s.SampleSet.Status.Phase = common.SampleSetSyncFailed
 		s.Log.Error(e, "sync job error", "jobName", filename)
-		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorDoSyncJob, e.Error())
+		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, SyncJob.ErrorDoJob(), e.Error())
 	}
 	// 3. if sync job status is success, then return phase to mount
 	if result == nil {
@@ -453,8 +453,8 @@ func (s *SampleSetController) reconcileReady() (ctrl.Result, error) {
 	return utils.NoRequeue()
 }
 
-func (s *SampleSetController) deleteResource() (ctrl.Result, error) {
-	s.Log.Info("==== deleteResource ====")
+func (s *SampleSetController) deleteSampleSet() (ctrl.Result, error) {
+	s.Log.Info("==== deleteSampleSet ====")
 
 	sampleSetName := s.SampleSet.Name
 	label := s.GetLabel(sampleSetName)
@@ -487,7 +487,7 @@ func (s *SampleSetController) deleteResource() (ctrl.Result, error) {
 	if result != nil && result.Status == common.JobStatusFail {
 		e := errors.New(result.Message)
 		s.Log.Error(e, "clear job error", "filename", clearJobName)
-		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorDoClearJob, e.Error())
+		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, ClearJob.ErrorDoJob(), e.Error())
 	}
 
 	// 3. delete label of cache nodes
@@ -536,7 +536,7 @@ func (s *SampleSetController) deleteResource() (ctrl.Result, error) {
 		return utils.RequeueWithError(err)
 	}
 
-	s.Log.V(1).Info("==== deleted all resource ====")
+	s.Log.Info("==== deleted all resource ====")
 	return utils.NoRequeue()
 }
 
@@ -639,7 +639,7 @@ func (s *SampleSetController) reconcilePartialReady() (ctrl.Result, error) {
 		if result != nil && result.Status == common.JobStatusFail {
 			e := errors.New(result.Message)
 			s.Log.Error(e, "clear job error", "filename", filename)
-			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, common.ErrorDoClearJob, e.Error())
+			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, ClearJob.ErrorDoJob(), e.Error())
 		}
 		s.Log.Info("clean data before terminate runtime pods")
 	}

@@ -48,6 +48,7 @@ var (
 	WarmupJob *JobType
 
 	optionError *OptionError
+	JobTypeMap map[v1alpha1.SampleJobType]*JobType
 )
 
 func init() {
@@ -146,6 +147,13 @@ func init() {
 	PV.Dependents = []*Resource{Secret, SampleSet}
 	SyncJob.Dependents = []*Resource{Secret, SampleSet}
 	StatefulSet.Dependents = []*Resource{PV, SampleSet}
+
+	JobTypeMap = map[v1alpha1.SampleJobType]*JobType{
+		common.JobTypeSync: SyncJob,
+		common.JobTypeWarmup: WarmupJob,
+		common.JobTypeClear: ClearJob,
+		common.JobTypeRmr: RmrJob,
+	}
 }
 
 type OptionError struct {}
@@ -339,6 +347,10 @@ func (j *JobType) GetDependents() []*Resource {
 
 func (j *JobType) ErrorCreateJob() string {
 	return "ErrorCreate" + string(j.Name)
+}
+
+func (j *JobType) ErrorDoJob() string {
+	return "ErrorDo" + string(j.Name)
 }
 
 func (j *JobType) CreateSuccessfully() string {

@@ -43,6 +43,14 @@ const (
 )
 
 const (
+	SampleJobNone      v1alpha1.SampleJobPhase = ""
+	SampleJobPending   v1alpha1.SampleJobPhase = "Pending"
+	SampleJobRunning   v1alpha1.SampleJobPhase = "Running"
+	SampleJobSucceeded v1alpha1.SampleJobPhase = "Succeeded"
+	SampleJobFailed    v1alpha1.SampleJobPhase = "Failed"
+)
+
+const (
 	JobTypeRmr    v1alpha1.SampleJobType = "rmr"
 	JobTypeSync   v1alpha1.SampleJobType = "sync"
 	JobTypeClear  v1alpha1.SampleJobType = "clear"
@@ -61,12 +69,10 @@ const (
 )
 
 const (
-	ErrorDriverNotExist  = "ErrorDriverNotExist"
-	ErrorSecretNotExist  = "ErrorSecretNotExist"
-	ErrorDoSyncJob       = "ErrorDoSyncJob"
-	ErrorDoClearJob      = "ErrorDoClearJob"
-	ErrorDoWarmupJob     = "ErrorDoWarmupJob"
-	ErrorDoRmrJob        = "ErrorDoRmrJob"
+	ErrorDriverNotExist    = "ErrorDriverNotExist"
+	ErrorSecretNotExist    = "ErrorSecretNotExist"
+	ErrorJobTypeNotSupport = "ErrorJobTypeNotSupport"
+	ErrorSampleSetNotExist = "ErrorSampleSetNotExist"
 )
 
 const ResourceStorage = "10Pi"
