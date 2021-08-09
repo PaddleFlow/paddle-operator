@@ -15,9 +15,9 @@
 package v1alpha1
 
 import (
-	batchv1 "k8s.io/api/batch/v1"
-	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 type SampleJobType string
@@ -200,18 +200,28 @@ type ClearJobOptions struct {
 }
 
 type JobOptions struct {
-	//
+	// sync job options
 	// +optional
 	SyncOptions *SyncJobOptions `json:"syncOptions,omitempty"`
-	//
+	// warmup job options
 	// +optional
 	WarmupOptions *WarmupJobOptions `json:"warmupOptions,omitempty"`
-	//
+	// rmr job options
 	// +optional
 	RmrOptions *RmrJobOptions `json:"rmrOptions,omitempty"`
-	//
+	// clear job options
 	// +optional
 	ClearOptions *ClearJobOptions `json:"clearOptions,omitempty"`
+}
+
+// CronJobStatus represents the current state of a cron job.
+type CronJobStatus struct {
+	// A list of pointers to currently running jobs.
+	// +optional
+	Active []v1.ObjectReference `json:"active,omitempty"`
+	// Information when was the last time the job was successfully scheduled.
+	// +optional
+	LastScheduleTime *metav1.Time `json:"lastScheduleTime,omitempty"`
 }
 
 // SampleJobSpec defines the desired state of SampleJob
@@ -232,30 +242,13 @@ type SampleJobSpec struct {
 
 // SampleJobStatus defines the observed state of SampleJob
 type SampleJobStatus struct {
-	//
+	// The phase of SampleJob is a simple, high-level summary of where the SampleJob is in its lifecycle.
 	Phase SampleJobPhase `json:"phase,omitempty"`
-	// The latest available observations of an object's current state. When a Job
-	// fails, one of the conditions will have type "Failed" and status true. When
-	// a Job is suspended, one of the conditions will have type "Suspended" and
-	// status true; when the Job is resumed, the status of this condition will
-	// become false. When a Job is completed, one of the conditions will have
-	// type "Complete" and status true.
-	// More info: https://kubernetes.io/docs/concepts/workloads/controllers/jobs-run-to-completion/
+	JobName types.UID `json:"jobName,omitempty"`
+	// Current status of a cron job.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
 	// +optional
-	// +patchMergeKey=type
-	// +patchStrategy=merge
-	// +listType=atomic
-	Conditions []batchv1.JobCondition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
-	// A list of pointers to currently running jobs.
-	// +optional
-	// +listType=atomic
-	Active []corev1.ObjectReference `json:"active,omitempty"`
-	// Information when was the last time the job was successfully scheduled.
-	// +optional
-	LastScheduleTime *metav1.Time `json:"lastScheduleTime,omitempty"`
-	// Information when was the last time the job successfully completed.
-	// +optional
-	LastSuccessfulTime *metav1.Time `json:"lastSuccessfulTime,omitempty"`
+	CronJobStatus CronJobStatus `json:"cronJobStatus,omitempty"`
 }
 
 //+kubebuilder:object:root=true
