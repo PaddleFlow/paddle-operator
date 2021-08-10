@@ -30,9 +30,10 @@ rules:
   - events
   verbs:
   - create
-  - patch
   - get
   - list
+  - patch
+  - watch
 - apiGroups:
   - ""
   resources:
@@ -42,6 +43,7 @@ rules:
   - list
   - patch
   - update
+  - watch
 - apiGroups:
   - ""
   resources:

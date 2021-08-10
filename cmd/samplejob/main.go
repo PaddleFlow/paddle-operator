@@ -89,7 +89,7 @@ func main() {
 		LeaderElectionID:       "778668173.batch.paddlepaddle.org",
 	})
 	if err != nil {
-		setupLog.Error(err, "unable to start sampleset-controller-manager")
+		setupLog.Error(err, "unable to start samplejob-controller-manager")
 		os.Exit(1)
 	}
 
@@ -112,9 +112,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	setupLog.Info("starting sampleset-controller-manager")
+	setupLog.Info("starting samplejob-controller-manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running sampleset-controller-manager")
+		setupLog.Error(err, "problem running samplejob-controller-manager")
 		os.Exit(1)
 	}
 }

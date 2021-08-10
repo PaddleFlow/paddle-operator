@@ -240,7 +240,11 @@ func NamespacedObjectKey(c *Controller) client.ObjectKey {
 func SecretObjectKey(c *Controller) client.ObjectKey {
 	sampleSet := c.Sample.(*v1alpha1.SampleSet)
 	name := sampleSet.Spec.SecretRef.Name
-	return client.ObjectKey{Name: name, Namespace: c.Req.Namespace}
+	namespace := c.Req.Namespace
+	if sampleSet.Spec.SecretRef.Namespace != "" {
+		namespace = sampleSet.Spec.SecretRef.Namespace
+	}
+	return client.ObjectKey{Name: name, Namespace: namespace}
 }
 
 func ServiceObjectKey(c *Controller) client.ObjectKey {
@@ -305,7 +309,6 @@ func NodeListOptions(c *Controller) []client.ListOption {
 	return []client.ListOption{client.HasLabels{label}}
 }
 
-// TODO: list runtime with field status is running
 func RuntimePodListOptions(c *Controller) []client.ListOption {
 	label := c.GetLabel(c.Req.Name)
 	runtimeName := c.GetRuntimeName(c.Req.Name)

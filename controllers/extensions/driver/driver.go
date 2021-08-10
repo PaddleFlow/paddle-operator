@@ -267,11 +267,24 @@ func (d *BaseDriver) CreateCacheStatus(opt *common.ServerOptions, status *v1alph
 }
 
 func (d *BaseDriver) CreateRmrJobOptions(opt *v1alpha1.RmrJobOptions, ctx *common.RequestContext) error {
+	// if SampleJob is not nil, use clear job options from SampleJob
+	if ctx.SampleJob != nil && ctx.SampleJob.Spec.RmrOptions != nil {
+		ctx.SampleJob.Spec.RmrOptions.DeepCopyInto(opt)
+	}
+	// TODO: check the paths given by user has prefix with mount path or source prefix
 	return nil
 }
 
 func (d *BaseDriver) CreateClearJobOptions(opt *v1alpha1.ClearJobOptions, ctx *common.RequestContext) error {
-	opt.Paths = append(opt.Paths, d.getRuntimeCacheMountPath(""))
+	// if SampleJob is not nil, use clear job options from SampleJob
+	if ctx.SampleJob != nil && ctx.SampleJob.Spec.ClearOptions != nil {
+		ctx.SampleJob.Spec.ClearOptions.DeepCopyInto(opt)
+	}
+	// TODO: check the paths given by user has prefix with mount path or source prefix
+
+	if len(opt.Paths) == 0 {
+		opt.Paths = append(opt.Paths, d.getRuntimeCacheMountPath(""))
+	}
 	return nil
 }
 

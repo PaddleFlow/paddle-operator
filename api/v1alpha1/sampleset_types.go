@@ -39,12 +39,12 @@ type Source struct {
 	URI string `json:"uri,omitempty"`
 	// If the remote storage requires additional authorization information, set this secret reference
 	// +optional
-	SecretRef *corev1.LocalObjectReference `json:"secretRef,omitempty"`
+	SecretRef *corev1.SecretReference `json:"secretRef,omitempty"`
 }
 
-// MountOptions aa
+// MountOptions the mount options for csi drivers
 type MountOptions struct {
-	// JuiceFSMountOptions
+	// JuiceFSMountOptions juicefs mount command options
 	// +optional
 	JuiceFSMountOptions *JuiceFSMountOptions `json:"juiceFSMountOptions,omitempty"`
 }
@@ -137,7 +137,7 @@ type SampleSetSpec struct {
 	// SecretRef is reference to the authentication secret for source storage and cache engine.
 	// cannot update after SampleSet phase is Bound
 	// +kubebuilder:validation:Required
-	SecretRef *corev1.LocalObjectReference `json:"secretRef,omitempty"`
+	SecretRef *corev1.SecretReference `json:"secretRef,omitempty"`
 	// If the data is already in cache engine backend storage, can set NoSync as true to skip Syncing phase.
 	// cannot update after data sync finish
 	// +optional

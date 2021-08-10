@@ -169,12 +169,16 @@ spec:
                 properties:
                   name:
                     type: string
+                  namespace:
+                    type: string
                 type: object
               source:
                 properties:
                   secretRef:
                     properties:
                       name:
+                        type: string
+                      namespace:
                         type: string
                     type: object
                   uri:
