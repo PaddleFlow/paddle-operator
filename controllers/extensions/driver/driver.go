@@ -267,11 +267,20 @@ func (d *BaseDriver) CreateCacheStatus(opt *common.ServerOptions, status *v1alph
 }
 
 func (d *BaseDriver) CreateRmrJobOptions(opt *v1alpha1.RmrJobOptions, ctx *common.RequestContext) error {
-	// if SampleJob is not nil, use clear job options from SampleJob
-	if ctx.SampleJob != nil && ctx.SampleJob.Spec.RmrOptions != nil {
-		ctx.SampleJob.Spec.RmrOptions.DeepCopyInto(opt)
+	if ctx.SampleJob != nil || ctx.SampleJob.Spec.RmrOptions != nil {
+		return fmt.Errorf("the options of rmr job cannot be empty")
 	}
-	// TODO: check the paths given by user has prefix with mount path or source prefix
+	ctx.SampleJob.Spec.RmrOptions.DeepCopyInto(opt)
+	if len(opt.Paths) == 0 {
+		return fmt.Errorf("option of paths cannot be empty, and it is relative path from source directory")
+	}
+	mountPath := d.getRuntimeDataMountPath(ctx.Req.Name)
+	var validPaths []string
+	for _, path := range opt.Paths {
+		validPath := mountPath + "/" + strings.TrimPrefix(path, "/")
+		validPaths = append(validPaths, validPath)
+	}
+	opt.Paths = validPaths
 	return nil
 }
 
@@ -280,10 +289,27 @@ func (d *BaseDriver) CreateClearJobOptions(opt *v1alpha1.ClearJobOptions, ctx *c
 	if ctx.SampleJob != nil && ctx.SampleJob.Spec.ClearOptions != nil {
 		ctx.SampleJob.Spec.ClearOptions.DeepCopyInto(opt)
 	}
-	// TODO: check the paths given by user has prefix with mount path or source prefix
-
-	if len(opt.Paths) == 0 {
-		opt.Paths = append(opt.Paths, d.getRuntimeCacheMountPath(""))
+	// check the paths given by user, whether it has prefixed with host path or mount path
+	volumes := ctx.StatefulSet.Spec.Template.Spec.Volumes
+	if len(ctx.StatefulSet.Spec.Template.Spec.Containers) != 1 {
+		return fmt.Errorf("length of statefulset %s containers is not equal 1", ctx.StatefulSet.Name)
+	}
+	volumeMounts := ctx.StatefulSet.Spec.Template.Spec.Containers[0].VolumeMounts
+	hostMountPathMap := getHostMountPathMap(volumes, volumeMounts)
+	if len(opt.Paths) != 0 {
+		var validPaths []string
+		for _, path := range opt.Paths {
+			validPath, valid := getValidClearPath(path, hostMountPathMap)
+			if !valid {
+				return fmt.Errorf("given path %s is not valid, it should in host path or mount path", path)
+			}
+			validPaths = append(validPaths, validPath)
+		}
+		opt.Paths = validPaths
+	} else {
+		for _, mountPath := range hostMountPathMap {
+			opt.Paths = append(opt.Paths, strings.TrimSuffix(mountPath, "/") + "/*")
+		}
 	}
 	return nil
 }
@@ -319,4 +345,39 @@ func (d *BaseDriver) getRuntimeDataMountPath(name string) string {
 		return common.RuntimeDateMountPath + "/" + name
 	}
 	return mountPath + "/" + name
+}
+
+func getHostMountPathMap(volumes []v1.Volume, volumeMounts []v1.VolumeMount) map[string]string {
+	hostMountPathMap := make(map[string]string)
+	for _, volume := range volumes {
+		for _, mount := range volumeMounts {
+			if volume.HostPath == nil {
+				continue
+			}
+			if volume.Name != mount.Name {
+				continue
+			}
+			hostMountPathMap[volume.HostPath.Path] = mount.MountPath
+		}
+	}
+	return hostMountPathMap
+}
+
+func getValidClearPath(path string, hostMountMap map[string]string) (string, bool) {
+	for hostPath, mountPath := range hostMountMap {
+		if strings.HasPrefix(path, hostPath) {
+			validPath := strings.Replace(path, hostPath, mountPath, 1)
+			if strings.TrimSuffix(validPath, "/") == mountPath {
+				return strings.TrimSuffix(validPath, "/") + "/*", true
+			}
+			return validPath, true
+		}
+		if strings.HasPrefix(path, mountPath) {
+			if strings.TrimSuffix(path, "/") == mountPath {
+				return strings.TrimSuffix(path, "/") + "/*", true
+			}
+			return path, true
+		}
+	}
+	return "", false
 }

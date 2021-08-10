@@ -54,7 +54,7 @@ func TestJuiceFS_getMountOptions(t *testing.T) {
 			Source: &v1alpha1.Source{
 				URI: "https://imagenet.bj.bcebos.com/juicefs",
 			},
-			SecretRef: &corev1.LocalObjectReference{
+			SecretRef: &corev1.SecretReference{
 				Name: "imagenet",
 			},
 			CSI: &v1alpha1.CSI{

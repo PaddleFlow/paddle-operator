@@ -140,7 +140,7 @@ type JuiceFSSyncOptions struct {
 
 // JuiceFSWarmupOptions describes the JuiceFS warmup options which user can set by SampleSet
 type JuiceFSWarmupOptions struct {
-	// the path of file that containing a list of data file paths
+	// the relative path of file that containing a list of data file paths
 	// +optional
 	File string `json:"file,omitempty"`
 	// number of concurrent workers (default: 50)
@@ -165,7 +165,7 @@ type SyncJobOptions struct {
 type SampleStrategy struct {
 	// +kubebuilder:validation:Enum=random;sequence
 	// +kubebuilder:validation:Required
-	// +kubebuilder:default=random
+	// +kubebuilder:default=sequence
 	Name string `json:"strategyName,omitempty"`
 }
 
@@ -175,6 +175,7 @@ type WarmupJobOptions struct {
 	// +kubebuilder:validation:MinItems=1
 	// +optional
 	Paths []string `json:"paths,omitempty"`
+	// the partitions of cache data, same as SampleSet spec.partitions
 	// +kubebuilder:validation:Minimum=1
 	// +optional
 	Partitions int32 `json:"partitions,omitempty"`
@@ -187,6 +188,7 @@ type WarmupJobOptions struct {
 
 // RmrJobOptions the options for remove data from cache engine
 type RmrJobOptions struct {
+	// Paths should be relative path from source directory, and without prefix.
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:Required
 	Paths []string `json:"paths,omitempty"`

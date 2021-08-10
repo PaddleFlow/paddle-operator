@@ -41,7 +41,6 @@ const (
 	JuiceFSCSIDriverName = "csi.juicefs.com"
 )
 
-//
 const (
 	JuiceFSSecretName string = "name"
 	JuiceFSSecretStorage string = "storage"
@@ -445,6 +444,10 @@ func (j *JuiceFS) DoSyncJob(ctx context.Context, opt *v1alpha1.SyncJobOptions) e
 	return nil
 }
 
+// DoWarmupJob warmup data from remote object storage to cache nodes, this can speed up train tasks in kubernetes cluster
+// TODO: different cache nodes should warmup different data, the warmup Strategy should match the Sampler API
+// defined in paddle.io submodule, like RandomSampler/SequenceSampler/DistributedBatchSampler etc...
+// More information: https://www.paddlepaddle.org.cn/documentation/docs/zh/api/paddle/io/Overview_cn.html
 func (j *JuiceFS) DoWarmupJob(ctx context.Context, opt *v1alpha1.WarmupJobOptions) error {
 	if len(opt.Paths) == 0 {
 		return errors.New("warmup job option paths not set")
@@ -558,5 +561,27 @@ func (j *JuiceFS) CreateSyncJobOptions(opt *v1alpha1.SyncJobOptions, ctx *common
 }
 
 func (j *JuiceFS) CreateWarmupJobOptions(opt *v1alpha1.WarmupJobOptions, ctx *common.RequestContext) error {
+	// if SampleJob is not nil, use sync job options from SampleJob
+	if ctx.SampleJob == nil || ctx.SampleJob.Spec.WarmupOptions == nil {
+		ctx.SampleJob.Spec.WarmupOptions.DeepCopyInto(opt)
+	}
+	mountPath := j.getRuntimeDataMountPath(ctx.Req.Name)
+	if len(opt.Paths) != 0 {
+		var validPaths []string
+		for _, path := range opt.Paths {
+			validPath := mountPath + "/" + strings.TrimPrefix(path, "/")
+			validPaths = append(validPaths, validPath)
+		}
+		opt.Paths = validPaths
+	} else {
+		opt.Paths = append(opt.Paths, mountPath)
+	}
+	if opt.Strategy.Name == "" {
+		opt.Strategy.Name = common.StrategySequence
+	}
+	if opt.File != "" {
+		opt.File = mountPath + "/" + strings.TrimPrefix(opt.File, "/")
+	}
+	opt.Partitions = ctx.SampleSet.Spec.Partitions
 	return nil
 }

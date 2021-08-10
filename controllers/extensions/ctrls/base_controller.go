@@ -16,18 +16,18 @@ package ctrls
 
 import (
 	"fmt"
-	"github.com/paddleflow/paddle-operator/controllers/extensions/utils"
-	"k8s.io/apimachinery/pkg/types"
 	"strings"
 
 	appv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/paddleflow/paddle-operator/api/v1alpha1"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/driver"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/utils"
 )
 
 var (
@@ -97,7 +97,7 @@ func init() {
 	// get delete update exist
 	SampleJob = NewResource("SampleJob")
 	SampleJob.Object = SampleJobObject
-	SampleJob.ObjectKey = NamespacedObjectKey
+	SampleJob.ObjectKey = SampleJobObjectKey
 
 	// get create delete update exist
 	StatefulSet = NewResource("StatefulSet")
@@ -145,8 +145,11 @@ func init() {
 
 	// dependents
 	PV.Dependents = []*Resource{Secret, SampleSet}
+	ClearJob.Dependents = []*Resource{StatefulSet}
 	SyncJob.Dependents = []*Resource{Secret, SampleSet}
 	StatefulSet.Dependents = []*Resource{PV, SampleSet}
+	RmrJob.Dependents = []*Resource{SampleJob}
+	WarmupJob.Dependents = []*Resource{SampleSet}
 
 	JobTypeMap = map[v1alpha1.SampleJobType]*JobType{
 		common.JobTypeSync: SyncJob,
@@ -255,6 +258,11 @@ func ServiceObjectKey(c *Controller) client.ObjectKey {
 func StatefulSetObjectKey(c *Controller) client.ObjectKey {
 	name := c.GetRuntimeName(c.Req.Name)
 	return client.ObjectKey{Name: name, Namespace: c.Req.Namespace}
+}
+
+func SampleJobObjectKey(c *Controller) client.ObjectKey {
+	sampleJob := c.Sample.(*v1alpha1.SampleJob)
+	return client.ObjectKey{Name: sampleJob.Name, Namespace: sampleJob.Namespace}
 }
 
 // func(c *Controller, object client.Object, ctx *common.RequestContext) error
@@ -591,8 +599,6 @@ func (c *Controller) UpdateResource(object client.Object, r *Resource) error {
 		return e
 	}
 	c.Log.Info("update resource successfully", "name", object.GetName(), "resource", r.Name)
-	//c.Recorder.Eventf(c.Sample, v1.EventTypeNormal, r.UpdateSuccessfully(),
-	//	"update %s %s successfully", r.Name, object.GetName())
 	return nil
 }
 
@@ -602,8 +608,6 @@ func (c *Controller) UpdateResourceStatus(object client.Object, r *Resource) err
 		return e
 	}
 	c.Log.Info("update resource status successfully", "name", object.GetName(), "resource", r.Name)
-	//c.Recorder.Eventf(c.Sample, v1.EventTypeNormal, r.UpdateSuccessfully(),
-	//	"update %s %s successfully", r.Name, object.GetName())
 	return nil
 }
 
@@ -645,6 +649,8 @@ func (c *Controller) GetRequestContext(d Dependence) (*common.RequestContext, er
 			ctx.SampleSet = object.(*v1alpha1.SampleSet)
 		case *v1alpha1.SampleJob:
 			ctx.SampleJob = object.(*v1alpha1.SampleJob)
+		case *appv1.StatefulSet:
+			ctx.StatefulSet = object.(*appv1.StatefulSet)
 		default:
 			panic(fmt.Errorf("%s is not register in request context", d.GetName()))
 		}
