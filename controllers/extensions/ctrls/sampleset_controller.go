@@ -52,11 +52,11 @@ type SampleSetReconciler struct {
 //+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=samplesets/finalizers,verbs=update
 //+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=samplejobs,verbs=get;list;watch
 //+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=paddlejobs,verbs=get;list;watch
-//+kubebuilder:rbac:groups="",resources=secrets,verbs=get
-//+kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get;create;update;patch;delete
-//+kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;create;update;patch;delete
-//+kubebuilder:rbac:groups="",resources=services,verbs=get;create;update;patch;delete
-//+kubebuilder:rbac:groups="",resources=statefulsets,verbs=get;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="apps",resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch;update;patch
 //+kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 //+kubebuilder:rbac:groups="",resources=events,verbs=get;list;watch;create;patch
@@ -755,13 +755,13 @@ func getClearPodNames(nodePodMap map[string]string, partitions int32) []string {
 }
 
 func getClearJobType(podNames []string) *JobType {
-	ClearJob = NewJobOptions("ClearJob")
-	ClearJob.Options = ClearOptions
-	ClearJob.CreateOptions = ClearCreateOptions
-	ClearJob.OptionPath = common.PathClearOptions
-	ClearJob.ResultPath = common.PathClearResult
+	clearJobTmp := NewJobOptions("ClearJob")
+	clearJobTmp.Options = ClearOptions
+	clearJobTmp.CreateOptions = ClearCreateOptions
+	clearJobTmp.OptionPath = common.PathClearOptions
+	clearJobTmp.ResultPath = common.PathClearResult
 
-	ClearJob.BaseUris = func(c *Controller) ([]string, error) {
+	clearJobTmp.BaseUris = func(c *Controller) ([]string, error) {
 		var baseUris []string
 		serviceName := c.GetServiceName(c.Req.Name)
 		for _, podName := range podNames {
@@ -770,6 +770,7 @@ func getClearJobType(podNames []string) *JobType {
 		}
 		return baseUris, nil
 	}
+	clearJobTmp.Dependents = []*Resource{StatefulSet}
 
-	return ClearJob
+	return clearJobTmp
 }

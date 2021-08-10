@@ -49,11 +49,12 @@ type SampleJobReconciler struct {
 //+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=samplejobs/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=samplejobs/finalizers,verbs=update
 //+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=samplesets,verbs=get;list;watch
-//+kubebuilder:rbac:groups="",resources=secrets,verbs=get
-//+kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get
-//+kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get
-//+kubebuilder:rbac:groups="",resources=services,verbs=get
-//+kubebuilder:rbac:groups="",resources=statefulsets,verbs=get
+//+kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=statefulsets,verbs=get;list;watch
 //+kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to

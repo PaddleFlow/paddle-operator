@@ -18,6 +18,7 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
+	appv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -44,6 +45,7 @@ type RequestContext struct {
 	Secret *v1.Secret
 	PV *v1.PersistentVolume
 	Service *v1.Service
+	StatefulSet *appv1.StatefulSet
 }
 
 // RootCmdOptions the

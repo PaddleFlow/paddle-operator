@@ -16,11 +16,16 @@ package driver
 
 import (
 	"context"
-	"github.com/paddleflow/paddle-operator/api/v1alpha1"
-	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/paddleflow/paddle-operator/api/v1alpha1"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
+	appv1 "k8s.io/api/apps/v1"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 func TestBaseDriver_DoClearJob(t *testing.T) {
@@ -90,5 +95,121 @@ total            44G   26G   16G  62% -
 	totalSlice := strings.FieldsFunc(total, func(r rune) bool { return r == ' ' || r == '\t' })
 	if len(totalSlice) != 6 {
 		t.Error("deal with output error")
+	}
+}
+
+func TestBaseDriver_CreateClearJobOptions(t *testing.T) {
+	volumes := []v1.Volume{
+		{
+			Name: "dev-shm-imagenet-0",
+			VolumeSource: v1.VolumeSource{
+				HostPath: &v1.HostPathVolumeSource{
+					Path: "/dev/shm/imagenet-0",
+				},
+			},
+		},
+		{
+			Name: "dev-shm-imagenet-1",
+			VolumeSource: v1.VolumeSource{
+				HostPath: &v1.HostPathVolumeSource{
+					Path: "/dev/shm/imagenet-1",
+				},
+			},
+		},
+	}
+	volumeMounts := []v1.VolumeMount{
+		{
+			Name: "dev-shm-imagenet-0",
+			MountPath: "/cache/dev-shm-imagenet-0",
+		},
+		{
+			Name: "dev-shm-imagenet-1",
+			MountPath: "/cache/dev-shm-imagenet-1",
+		},
+	}
+	statefulSet := &appv1.StatefulSet{
+		Spec: appv1.StatefulSetSpec{
+			Template: v1.PodTemplateSpec{
+				Spec: v1.PodSpec{
+					Volumes: volumes,
+					Containers: []v1.Container{
+						{
+							VolumeMounts: volumeMounts,
+						},
+					},
+				},
+
+			},
+		},
+	}
+
+	sampleJob := &v1alpha1.SampleJob{
+		Spec: v1alpha1.SampleJobSpec{
+			JobOptions: v1alpha1.JobOptions{
+				ClearOptions: &v1alpha1.ClearJobOptions{
+					Paths: []string{
+						"/dev/shm/imagenet-0/train",
+						"/cache/dev-shm-imagenet-1",
+						"/dev/shm/imagenet-0/",
+					},
+				},
+			},
+		},
+	}
+	ctx := &common.RequestContext{StatefulSet: statefulSet, SampleJob: sampleJob}
+
+	d, _ := GetDriver("juicefs")
+	opts := &v1alpha1.ClearJobOptions{}
+	err := d.CreateClearJobOptions(opts, ctx)
+	if err != nil {
+		t.Error("create clear job options error: ", err.Error())
+		return
+	}
+	if len(opts.Paths) != 3 {
+		t.Error("length of paths should be 3")
+		return
+	}
+	if opts.Paths[0] != "/cache/dev-shm-imagenet-0/train" {
+		t.Error("create clear job options not as expected")
+	}
+	if opts.Paths[1] != "/cache/dev-shm-imagenet-1/*" {
+		t.Error("create clear job options not as expected")
+	}
+	if opts.Paths[2] != "/cache/dev-shm-imagenet-0/*" {
+		t.Error("create clear job options not as expected")
+	}
+}
+
+func TestBaseDriver_CreateRmrJobOptions(t *testing.T) {
+	sampleJob := &v1alpha1.SampleJob{
+		Spec: v1alpha1.SampleJobSpec{
+			JobOptions: v1alpha1.JobOptions{
+				RmrOptions: &v1alpha1.RmrJobOptions{
+					Paths: []string{
+						"/train",
+						"val/n123323",
+					},
+				},
+			},
+		},
+	}
+	request := &ctrl.Request{NamespacedName: types.NamespacedName{Name: "imagenet"}}
+	ctx := &common.RequestContext{SampleJob: sampleJob, Req: request}
+	d, _ := GetDriver("juicefs")
+	opts := &v1alpha1.RmrJobOptions{}
+	err := d.CreateRmrJobOptions(opts, ctx)
+	if err != nil {
+		t.Error("create rmr job option error: ", err.Error())
+		return
+	}
+	if len(opts.Paths) != 2 {
+		t.Error("length of paths should be 2")
+		return
+	}
+	if opts.Paths[0] != "/mnt/imagenet/train" {
+		t.Error("create rmr job options not as expected")
+	}
+	if opts.Paths[1] != "/mnt/imagenet/val/n123323" {
+		t.Error("create rmr job options not as expected")
 	}
 }
