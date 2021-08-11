@@ -285,3 +285,11 @@ func GetRuntimeImage() (string, error) {
 	}
 	return image, nil
 }
+
+func GetHostName() (string, error) {
+	hostName := os.Getenv("HOSTNAME")
+	if hostName == "" {
+		return "", errors.New("HOSTNAME is not in environment variable")
+	}
+	return hostName, nil
+}

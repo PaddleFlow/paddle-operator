@@ -113,6 +113,10 @@ const (
 	PathWarmupOptions = "/warmupOptions"
 	FilePathCacheInfo = "cacheInfo.json"
 	TerminateSignal   = "delete"
+
+	WarmupFilePrefix  = ".warmup"
+	WarmupDoneSuffix  = ".done"
+	WorkerFilePrefix  = ".worker"
 )
 
 const (

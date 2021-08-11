@@ -118,7 +118,7 @@ spec:
                     minItems: 1
                     type: array
                   strategyName:
-                    default: random
+                    default: sequence
                     enum:
                     - random
                     - sequence
