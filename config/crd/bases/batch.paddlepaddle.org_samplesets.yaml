@@ -225,6 +225,8 @@ spec:
                 type: object
               jobsName:
                 properties:
+                  clearJobDone:
+                    type: string
                   clearJobName:
                     type: string
                   syncJobDone:
