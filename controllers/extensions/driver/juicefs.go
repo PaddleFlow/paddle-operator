@@ -291,6 +291,24 @@ func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx *common.RequestContex
 		},
 	}
 
+	// get cache data mount paths and add it to pre-stop command
+	var clearDataPaths []string
+	for _, path := range serverOpt.CacheDirs {
+		validPath := strings.TrimSuffix(path, "/") + "/*"
+		clearDataPaths = append(clearDataPaths, validPath)
+	}
+	clearDataPath := strings.Join(clearDataPaths, " ")
+	clearArgs := "rm -rf " + clearDataPath
+	clearCacheCmd := &v1.ExecAction{
+		Command: []string{"/bin/sh", "-c", clearArgs},
+	}
+	preStopHandler := &v1.Handler{
+		Exec: clearCacheCmd,
+	}
+	lifecycle := &v1.Lifecycle{
+		PreStop: preStopHandler,
+	}
+
 	isPrivileged := true
 	container := v1.Container{
 		Name: common.RuntimeContainerName,
@@ -306,9 +324,9 @@ func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx *common.RequestContex
 		},
 		Command: command,
 		VolumeMounts: volumeMounts,
+		Lifecycle: lifecycle,
 	}
 
-	var terminationGracePeriodSeconds int64 = 2
 	template := v1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
@@ -324,7 +342,7 @@ func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx *common.RequestContex
 			Affinity: &v1.Affinity{
 				PodAntiAffinity: &podAntiAffinity,
 			},
-			TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
+			Tolerations: ctx.SampleSet.Spec.Tolerations,
 		},
 	}
 
