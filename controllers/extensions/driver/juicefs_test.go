@@ -170,3 +170,11 @@ func TestNoZeroOptionToArgs(t *testing.T) {
 	args := utils.NoZeroOptionToArgs(&options)
 	t.Log(strings.Join(args, " "))
 }
+
+func TestJuiceFS_CreateWarmupJobOptions(t *testing.T) {
+
+}
+
+func TestJuiceFS_DoWarmupJob(t *testing.T) {
+
+}

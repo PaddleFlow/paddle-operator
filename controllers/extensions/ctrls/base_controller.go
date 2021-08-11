@@ -533,7 +533,9 @@ func (c *Controller) CreateResource(r *Resource) error {
 	if exist { return nil }
 
 	ctx, err := c.GetRequestContext(r)
-	if err != nil { return err }
+	if err != nil {
+		return fmt.Errorf("create %s resources get request context error: %s", r.Name, err.Error())
+	}
 	
 	object := r.Object()
 	key := r.ObjectKey(c).String()
@@ -558,7 +560,9 @@ func (c *Controller) CreateJobOptions(opt interface{}, j *JobType) error {
 		panic(fmt.Errorf("%s CreateOptions function not implement", j.Name))
 	}
 	ctx, err := c.GetRequestContext(j)
-	if err != nil { return err }
+	if err != nil {
+		return fmt.Errorf("create %s options get request context error: %s", j.Name, err.Error())
+	}
 
 	if err := j.CreateOptions(c, opt, ctx); err != nil {
 		e := fmt.Errorf("create %s error: %s", j.Name, err.Error())

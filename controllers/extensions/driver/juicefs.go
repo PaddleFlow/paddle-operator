@@ -438,12 +438,16 @@ func (j *JuiceFS) DoSyncJob(ctx context.Context, opt *v1alpha1.SyncJobOptions) e
 	args = append(args, opt.Destination)
 
 	cmd := exec.CommandContext(ctx,"juicefs", args...)
-	fmt.Println("=== juice sync cmd: ", cmd.String())
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("juice sync cmd: %s; error: %s; stderr: %s",
-			cmd.String(), err.Error(), stderr.String())
+	if err := cmd.Run(); err != nil || stderr.Len() != 0 {
+		errLen := 100
+		errString := stderr.String()
+		if errLen >= len(errString) {
+			errLen = len(errString)
+		}
+		return fmt.Errorf("juice sync cmd: %s; stderr: %s",
+			cmd.String(), errString[0:errLen])
 	}
 	return nil
 }
@@ -494,7 +498,7 @@ func (j *JuiceFS) DoWarmupJob(ctx context.Context, opt *v1alpha1.WarmupJobOption
 	cmd := exec.CommandContext(ctx, "juicefs", args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
+	if err = cmd.Run(); err != nil || stderr.Len() != 0 {
 		return fmt.Errorf("juice warmup cmd: %s; error: %s; stderr: %s",
 			cmd.String(), err.Error(), stderr.String())
 	}
@@ -620,6 +624,8 @@ func (j *JuiceFS) CreateSyncJobOptions(opt *v1alpha1.SyncJobOptions, ctx *common
 	mountPath := "file://"  + j.getRuntimeDataMountPath(ctx.SampleSet.Name)
 	if opt.Destination != "" {
 		opt.Destination = mountPath + "/" + strings.TrimPrefix(opt.Destination, "/")
+	} else {
+		opt.Destination = mountPath
 	}
 
 	// source and destination should both end with / or not

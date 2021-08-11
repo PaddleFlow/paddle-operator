@@ -27,7 +27,6 @@ import (
 	appv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -322,13 +321,8 @@ func (s *SampleSetController) reconcileBound() (ctrl.Result, error) {
 func (s *SampleSetController) reconcileMount() (ctrl.Result, error) {
 	s.Log.Info("==== reconcileMount ====")
 
-	var syncJobName types.UID
-	if s.SampleSet.Status.JobsName != nil {
-		s.Log.Info("jobName is not nil")
-		syncJobName = s.SampleSet.Status.JobsName.SyncJobName
-	}
-
 	// 1. upload syncJobOptions to runtime server and trigger it to do sync data job
+	syncJobName := s.SampleSet.Status.JobsName.SyncJobName
 	if !s.SampleSet.Spec.NoSync && syncJobName == "" {
 		syncJobName = uuid.NewUUID()
 		// post sync job options to runtime server 0
@@ -340,9 +334,6 @@ func (s *SampleSetController) reconcileMount() (ctrl.Result, error) {
 			return utils.RequeueWithError(err)
 		}
 		// Add jobsName to SampleSet
-		if s.SampleSet.Status.JobsName == nil {
-			s.SampleSet.Status.JobsName = &v1alpha1.JobsName{}
-		}
 		s.SampleSet.Status.JobsName.SyncJobName = syncJobName
 		s.SampleSet.Status.Phase = common.SampleSetSyncing
 		// update SampleSet Status
@@ -456,25 +447,19 @@ func (s *SampleSetController) deleteSampleSet() (ctrl.Result, error) {
 	// 1. wait util all PaddleJob is finish
 
 	// 2. request runtime server to delete cache data
-	var clearJobName types.UID
-	if s.SampleSet.Status.JobsName != nil {
-		clearJobName = s.SampleSet.Status.JobsName.ClearJobName
-	}
-	if clearJobName == "" {
-		clearJobName = uuid.NewUUID()
+	if s.SampleSet.Status.JobsName.ClearJobName == "" {
+		clearJobName := uuid.NewUUID()
 		if err := s.PostJobOptionsWithTerminate(clearJobName, ClearJob); err != nil {
 			return utils.RequeueWithError(err)
 		}
-		if s.SampleSet.Status.JobsName == nil {
-			s.SampleSet.Status.JobsName = &v1alpha1.JobsName{}
-		}
 		s.SampleSet.Status.JobsName.ClearJobName = clearJobName
-		if err := s.UpdateResourceStatus(s.SampleSet, SampleSet); err != nil {
+		if err := s.UpdateResource(s.SampleSet, SampleSet); err != nil {
 			return utils.RequeueWithError(err)
 		}
 		return utils.NoRequeue()
 	}
-	clearJobDone := s.SampleSet.Status.JobsName.ClearJobName
+	clearJobName := s.SampleSet.Status.JobsName.ClearJobName
+	clearJobDone := s.SampleSet.Status.JobsName.ClearJobDone
 	if clearJobDone != clearJobName {
 		result, err := s.GetJobResult(clearJobName, ClearJob)
 		if err != nil {
@@ -489,7 +474,7 @@ func (s *SampleSetController) deleteSampleSet() (ctrl.Result, error) {
 			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, ClearJob.ErrorDoJob(), e.Error())
 		}
 		s.SampleSet.Status.JobsName.ClearJobDone = clearJobName
-		if err := s.UpdateResourceStatus(s.SampleSet, SampleSet); err != nil {
+		if err := s.UpdateResource(s.SampleSet, SampleSet); err != nil {
 			return utils.RequeueWithError(err)
 		}
 		return utils.NoRequeue()
