@@ -16,6 +16,8 @@ package manager
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -211,4 +213,14 @@ func TestServer_Run(t *testing.T) {
 
 	// get cache info
 	_ = os.RemoveAll(rootPath)
+}
+
+func Test_CannelContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	if errors.Is(ctx.Err(), context.Canceled) {
+		t.Logf("%+v", ctx.Err())
+	} else {
+		t.Log(".....")
+	}
+	cancel()
 }

@@ -121,11 +121,7 @@ type JobsName struct {
 	// the name of sync data job, used by controller to request runtime server for get job information.
 	SyncJobName types.UID `json:"syncJobName,omitempty"`
 	// record the name of the last done successfully sync job name
-	SyncJobDone types.UID `json:"syncJobDone,omitempty"`
-	// the name of clear cache job, use by controller to request runtime server in delete resource phase.
-	ClearJobName types.UID `json:"clearJobName,omitempty"`
-	// record the name of the last done successfully sync job name
-	ClearJobDone types.UID `json:"clearJobDone,omitempty"`
+	WarmupJobName types.UID `json:"warmupJobName,omitempty"`
 }
 
 // SampleSetSpec defines the desired state of SampleSet

@@ -19,8 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -72,8 +70,8 @@ func (r *SampleSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	r.Log.V(1).Info("===============  Reconcile  ==============")
 
 	// 1. Get SampleSet
-	var sampleSet v1alpha1.SampleSet
-	if err := r.Get(ctx, req.NamespacedName, &sampleSet); err != nil {
+	sampleSet := &v1alpha1.SampleSet{}
+	if err := r.Get(ctx, req.NamespacedName, sampleSet); err != nil {
 		return utils.RequeueWithError(client.IgnoreNotFound(err))
 	}
 
@@ -81,7 +79,7 @@ func (r *SampleSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if !utils.HasFinalizer(&sampleSet.ObjectMeta, GetSampleSetFinalizer(req.Name)) &&
 		!utils.HasDeletionTimestamp(&sampleSet.ObjectMeta) {
 		r.Log.V(1).Info("add finalizer successfully")
-		return r.AddFinalizer(ctx, &sampleSet)
+		return r.AddFinalizer(ctx, sampleSet)
 	}
 
 	// 3. Get driver and construct reconcile context
@@ -94,7 +92,7 @@ func (r *SampleSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	CSIDriver, err := driver.GetDriver(driverName)
 	if err != nil {
 		r.Log.Error(err, "get driver error")
-		r.Recorder.Event(&sampleSet, v1.EventTypeWarning,
+		r.Recorder.Event(sampleSet, v1.EventTypeWarning,
 			common.ErrorDriverNotExist, err.Error())
 		return utils.NoRequeue()
 	}
@@ -107,7 +105,7 @@ func (r *SampleSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		Recorder: r.Recorder,
 	}
 	// 4. construct SampleSet Controller
-	ssc := NewSampleSetController(&sampleSet, CSIDriver, RCtx)
+	ssc := NewSampleSetController(sampleSet, CSIDriver, RCtx)
 	return ssc.reconcilePhase()
 }
 
@@ -446,41 +444,7 @@ func (s *SampleSetController) deleteSampleSet() (ctrl.Result, error) {
 
 	// 1. wait util all PaddleJob is finish
 
-	// 2. request runtime server to delete cache data
-	if s.SampleSet.Status.JobsName.ClearJobName == "" {
-		clearJobName := uuid.NewUUID()
-		if err := s.PostJobOptionsWithTerminate(clearJobName, ClearJob); err != nil {
-			return utils.RequeueWithError(err)
-		}
-		s.SampleSet.Status.JobsName.ClearJobName = clearJobName
-		if err := s.UpdateResource(s.SampleSet, SampleSet); err != nil {
-			return utils.RequeueWithError(err)
-		}
-		return utils.NoRequeue()
-	}
-	clearJobName := s.SampleSet.Status.JobsName.ClearJobName
-	clearJobDone := s.SampleSet.Status.JobsName.ClearJobDone
-	if clearJobDone != clearJobName {
-		result, err := s.GetJobResult(clearJobName, ClearJob)
-		if err != nil {
-			return utils.RequeueWithError(err)
-		}
-		if result != nil && result.Status == common.JobStatusRunning {
-			return utils.RequeueAfter(2 * time.Second)
-		}
-		if result != nil && result.Status == common.JobStatusFail {
-			e := errors.New(result.Message)
-			s.Log.Error(e, "clear job error", "filename", clearJobName)
-			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, ClearJob.ErrorDoJob(), e.Error())
-		}
-		s.SampleSet.Status.JobsName.ClearJobDone = clearJobName
-		if err := s.UpdateResource(s.SampleSet, SampleSet); err != nil {
-			return utils.RequeueWithError(err)
-		}
-		return utils.NoRequeue()
-	}
-
-	// 3. delete label of cache nodes
+	// 2. delete label of cache nodes
 	nodeList := &v1.NodeList{}
 	if err := s.ListResources(nodeList, Node); err != nil {
 		return utils.RequeueWithError(err)
@@ -492,11 +456,11 @@ func (s *SampleSetController) deleteSampleSet() (ctrl.Result, error) {
 		}
 		s.Log.Info("remove label from node success", "node", node.Name)
 	}
-	// 4. delete runtime StatefulSet
+	// 3. delete runtime StatefulSet
 	if err := s.DeleteResource(StatefulSet); err != nil {
 		return utils.RequeueWithError(err)
 	}
-	// 5. wait all StatefulSet replicas deleted
+	// 4. wait all StatefulSet replicas deleted
 	podList := &v1.PodList{}
 	if err := s.ListResources(podList, RuntimePod); err != nil {
 		return utils.RequeueWithError(err)
@@ -505,19 +469,19 @@ func (s *SampleSetController) deleteSampleSet() (ctrl.Result, error) {
 		s.Log.Info("wait all statefulset replicas deleted")
 		return utils.RequeueAfter(10 * time.Second)
 	}
-	// 6. delete runtime service
+	// 5. delete runtime service
 	if err := s.DeleteResource(Service); err != nil {
 		return utils.RequeueWithError(err)
 	}
-	// 7. delete pvc
+	// 6. delete pvc
 	if err := s.DeleteResource(PVC); err != nil {
 		return utils.RequeueWithError(err)
 	}
-	// 8. delete pv
+	// 7. delete pv
 	if err := s.DeleteResource(PV); err != nil {
 		return utils.RequeueWithError(err)
 	}
-	// 9. remove SampleSet finalizer and update SampleSet
+	// 8. remove SampleSet finalizer and update SampleSet
 	sampleSetFinalizer := GetSampleSetFinalizer(sampleSetName)
 	if utils.HasFinalizer(&s.SampleSet.ObjectMeta, sampleSetFinalizer) {
 		utils.RemoveFinalizer(&s.SampleSet.ObjectMeta, sampleSetFinalizer)
@@ -608,33 +572,7 @@ func (s *SampleSetController) reconcilePartialReady() (ctrl.Result, error) {
 		runtimePodNames = append(runtimePodNames, pod.Name)
 	}
 
-	// 3. clean the cache data before terminate runtime pods
-	specReplicas := *statefulSet.Spec.Replicas
-	partitions := s.SampleSet.Spec.Partitions
-	if partitions < specReplicas {
-		podNames := getClearPodNames(nodePodMap, partitions)
-		clearJobTmp := getClearJobType(podNames)
-
-		filename := uuid.NewUUID()
-		err := s.PostJobOptionsWithTerminate(filename, clearJobTmp)
-		if err != nil {
-			return utils.RequeueWithError(err)
-		}
-		wait := time.Duration(len(podNames) * 3)
-		time.Sleep(wait * time.Second)
-		result, err := s.GetJobResult(filename, clearJobTmp)
-		if err != nil {
-			return utils.RequeueWithError(err)
-		}
-		if result != nil && result.Status == common.JobStatusFail {
-			e := errors.New(result.Message)
-			s.Log.Error(e, "clear job error", "filename", filename)
-			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, ClearJob.ErrorDoJob(), e.Error())
-		}
-		s.Log.Info("clean data before terminate runtime pods")
-	}
-
-	// 4. update nodes label
+	// 3. update nodes label
 	for nodeName, value := range nodePodMap {
 		node := &v1.Node{}
 		key := client.ObjectKey{Name: nodeName}
@@ -652,13 +590,13 @@ func (s *SampleSetController) reconcilePartialReady() (ctrl.Result, error) {
 		s.Log.Info("label node successful", "name", nodeName, "label", value)
 	}
 
-	// 5. list nodes with label
+	// 4. list nodes with label
 	nodeList := &v1.NodeList{}
 	if err := s.ListResources(nodeList, Node); err != nil {
 		return utils.RequeueWithError(err)
 	}
 
-	// 6. remove the label of nodes with terminate runtime pod
+	// 5. remove the label of nodes with terminate runtime pod
 	for _, node := range nodeList.Items {
 		labelValue := node.Labels[label]
 		podName, exist := nodePodMap[node.Name]
@@ -686,6 +624,8 @@ func (s *SampleSetController) reconcilePartialReady() (ctrl.Result, error) {
 	}
 
 	// 8. update StatefulSet if spec replicas is not equal to the partitions of SampleSet
+	specReplicas := *statefulSet.Spec.Replicas
+	partitions := s.SampleSet.Spec.Partitions
 	if specReplicas != partitions {
 		statefulSet.Spec.Replicas = &partitions
 		if err := s.UpdateResource(statefulSet, StatefulSet); err != nil {
@@ -721,46 +661,4 @@ func (s *SampleSetController) reconcilePartialReady() (ctrl.Result, error) {
 	}
 	s.Log.Info("wait all runtime server ready")
 	return utils.RequeueAfter(30 * time.Second)
-}
-
-func getClearPodNames(nodePodMap map[string]string, partitions int32) []string {
-	// get the name of running pod with need to clean cache data
-	var podNames []string
-	for _, podName := range nodePodMap {
-		nameList := strings.Split(podName, "-")
-		if len(nameList) == 0 {
-			continue
-		}
-		indexStr := nameList[len(nameList)-1]
-		index, err := strconv.Atoi(indexStr)
-		if err != nil {
-			continue
-		}
-		if index+1 <= int(partitions) {
-			continue
-		}
-		podNames = append(podNames, podName)
-	}
-	return podNames
-}
-
-func getClearJobType(podNames []string) *JobType {
-	clearJobTmp := NewJobOptions("ClearJob")
-	clearJobTmp.Options = ClearOptions
-	clearJobTmp.CreateOptions = ClearCreateOptions
-	clearJobTmp.OptionPath = common.PathClearOptions
-	clearJobTmp.ResultPath = common.PathClearResult
-
-	clearJobTmp.BaseUris = func(c *Controller) ([]string, error) {
-		var baseUris []string
-		serviceName := c.GetServiceName(c.Req.Name)
-		for _, podName := range podNames {
-			baseUri := utils.GetBaseUriByName(podName, serviceName)
-			baseUris = append(baseUris, baseUri)
-		}
-		return baseUris, nil
-	}
-	clearJobTmp.Dependents = []*Resource{StatefulSet}
-
-	return clearJobTmp
 }

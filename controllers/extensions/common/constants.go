@@ -112,7 +112,7 @@ const (
 	PathRmrOptions    = "/rmrOptions"
 	PathWarmupOptions = "/warmupOptions"
 	FilePathCacheInfo = "cacheInfo.json"
-	TerminateSignal   = "delete"
+	TerminateSignal   = "terminate"
 
 	WarmupFilePrefix  = ".warmup"
 	WarmupDoneSuffix  = ".done"

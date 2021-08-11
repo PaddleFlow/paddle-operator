@@ -173,13 +173,18 @@ func (s *Server) uploadHandleFunc(pattern string) func(w http.ResponseWriter, re
 			return
 		}
 
-		// if pattern is clearOptions and request parameter
-		// container delete then stop all tasks in progress
-		if pattern == common.PathClearOptions {
-			mark := req.URL.Query().Get(common.TerminateSignal)
-			if mark != "" {
-				s.cancel()
-			}
+		// if cancel context is closed, create a new cancel context and sign it to server
+		if errors.Is(s.ctx.Err(), context.Canceled) {
+			ctx, cancel := context.WithCancel(context.Background())
+			s.ctx = ctx
+			s.cancel = cancel
+		}
+
+		// if terminate signal is not none, then terminate the task in progress,
+		// and pop all tasks waiting in event queue,
+		jobName := req.URL.Query().Get(common.TerminateSignal)
+		if jobName != "" {
+			s.cancel()
 		}
 
 		fileName := req.Header.Get("filename")
@@ -311,7 +316,7 @@ func (s *Server) doClear(body []byte) error {
 	if err != nil {
 		return err
 	}
-	return s.DoClearJob(context.Background(), opt)
+	return s.DoClearJob(s.ctx, opt)
 }
 
 func (s *Server) doWarmup(body []byte) error {
