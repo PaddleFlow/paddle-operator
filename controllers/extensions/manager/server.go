@@ -377,7 +377,7 @@ func (s *Server) writeCacheStatus() {
 	filePath := s.svrOpt.ServerDir +
 		common.PathCacheStatus + "/" +
 		common.FilePathCacheInfo
-	var interval int64 = 10
+	var interval int64 = 5
 
 	for {
 		if interval >= s.svrOpt.Interval {

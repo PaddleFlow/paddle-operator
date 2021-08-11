@@ -358,7 +358,6 @@ func (s *SampleSetController) reconcileMount() (ctrl.Result, error) {
 		return utils.RequeueAfter(10 * time.Second)
 	}
 	s.SampleSet.Status.CacheStatus = status
-	s.SampleSet.Status.CacheStatus = &v1alpha1.CacheStatus{}
 
 	// 3. update SampleSet phase to partial ready
 	s.SampleSet.Status.Phase = common.SampleSetPartialReady
@@ -372,36 +371,31 @@ func (s *SampleSetController) reconcileMount() (ctrl.Result, error) {
 func (s *SampleSetController) reconcileSyncing() (ctrl.Result, error) {
 	s.Log.Info("==== reconcileSyncing ====")
 
-	// 1. get the status of cache status from runtime server 0
-	status, err := s.CollectCacheStatusByIndex(0)
-	if err != nil {
-		return utils.RequeueAfter(10 * time.Second)
-	}
-	s.SampleSet.Status.CacheStatus = status
-
-	// 2. get the result of sync data job
+	time.Sleep(1 * time.Second)
+	// 1. get the result of sync data job
 	filename := s.SampleSet.Status.JobsName.SyncJobName
 	result, err := s.GetJobResult(filename, SyncJob)
 	if err != nil {
 		return utils.RequeueWithError(err)
 	}
-	// 3 .if sync job status is running the wait seconds and requeue
+	// 2. if sync job status is running the wait seconds and requeue
 	if result != nil && result.Status == common.JobStatusRunning {
 		s.Log.Info("wait util sync job done")
 		return utils.RequeueAfter(30 * time.Second)
 	}
-	// 4. if sync job status is failed, then update phase to SyncFailed
+	// 3. if sync job status is failed, then update phase to SyncFailed
 	if result != nil && result.Status == common.JobStatusFail {
 		e := errors.New(result.Message)
 		s.SampleSet.Status.Phase = common.SampleSetSyncFailed
 		s.Log.Error(e, "sync job error", "jobName", filename)
 		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, SyncJob.ErrorDoJob(), e.Error())
 	}
-	// 3. if sync job status is success, then return phase to mount
+	// 4. if sync job status is success, then return phase to mount
 	if result == nil {
 		s.SampleSet.Status.Phase = common.SampleSetMount
 	}
-	// 4. update SampleSet phase
+
+	// 5. update SampleSet phase
 	if err := s.UpdateResourceStatus(s.SampleSet, SampleSet); err != nil {
 		return utils.RequeueWithError(err)
 	}
@@ -471,23 +465,34 @@ func (s *SampleSetController) deleteSampleSet() (ctrl.Result, error) {
 		if err := s.PostJobOptionsWithTerminate(clearJobName, ClearJob); err != nil {
 			return utils.RequeueWithError(err)
 		}
+		if s.SampleSet.Status.JobsName == nil {
+			s.SampleSet.Status.JobsName = &v1alpha1.JobsName{}
+		}
 		s.SampleSet.Status.JobsName.ClearJobName = clearJobName
 		if err := s.UpdateResourceStatus(s.SampleSet, SampleSet); err != nil {
 			return utils.RequeueWithError(err)
 		}
 		return utils.NoRequeue()
 	}
-	result, err := s.GetJobResult(clearJobName, ClearJob)
-	if err != nil {
-		return utils.RequeueWithError(err)
-	}
-	if result != nil && result.Status == common.JobStatusRunning {
-		return utils.RequeueAfter(2 * time.Second)
-	}
-	if result != nil && result.Status == common.JobStatusFail {
-		e := errors.New(result.Message)
-		s.Log.Error(e, "clear job error", "filename", clearJobName)
-		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, ClearJob.ErrorDoJob(), e.Error())
+	clearJobDone := s.SampleSet.Status.JobsName.ClearJobName
+	if clearJobDone != clearJobName {
+		result, err := s.GetJobResult(clearJobName, ClearJob)
+		if err != nil {
+			return utils.RequeueWithError(err)
+		}
+		if result != nil && result.Status == common.JobStatusRunning {
+			return utils.RequeueAfter(2 * time.Second)
+		}
+		if result != nil && result.Status == common.JobStatusFail {
+			e := errors.New(result.Message)
+			s.Log.Error(e, "clear job error", "filename", clearJobName)
+			s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, ClearJob.ErrorDoJob(), e.Error())
+		}
+		s.SampleSet.Status.JobsName.ClearJobDone = clearJobName
+		if err := s.UpdateResourceStatus(s.SampleSet, SampleSet); err != nil {
+			return utils.RequeueWithError(err)
+		}
+		return utils.NoRequeue()
 	}
 
 	// 3. delete label of cache nodes
