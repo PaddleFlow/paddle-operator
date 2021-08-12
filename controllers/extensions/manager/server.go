@@ -306,7 +306,7 @@ func (s *Server) doSync(body []byte) error {
 	if err != nil {
 		return err
 	}
-	return s.DoSyncJob(s.ctx, opt)
+	return s.DoSyncJob(s.ctx, opt, s.Log)
 }
 
 func (s *Server) doClear(body []byte) error {
@@ -316,7 +316,7 @@ func (s *Server) doClear(body []byte) error {
 	if err != nil {
 		return err
 	}
-	return s.DoClearJob(s.ctx, opt)
+	return s.DoClearJob(s.ctx, opt, s.Log)
 }
 
 func (s *Server) doWarmup(body []byte) error {
@@ -326,7 +326,7 @@ func (s *Server) doWarmup(body []byte) error {
 	if err != nil {
 		return err
 	}
-	return s.DoWarmupJob(s.ctx, opt)
+	return s.DoWarmupJob(s.ctx, opt, s.Log)
 }
 
 func (s *Server) doRmr(body []byte) error {
@@ -336,7 +336,7 @@ func (s *Server) doRmr(body []byte) error {
 	if err != nil {
 		return err
 	}
-	return s.DoRmrJob(s.ctx, opt)
+	return s.DoRmrJob(s.ctx, opt, s.Log)
 }
 
 func (s *Server) addWatchDirs(patterns... string) error {

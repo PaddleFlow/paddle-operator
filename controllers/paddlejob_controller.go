@@ -17,6 +17,8 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"github.com/paddleflow/paddle-operator/api/v1alpha1"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/driver"
 	"reflect"
 	"strings"
 	"time"
@@ -79,6 +81,9 @@ type PaddleJobReconciler struct {
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 //+kubebuilder:rbac:groups=scheduling.volcano.sh,resources=podgroups,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=scheduling.volcano.sh,resources=podgroups/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=samplesets,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -216,12 +221,58 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
+	// If SampleSetRef is specified, get sampleset and list node with label
+	var nodeLabel string
+	var runtimePrefix string
+	var runtimeNames []string
+	if pdj.Spec.SampleSetRef != nil {
+		namespace := pdj.Namespace
+		if pdj.Spec.SampleSetRef.Namespace != "" {
+			namespace = pdj.Spec.SampleSetRef.Namespace
+		}
+		name := pdj.Spec.SampleSetRef.Name
+		key := types.NamespacedName{
+			Name: name,
+			Namespace: namespace,
+		}
+		sampleSet := &v1alpha1.SampleSet{}
+		if err := r.Get(ctx, key, sampleSet); err != nil {
+			log.Error(err, "sampleset is not exists, please create it and try again", "sampleset", key.String())
+			r.Recorder.Eventf(&pdj, corev1.EventTypeWarning, "Create", "sampleset %s is not exists", key.String())
+			return ctrl.Result{}, err
+		}
+		csiDriver, err := driver.GetDriver(sampleSet.Spec.CSI.Driver)
+		if err != nil {
+			log.Error(err, "get csi driver error, it may not supported", "driverName", sampleSet.Spec.CSI.Driver)
+			r.Recorder.Eventf(&pdj, corev1.EventTypeWarning, "Create", "driver %s is not exists", key.String())
+			return ctrl.Result{}, err
+		}
+		nodeList := &corev1.NodeList{}
+		nodeLabel = csiDriver.GetLabel(name)
+		runtimePrefix = csiDriver.GetRuntimeName(name)
+		if err = r.List(ctx, nodeList, client.HasLabels{nodeLabel}); err != nil {
+			log.Error(err, "list nodes with label error", "label", nodeLabel)
+			r.Recorder.Eventf(&pdj, corev1.EventTypeWarning, "Create", "driver %s is not exists", key.String())
+			return ctrl.Result{}, err
+		}
+		for _, node := range nodeList.Items {
+			runtimeName, exists := node.Labels[nodeLabel]
+			if !exists { continue }
+			runtimeNames = append(runtimeNames, runtimeName)
+		}
+	}
+
 	createPod := func(resType string, idx int) bool {
 		name := genPaddleResName(pdj.Name, resType, idx)
 		if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: pdj.Namespace}, &corev1.Pod{}); err == nil {
 			return false
 		}
-		pod := constructPod(&pdj, resType, idx)
+		var pod *corev1.Pod
+		if pdj.Spec.SampleSetRef != nil {
+			pod = constructPodWithSampleSet(&pdj, idx, resType, nodeLabel, runtimePrefix, runtimeNames)
+		} else {
+			pod = constructPod(&pdj, resType, idx)
+		}
 
 		if r.Scheduling == schedulerNameVolcano && !withoutVolcano(&pdj) {
 			pod.Spec.SchedulerName = schedulerNameVolcano

@@ -49,7 +49,7 @@ func TestBaseDriver_DoClearJob(t *testing.T) {
 
 	opt := &v1alpha1.ClearJobOptions{Paths: paths}
 	d, _ := GetDriver("juicefs")
-	if err := d.DoClearJob(context.Background(), opt); err != nil {
+	if err := d.DoClearJob(context.Background(), opt, nil); err != nil {
 		t.Errorf("DoClearJob error: %s", err.Error())
 	}
 }
