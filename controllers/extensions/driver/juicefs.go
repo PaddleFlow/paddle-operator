@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/go-logr/logr"
 	appv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -447,7 +448,7 @@ func (j *JuiceFS) getVolumeInfo(pv *v1.PersistentVolume) (
 	return volumes, volumeMounts, serverOpt, nil
 }
 
-func (j *JuiceFS) DoSyncJob(ctx context.Context, opt *v1alpha1.SyncJobOptions) error {
+func (j *JuiceFS) DoSyncJob(ctx context.Context, opt *v1alpha1.SyncJobOptions, log logr.Logger) error {
 	syncArgs := utils.NoZeroOptionToArgs(&opt.JuiceFSSyncOptions)
 
 	args := []string{"sync"}
@@ -458,15 +459,11 @@ func (j *JuiceFS) DoSyncJob(ctx context.Context, opt *v1alpha1.SyncJobOptions) e
 	cmd := exec.CommandContext(ctx,"juicefs", args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil || stderr.Len() != 0 {
-		errLen := 100
-		errString := stderr.String()
-		if errLen >= len(errString) {
-			errLen = len(errString)
-		}
-		return fmt.Errorf("juice sync cmd: %s; stderr: %s",
-			cmd.String(), errString[0:errLen])
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("juice sync cmd: %s; error: %s", cmd.String(), err.Error())
 	}
+	log.Info(stdout.String())
+	log.Info(stderr.String())
 	return nil
 }
 
@@ -474,7 +471,7 @@ func (j *JuiceFS) DoSyncJob(ctx context.Context, opt *v1alpha1.SyncJobOptions) e
 // TODO: different cache nodes should warmup different data, the warmup Strategy should match the Sampler API
 // defined in paddle.io submodule, like RandomSampler/SequenceSampler/DistributedBatchSampler etc...
 // More information: https://www.paddlepaddle.org.cn/documentation/docs/zh/api/paddle/io/Overview_cn.html
-func (j *JuiceFS) DoWarmupJob(ctx context.Context, opt *v1alpha1.WarmupJobOptions) error {
+func (j *JuiceFS) DoWarmupJob(ctx context.Context, opt *v1alpha1.WarmupJobOptions, log logr.Logger) error {
 	if len(opt.Paths) == 0 {
 		return errors.New("warmup job option paths not set")
 	}
@@ -516,10 +513,12 @@ func (j *JuiceFS) DoWarmupJob(ctx context.Context, opt *v1alpha1.WarmupJobOption
 	cmd := exec.CommandContext(ctx, "juicefs", args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err = cmd.Run(); err != nil || stderr.Len() != 0 {
+	if err = cmd.Run(); err != nil {
 		return fmt.Errorf("juice warmup cmd: %s; error: %s; stderr: %s",
 			cmd.String(), err.Error(), stderr.String())
 	}
+	log.Info(stdout.String())
+	log.Info(stderr.String())
 	return nil
 }
 
@@ -569,7 +568,7 @@ func (j *JuiceFS) postWarmupWorker(mountPath string, index string) {
 // DoRmrJob delete the data of JuiceFS storage backend under the specified paths.
 // (TODO) there some bugs in JuiceFS rmr command, after rmr paths the sync command
 // can't work correctly in container, but posix rm can work well with JuiceFS sync command.
-func (j *JuiceFS) DoRmrJob(ctx context.Context, opt *v1alpha1.RmrJobOptions) error {
+func (j *JuiceFS) DoRmrJob(ctx context.Context, opt *v1alpha1.RmrJobOptions, log logr.Logger) error {
 	if len(opt.Paths) == 0 {
 		return errors.New("rmr job option paths not set")
 	}
@@ -589,6 +588,8 @@ func (j *JuiceFS) DoRmrJob(ctx context.Context, opt *v1alpha1.RmrJobOptions) err
 		return fmt.Errorf("juice rmr cmd: %s; error: %s; stderr: %s",
 			cmd.String(), err.Error(), stderr.String())
 	}
+	log.Info(stdout.String())
+	log.Info(stderr.String())
 	return nil
 }
 

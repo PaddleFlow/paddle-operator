@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
 	appv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/batch/v1beta1"
 	v1 "k8s.io/api/core/v1"
@@ -85,13 +86,13 @@ type Driver interface {
 
 	CreateCacheStatus(opt *common.ServerOptions, status *v1alpha1.CacheStatus) error
 
-	DoSyncJob(ctx context.Context, opt *v1alpha1.SyncJobOptions) error
+	DoSyncJob(ctx context.Context, opt *v1alpha1.SyncJobOptions, log logr.Logger) error
 
-	DoClearJob(ctx context.Context, opt *v1alpha1.ClearJobOptions) error
+	DoClearJob(ctx context.Context, opt *v1alpha1.ClearJobOptions, log logr.Logger) error
 
-	DoWarmupJob(ctx context.Context, opt *v1alpha1.WarmupJobOptions) error
+	DoWarmupJob(ctx context.Context, opt *v1alpha1.WarmupJobOptions, log logr.Logger) error
 
-	DoRmrJob(ctx context.Context, opt *v1alpha1.RmrJobOptions) error
+	DoRmrJob(ctx context.Context, opt *v1alpha1.RmrJobOptions, log logr.Logger) error
 }
 
 // GetDriver get csi driver by name, return error if not found
@@ -183,7 +184,7 @@ func (d *BaseDriver) CreateService(service *v1.Service, ctx *common.RequestConte
 }
 
 // DoClearJob clear the cache data in folders specified by options
-func (d *BaseDriver) DoClearJob(ctx context.Context, opt *v1alpha1.ClearJobOptions) error {
+func (d *BaseDriver) DoClearJob(ctx context.Context, opt *v1alpha1.ClearJobOptions, log logr.Logger) error {
 	if len(opt.Paths) == 0 {
 		return errors.New("clear job option paths not set")
 	}
@@ -202,7 +203,8 @@ func (d *BaseDriver) DoClearJob(ctx context.Context, opt *v1alpha1.ClearJobOptio
 		return fmt.Errorf("cmd: %s; error: %s; stderr: %s",
 			cmd.String(), err.Error(), stderr.String())
 	}
-	fmt.Println(stdout)
+	log.Info(stdout.String())
+	log.Info(stderr.String())
 	return nil
 }
 

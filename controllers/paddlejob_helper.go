@@ -490,3 +490,58 @@ func getPGMinResource(pdj *pdv1.PaddleJob) *corev1.ResourceList {
 	countRes(pdj.Spec.Heter)
 	return &totalRes
 }
+
+func constructPodWithSampleSet(pdj *pdv1.PaddleJob, idx int, resType, label,
+	runtimePrefix string, runtimeNames []string) (pod *corev1.Pod) {
+	pod = constructPod(pdj, resType, idx)
+	// 1. add volume and volume mounts to pod
+	pvcs := &corev1.PersistentVolumeClaimVolumeSource{
+		ClaimName: pdj.Spec.SampleSetRef.Name,
+	}
+	volume := corev1.Volume{
+		Name: pdj.Spec.SampleSetRef.Name,
+		VolumeSource: corev1.VolumeSource{
+			PersistentVolumeClaim: pvcs,
+		},
+	}
+	volumeMount := corev1.VolumeMount{
+		Name: pdj.Spec.SampleSetRef.Name,
+		MountPath: pdj.Spec.SampleSetRef.MountPath,
+	}
+	pod.Spec.Volumes = append(pod.Spec.Volumes, volume)
+	volumeMounts := pod.Spec.Containers[0].VolumeMounts
+	volumeMounts = append(volumeMounts, volumeMount)
+	pod.Spec.Containers[0].VolumeMounts = volumeMounts
+
+	// 2. add node affinity to pod with the same index
+	if len(runtimeNames) == 0 {
+		return pod
+	}
+	runtimeName := fmt.Sprintf("%s-%d", runtimePrefix, idx)
+	if !containsString(runtimeNames, runtimeName) {
+		return pod
+	}
+
+	if pod.Spec.Affinity == nil {
+		pod.Spec.Affinity = &corev1.Affinity{}
+	}
+	if pod.Spec.Affinity.NodeAffinity == nil {
+		pod.Spec.Affinity.NodeAffinity = &corev1.NodeAffinity{}
+	}
+	if pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil {
+		pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution = &corev1.NodeSelector{}
+	}
+	nodeSelectorTerms := pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
+
+	requirement := corev1.NodeSelectorRequirement{
+		Key: label,
+		Operator: corev1.NodeSelectorOpIn,
+		Values: []string{},
+	}
+	nodeSelectorTerm := corev1.NodeSelectorTerm{
+		MatchExpressions: []corev1.NodeSelectorRequirement{requirement},
+	}
+	nodeSelectorTerms = append(nodeSelectorTerms, nodeSelectorTerm)
+
+	return pod
+}

@@ -20,6 +20,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/paddleflow/paddle-operator/api/v1alpha1"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
@@ -62,7 +63,10 @@ var syncJobCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf("get driver %s error: %s", driverName, err.Error())
 		}
-		log.Fatal(d.DoSyncJob(context.Background(), &syncJobOptions))
+		zapLog := zap.New(func(o *zap.Options) {
+			o.Development = rootCmdOptions.Development
+		})
+		log.Fatal(d.DoSyncJob(context.Background(), &syncJobOptions, zapLog))
 	},
 }
 
@@ -75,7 +79,10 @@ var warmupJobCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf("get driver %s error: %s", driverName, err.Error())
 		}
-		log.Fatal(d.DoWarmupJob(context.Background(), &warmupJobOptions))
+		zapLog := zap.New(func(o *zap.Options) {
+			o.Development = rootCmdOptions.Development
+		})
+		log.Fatal(d.DoWarmupJob(context.Background(), &warmupJobOptions, zapLog))
 	},
 }
 
@@ -88,7 +95,10 @@ var rmrJobCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf("get driver %s error: %s", driverName, err.Error())
 		}
-		log.Fatal(d.DoSyncJob(context.Background(), &syncJobOptions))
+		zapLog := zap.New(func(o *zap.Options) {
+			o.Development = rootCmdOptions.Development
+		})
+		log.Fatal(d.DoSyncJob(context.Background(), &syncJobOptions, zapLog))
 	},
 }
 
@@ -101,14 +111,17 @@ var clearJobCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf("get driver %s error: %s", driverName, err.Error())
 		}
-		log.Fatal(d.DoClearJob(context.Background(), &clearJobOptions))
+		zapLog := zap.New(func(o *zap.Options) {
+			o.Development = rootCmdOptions.Development
+		})
+		log.Fatal(d.DoClearJob(context.Background(), &clearJobOptions, zapLog))
 	},
 }
 
 func init() {
 	// initialize options for root command
 	rootCmd.PersistentFlags().StringVar(&rootCmdOptions.Driver, "driver", string(driver.JuiceFSDriver), "specify the cache engine")
-	rootCmd.PersistentFlags().BoolVar(&rootCmdOptions.Development, "development", false, "configures the logger to use a Zap development config")
+	rootCmd.PersistentFlags().BoolVar(&rootCmdOptions.Development, "development", true, "configures the logger to use a Zap development config")
 
 	// initialize options for runtime server
 	serverCmd.Flags().IntVar(&serverOptions.ServerPort, "serverPort", common.RuntimeServicePort, "the port for runtime service")
