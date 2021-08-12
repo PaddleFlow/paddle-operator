@@ -431,6 +431,7 @@ func (s *SampleSetController) reconcileReady() (ctrl.Result, error) {
 			return utils.RequeueWithError(err)
 		}
 		s.Log.Info("updated sampleset cache status")
+		return utils.RequeueAfter(common.RuntimeCacheInterval * time.Second + 1)
 	}
 
 	return utils.NoRequeue()

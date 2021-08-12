@@ -389,7 +389,7 @@ func (s *Server) writeCacheStatus() {
 			time.Sleep(time.Duration(s.svrOpt.Interval) * time.Second)
 		} else {
 			time.Sleep(time.Duration(interval) * time.Second)
-			interval += 10
+			interval += 2
 		}
 
 		status := &v1alpha1.CacheStatus{}

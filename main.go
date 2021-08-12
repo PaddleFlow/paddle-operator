@@ -36,6 +36,7 @@ import (
 	volcano "volcano.sh/apis/pkg/apis/scheduling/v1beta1"
 
 	batchv1 "github.com/paddleflow/paddle-operator/api/v1"
+	batchv1alpha1 "github.com/paddleflow/paddle-operator/api/v1alpha1"
 	"github.com/paddleflow/paddle-operator/controllers"
 	//+kubebuilder:scaffold:imports
 )
@@ -50,6 +51,7 @@ func init() {
 
 	utilruntime.Must(batchv1.AddToScheme(scheme))
 	utilruntime.Must(volcano.AddToScheme(scheme))
+	utilruntime.Must(batchv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
