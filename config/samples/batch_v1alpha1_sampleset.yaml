@@ -2,31 +2,11 @@ apiVersion: batch.paddlepaddle.org/v1alpha1
 kind: SampleSet
 metadata:
   name: imagenet
+  namespace: paddle-system
 spec:
   partitions: 2
   source:
-    uri: bos://zhouti-mcp-edge.gz.bcebos.com/sync-source
-  noSync: true
+    uri: bos://imagenet.gz.bcebos.com/imagenet
   secretRef:
     name: imagenet
-  csi:
-    driver: juicefs
-    juiceFSMountOptions:
-      cache-size: 10240
-      open-cache: 2048
-  cache:
-    levels:
-      - mediumType: MEM
-        path: /dev/shm/imagenet-0:/dev/shm/imagenet-1
-        cacheSize: 10240
-#      - mediumType: HDD
-#        path: /data/imagenet
-#        cacheSize: 1024
-  nodeAffinity:
-    required:
-      nodeSelectorTerms:
-        - matchExpressions:
-            - key: sampleset
-              operator: In
-              values:
-                - "imagenet"
+    namespace: paddle-system

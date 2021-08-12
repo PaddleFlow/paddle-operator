@@ -536,12 +536,13 @@ func constructPodWithSampleSet(pdj *pdv1.PaddleJob, idx int, resType, label,
 	requirement := corev1.NodeSelectorRequirement{
 		Key: label,
 		Operator: corev1.NodeSelectorOpIn,
-		Values: []string{},
+		Values: []string{runtimeName},
 	}
 	nodeSelectorTerm := corev1.NodeSelectorTerm{
 		MatchExpressions: []corev1.NodeSelectorRequirement{requirement},
 	}
 	nodeSelectorTerms = append(nodeSelectorTerms, nodeSelectorTerm)
+	pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms = nodeSelectorTerms
 
 	return pod
 }

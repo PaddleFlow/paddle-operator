@@ -1,12 +1,10 @@
 apiVersion: batch.paddlepaddle.org/v1alpha1
 kind: SampleJob
 metadata:
-  name: samplejob-sample
+  name: imagenet-sync
+  namespace: paddle-system
 spec:
   type: sync
-  # schedule: "* */1 * * *"
   sampleset:
     name: imagenet
     namespace: default
-#  syncOptions:
-#    bwlimit: 50Mbps
