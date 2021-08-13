@@ -241,13 +241,23 @@ func NamespacedObjectKey(c *Controller) client.ObjectKey {
 }
 
 func SecretObjectKey(c *Controller) client.ObjectKey {
-	sampleSet := c.Sample.(*v1alpha1.SampleSet)
-	name := sampleSet.Spec.SecretRef.Name
-	namespace := c.Req.Namespace
-	if sampleSet.Spec.SecretRef.Namespace != "" {
-		namespace = sampleSet.Spec.SecretRef.Namespace
+	if sampleSet, ok := c.Sample.(*v1alpha1.SampleSet); ok {
+		name := sampleSet.Spec.SecretRef.Name
+		namespace := c.Req.Namespace
+		if sampleSet.Spec.SecretRef.Namespace != "" {
+			namespace = sampleSet.Spec.SecretRef.Namespace
+		}
+		return client.ObjectKey{Name: name, Namespace: namespace}
 	}
-	return client.ObjectKey{Name: name, Namespace: namespace}
+	if sampleJob, ok := c.Sample.(*v1alpha1.SampleJob); ok {
+		name := sampleJob.Status.SecretRef.Name
+		namespace := c.Req.Namespace
+		if sampleJob.Status.SecretRef.Namespace != "" {
+			namespace = sampleJob.Status.SecretRef.Namespace
+		}
+		return client.ObjectKey{Name: name, Namespace: namespace}
+	}
+	panic(fmt.Errorf("%s is not register in SecretObjectKey", c.Sample.GetObjectKind().GroupVersionKind().String()))
 }
 
 func ServiceObjectKey(c *Controller) client.ObjectKey {
