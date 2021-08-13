@@ -90,14 +90,14 @@ func (r *SampleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// 4. check if SampleSet is exists and get SampleSet
-	if sampleJob.Spec.SampleSet == "" {
-		err := fmt.Errorf("samplejob %s spec.sampleSet is empty", req.Name)
-		r.Log.Error(err, "please set field spec.sampleSet and try again")
+	if sampleJob.Spec.SampleSetRef == nil || sampleJob.Spec.SampleSetRef.Name == "" {
+		err := fmt.Errorf("samplejob %s spec.sampleSetRef is empty", req.Name)
+		r.Log.Error(err, "please set field spec.sampleSetRef and try again")
 		r.Recorder.Event(sampleJob, v1.EventTypeWarning, common.ErrorSampleSetNotExist, err.Error())
 		return utils.NoRequeue()
 	}
 	sampleSetKey := types.NamespacedName{
-		Name: sampleJob.Spec.SampleSet,
+		Name: sampleJob.Spec.SampleSetRef.Name,
 		Namespace: req.Namespace,
 	}
 	sampleSet := &v1alpha1.SampleSet{}
@@ -110,7 +110,16 @@ func (r *SampleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return utils.RequeueWithError(err)
 	}
 
-	// 5. Get driver and construct reconcile context
+	// 5. add SampleSet spec.secretRef to SampleJob
+	secretRef := sampleSet.Spec.SecretRef
+	if sampleJob.Status.SecretRef == nil || !reflect.DeepEqual(sampleJob.Status.SecretRef, secretRef) {
+		sampleJob.Status.SecretRef = secretRef.DeepCopy()
+		if err := r.Update(ctx, sampleJob); err != nil {
+			return utils.RequeueWithError(err)
+		}
+	}
+
+	// 6. Get driver and construct reconcile context
 	var driverName v1alpha1.DriverName
 	if sampleSet.Spec.CSI == nil {
 		driverName = driver.DefaultDriver
@@ -133,7 +142,7 @@ func (r *SampleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		Scheme:   r.Scheme,
 		Recorder: r.Recorder,
 	}
-	// 6. construct SampleJob Controller
+	// 7. construct SampleJob Controller
 	sjc := NewSampleJobController(sampleJob, CSIDriver, RCtx)
 
 	return sjc.reconcilePhase()
