@@ -16,6 +16,10 @@ package driver
 
 import (
 	"context"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -150,7 +154,7 @@ func TestJuiceFS_DoSyncJob(t *testing.T) {
 		},
 	}
 	driver := NewJuiceFSDriver()
-	if err := driver.DoSyncJob(context.Background(), options); err != nil {
+	if err := driver.DoSyncJob(context.Background(), options, nil); err != nil {
 		t.Log("juicefs do sync job error: ", err.Error())
 	}
 }
@@ -172,7 +176,24 @@ func TestNoZeroOptionToArgs(t *testing.T) {
 }
 
 func TestJuiceFS_CreateWarmupJobOptions(t *testing.T) {
+	cmd := exec.Command("sh", "-c", "echo stdout; echo 1>&2 stderr")
 
+	cmd.CombinedOutput()
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		log.Fatal(err)
+	}
+
+	slurp, _ := ioutil.ReadAll(stderr)
+	fmt.Printf("%s\n", slurp)
+
+	if err := cmd.Wait(); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func TestJuiceFS_DoWarmupJob(t *testing.T) {
