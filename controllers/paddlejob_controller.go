@@ -241,7 +241,11 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			r.Recorder.Eventf(&pdj, corev1.EventTypeWarning, "Create", "sampleset %s is not exists", key.String())
 			return ctrl.Result{}, err
 		}
-		csiDriver, err := driver.GetDriver(sampleSet.Spec.CSI.Driver)
+		var driverName v1alpha1.DriverName = ""
+		if sampleSet.Spec.CSI != nil && sampleSet.Spec.CSI.Driver != "" {
+			driverName = sampleSet.Spec.CSI.Driver
+		}
+		csiDriver, err := driver.GetDriver(driverName)
 		if err != nil {
 			log.Error(err, "get csi driver error, it may not supported", "driverName", sampleSet.Spec.CSI.Driver)
 			r.Recorder.Eventf(&pdj, corev1.EventTypeWarning, "Create", "driver %s is not exists", key.String())
