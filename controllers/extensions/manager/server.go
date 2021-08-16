@@ -191,6 +191,12 @@ func (s *Server) uploadHandleFunc(pattern string) func(w http.ResponseWriter, re
 		if fileName == "" {
 			e := fmt.Errorf("handle upload %s fail", pattern)
 			s.Log.Error(e, "can not get filename from request header")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		} else if fileName == common.TerminateSignal {
+			s.Log.V(1).Info("upload terminate signal successfully")
+			w.WriteHeader(http.StatusOK)
+			return
 		}
 
 		dirPath := s.svrOpt.ServerDir + pattern

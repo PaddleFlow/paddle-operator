@@ -278,7 +278,7 @@ func DiskSpaceOfPaths(timeout time.Duration, paths... string) (map[string]string
 	return diskStatus, nil
 }
 
-func WaitFileCreatedWithTimeout(path string, duration time.Duration) bool {
+func WaitFileCreatedWithTimeout(ctx context.Context, path string, duration time.Duration) bool {
 	ticker := time.NewTicker(duration)
 	defer ticker.Stop()
 	done := make(chan bool)
@@ -296,6 +296,8 @@ func WaitFileCreatedWithTimeout(path string, duration time.Duration) bool {
 		select {
 		case <-done:
 			return true
+		case <-ctx.Done():
+			return false
 		case <-ticker.C:
 			return false
 		}

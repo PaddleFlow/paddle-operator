@@ -20,9 +20,6 @@ spec:
     - jsonPath: .status.phase
       name: PHASE
       type: string
-    - jsonPath: .status.cacheStatus.cachedSize
-      name: CACHED SIZE
-      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -56,8 +53,6 @@ spec:
                   name:
                     type: string
                 type: object
-              schedule:
-                type: string
               syncOptions:
                 properties:
                   bwlimit:
@@ -99,6 +94,8 @@ spec:
                   worker:
                     type: string
                 type: object
+              terminate:
+                type: boolean
               type:
                 enum:
                 - sync
@@ -131,31 +128,6 @@ spec:
             type: object
           status:
             properties:
-              cronJobStatus:
-                properties:
-                  active:
-                    items:
-                      properties:
-                        apiVersion:
-                          type: string
-                        fieldPath:
-                          type: string
-                        kind:
-                          type: string
-                        name:
-                          type: string
-                        namespace:
-                          type: string
-                        resourceVersion:
-                          type: string
-                        uid:
-                          type: string
-                      type: object
-                    type: array
-                  lastScheduleTime:
-                    format: date-time
-                    type: string
-                type: object
               jobName:
                 type: string
               phase:

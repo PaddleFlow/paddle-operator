@@ -217,8 +217,15 @@ func (s *SampleJobController) reconcilePhase() (ctrl.Result, error) {
 // reconcileNone job: post
 func (s *SampleJobController) reconcileNone() (ctrl.Result, error) {
 	s.Log.Info("==== reconcileNone ====")
+	// 1. if terminate is true then terminate SampleJobs that in processing
+	if s.SampleJob.Spec.Terminate {
+		if err := s.PostTerminateSignal(); err != nil {
+			return utils.RequeueWithError(err)
+		}
+		time.Sleep(10 * time.Second)
+	}
 
-	// if job name is none then generate job name and post options to server
+	// 2. if job name is none then generate job name and post options to server
 	if s.SampleJob.Status.JobName == "" {
 		jobName := uuid.NewUUID()
 		jobType := JobTypeMap[s.SampleJob.Spec.Type]
