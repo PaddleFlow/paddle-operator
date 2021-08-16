@@ -232,11 +232,17 @@ type SampleJobSpec struct {
 	// +kubebuilder:validation:Enum=sync;warmup;rmr;clear
 	// +kubebuilder:validation:Required
 	Type SampleJobType `json:"type,omitempty"`
+	// the information of reference SampleSet object
 	// +kubebuilder:validation:Required
 	SampleSetRef *v1.LocalObjectReference `json:"sampleSetRef,omitempty"`
+
 	/// The schedule in Cron format, see https://en.wikipedia.org/wiki/Cron.
 	// +optional
-	Schedule string `json:"schedule,omitempty"`
+	//Schedule string `json:"schedule,omitempty"`
+
+	// terminate other jobs that already in event queue of runtime servers
+	// +optional
+	Terminate bool `json:"terminate,omitempty"`
 	// +optional
 	JobOptions `json:",inline,omitempty"`
 }
@@ -252,13 +258,12 @@ type SampleJobStatus struct {
 	// Current status of a cron job.
 	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
 	// +optional
-	CronJobStatus CronJobStatus `json:"cronJobStatus,omitempty"`
+	//CronJobStatus CronJobStatus `json:"cronJobStatus,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:printcolumn:name="PHASE",type="string",JSONPath=`.status.phase`
-//+kubebuilder:printcolumn:name="CACHED SIZE",type="string",JSONPath=`.status.cacheStatus.cachedSize`
 
 // SampleJob is the Schema for the samplejobs API
 type SampleJob struct {

@@ -25,7 +25,6 @@ import (
 
 	"github.com/go-logr/logr"
 	appv1 "k8s.io/api/apps/v1"
-	"k8s.io/api/batch/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -70,7 +69,7 @@ type Driver interface {
 	// CreateRuntime create runtime StatefulSet to manager cache data
 	CreateRuntime(ds *appv1.StatefulSet, ctx *common.RequestContext) error
 
-	CreateCronJob(cronJob *v1beta1.CronJob, ctx *common.RequestContext) error
+	//CreateCronJob(cronJob *v1beta1.CronJob, ctx *common.RequestContext) error
 
 	// GetRuntimeName get the runtime StatefulSet name
 	GetRuntimeName(sampleSetName string) string
@@ -310,10 +309,6 @@ func (d *BaseDriver) CreateClearJobOptions(opt *v1alpha1.ClearJobOptions, ctx *c
 			opt.Paths = append(opt.Paths, strings.TrimSuffix(mountPath, "/") + "/*")
 		}
 	}
-	return nil
-}
-
-func (d *BaseDriver) CreateCronJob(cronJob *v1beta1.CronJob, ctx *common.RequestContext) error {
 	return nil
 }
 

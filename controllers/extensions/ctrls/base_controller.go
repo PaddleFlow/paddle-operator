@@ -46,6 +46,7 @@ var (
 	ClearJob  *JobType
 	SyncJob   *JobType
 	WarmupJob *JobType
+	Terminate *JobType
 
 	optionError *OptionError
 	JobTypeMap map[v1alpha1.SampleJobType]*JobType
@@ -142,6 +143,14 @@ func init() {
 	RmrJob.CreateOptions = RmrCreateOptions
 	RmrJob.OptionPath = common.PathRmrOptions
 	RmrJob.ResultPath = common.PathRmrResult
+
+	// Terminate
+	Terminate = NewJobOptions("Terminate")
+	Terminate.Options = TerminateOptions
+	Terminate.BaseUris = AllBaseUris
+	Terminate.CreateOptions = TerminateCreateOptions
+	Terminate.OptionPath = common.PathClearOptions
+	Terminate.ResultPath = common.PathClearResult
 
 	// dependents
 	PV.Dependents = []*Resource{Secret, SampleSet}
@@ -392,6 +401,8 @@ func ClearOptions() interface{} { return &v1alpha1.ClearJobOptions{} }
 
 func RmrOptions() interface{} { return &v1alpha1.RmrJobOptions{} }
 
+func TerminateOptions() interface{} { return nil }
+
 // CreateOptions func(c *Controller, opt *JobOptions, ctx *common.RequestContext) error
 
 func SyncCreateOptions(c *Controller, opt interface{}, ctx *common.RequestContext) error {
@@ -429,6 +440,8 @@ func ClearCreateOptions(c *Controller, opt interface{}, ctx *common.RequestConte
 	}
 	return nil
 }
+
+func TerminateCreateOptions(c *Controller, opt interface{}, ctx *common.RequestContext) error { return nil }
 
 // BaseUris func(c *Controller) ([]string, error)
 
@@ -721,9 +734,9 @@ func (c *Controller) PostJobOptions(filename types.UID, j *JobType) error {
 	return c.PostJobOptionsWithParam(filename, j, "")
 }
 
-func (c *Controller) PostJobOptionsWithTerminate(filename types.UID, j *JobType) error {
+func (c *Controller) PostTerminateSignal() error {
 	param := "?" + common.TerminateSignal + "=true"
-	return c.PostJobOptionsWithParam(filename, j, param)
+	return c.PostJobOptionsWithParam(common.TerminateSignal, Terminate, param)
 }
 
 func (c *Controller) GetJobResult(filename types.UID, j *JobType) (*common.JobResult, error) {

@@ -495,12 +495,12 @@ func (j *JuiceFS) DoWarmupJob(ctx context.Context, opt *v1alpha1.WarmupJobOption
 
 	// 2. preform pre-warmup task and add defer post-warmup task in master node and worker nodes separately
 	if index == 0 {
-		defer postWarmupMaster(mountPath, int(opt.Partitions), log)
+		defer postWarmupMaster(ctx, mountPath, int(opt.Partitions), log)
 		if err = preWarmupMaster(ctx, mountPath, opt); err != nil {
 			return fmt.Errorf("master node do pre-warmup job error: %s", err.Error())
 		}
 	} else {
-		defer postWarmupWorker(mountPath, index, log)
+		defer postWarmupWorker(ctx, mountPath, index, log)
 		if err = preWarmupWorker(ctx, mountPath, index); err != nil {
 			return fmt.Errorf("worker %d do pre-warmup job error: %s", index, err.Error())
 		}
@@ -526,9 +526,6 @@ func (j *JuiceFS) DoWarmupJob(ctx context.Context, opt *v1alpha1.WarmupJobOption
 func preWarmupMaster(ctx context.Context, mountPath string, opt *v1alpha1.WarmupJobOptions) error {
 	// 1. create .warmup dir in mount path
 	warmupPath := mountPath + common.WarmupDirPath
-	//if err := exec.Command("rm", "-rf", warmupPath).Run(); err != nil {
-	//	return fmt.Errorf("preWarmupMaster rm warmup dir %s error: %s", warmupPath, err.Error())
-	//}
 	if err := os.Mkdir(warmupPath, os.ModePerm); err != nil {
 		return fmt.Errorf("preWarmupMaster create warmup dir %s error: %s", warmupPath, err.Error())
 	}
@@ -537,7 +534,7 @@ func preWarmupMaster(ctx context.Context, mountPath string, opt *v1alpha1.Warmup
 	// 2. wait file worker.{index} created by worker nodes util timeout
 	for i := 1; i < partitions; i++ {
 		workerFile := warmupPath + common.WarmupWorkerPrefix + "." + strconv.Itoa(i)
-		utils.WaitFileCreatedWithTimeout(workerFile, 120 * time.Second)
+		utils.WaitFileCreatedWithTimeout(ctx, workerFile, 120 * time.Second)
 	}
 
 	// 3. if opt.File not set by user, create .warmup file by the command find
@@ -599,7 +596,7 @@ func preWarmupMaster(ctx context.Context, mountPath string, opt *v1alpha1.Warmup
 	for i := 0; i < partitions; i++ {
 		tmpPath := tmpPrefix + strconv.Itoa(i)
 		targetPath := targetPrefix + strconv.Itoa(i)
-		if err := exec.Command("mv", tmpPath, targetPath).Run(); err != nil {
+		if err := exec.CommandContext(ctx, "mv", tmpPath, targetPath).Run(); err != nil {
 			return fmt.Errorf("preWarmupMaster mv %s to %s error: %s", tmpPath, targetPath, err.Error())
 		}
 	}
@@ -649,7 +646,7 @@ func warmupRandomly(opt *v1alpha1.WarmupJobOptions, writers []*bufio.Writer) err
 func preWarmupWorker(ctx context.Context, mountPath string, index int) error {
 	// 1. wait .warmup dir created by master node util timeout
 	warmupPath := mountPath + common.WarmupDirPath
-	if ok := utils.WaitFileCreatedWithTimeout(warmupPath, 30*time.Second); !ok {
+	if ok := utils.WaitFileCreatedWithTimeout(ctx, warmupPath, 30*time.Second); !ok {
 		return fmt.Errorf("preWarmupWorker wait master node create dir %s timeout", warmupPath)
 	}
 	// 2. create worker.{index} file in mount path
@@ -659,13 +656,13 @@ func preWarmupWorker(ctx context.Context, mountPath string, index int) error {
 	}
 	// 3. wait util file.{index} created by master node util timeout
 	filepath := warmupPath + common.WarmupFilePrefix + "." + strconv.Itoa(index)
-	if ok := utils.WaitFileCreatedWithTimeout(filepath, 600*time.Second); !ok {
+	if ok := utils.WaitFileCreatedWithTimeout(ctx, filepath, 600*time.Second); !ok {
 		return fmt.Errorf("preWarmupWorker wait master node create file %s timeout", filepath)
 	}
 	return nil
 }
 
-func postWarmupMaster(mountPath string, partitions int, log logr.Logger) {
+func postWarmupMaster(ctx context.Context, mountPath string, partitions int, log logr.Logger) {
 	// 1. check if .warmup dir exists in mount path
 	warmupPath := mountPath + common.WarmupDirPath
 	if _, err := os.Stat(warmupPath); err != nil {
@@ -687,7 +684,7 @@ func postWarmupMaster(mountPath string, partitions int, log logr.Logger) {
 		for _, err := os.Stat(doneFile); err != nil; _, err = os.Stat(doneFile) {
 			log.V(1).Info("postWarmupMaster wait util done file created", "path", doneFile)
 			time.Sleep(1 * time.Second)
-			if _, e := os.Stat(workerFile); e != nil {
+			if _, e := os.Stat(workerFile); e != nil || ctx.Err() != nil {
 				log.V(1).Info("postWarmupMaster worker file has been deleted", "path", workerFile)
 				break
 			}
@@ -703,10 +700,10 @@ func postWarmupMaster(mountPath string, partitions int, log logr.Logger) {
 	log.V(1).Info("postWarmupMaster done successfully")
 }
 
-func postWarmupWorker(mountPath string, index int, log logr.Logger) {
+func postWarmupWorker(ctx context.Context, mountPath string, index int, log logr.Logger) {
 	// 1. wait master node create .warmup dir with timeout
 	path := mountPath + common.WarmupDirPath
-	if ok := utils.WaitFileCreatedWithTimeout(path, 30*time.Second); !ok {
+	if ok := utils.WaitFileCreatedWithTimeout(ctx, path, 30*time.Second); !ok {
 		log.Error(fmt.Errorf("postWarmupWorker wait master create path %s timeout", path), "")
 		return
 	}
