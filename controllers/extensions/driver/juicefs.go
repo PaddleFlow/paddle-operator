@@ -15,14 +15,17 @@
 package driver
 
 import (
-	"bytes"
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
+	"os"
 	"os/exec"
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	appv1 "k8s.io/api/apps/v1"
@@ -99,7 +102,7 @@ func NewJuiceFSDriver() *JuiceFS {
 // CreatePV create JuiceFS persistent volume with mount options.
 // How to set parameters of pv can refer to https://github.com/juicedata/juicefs-csi-driver/tree/master/examples/static-provisioning-mount-options
 func (j *JuiceFS) CreatePV(pv *v1.PersistentVolume, ctx *common.RequestContext) error {
-	if !j.isSecretValid(ctx.Secret) {
+	if !isSecretValid(ctx.Secret) {
 		return fmt.Errorf("secret %s is not valid", ctx.Secret.Name)
 	}
 
@@ -117,7 +120,7 @@ func (j *JuiceFS) CreatePV(pv *v1.PersistentVolume, ctx *common.RequestContext) 
 	pv.ObjectMeta = objectMeta
 
 	volumeMode := v1.PersistentVolumeFilesystem
-	mountOptions, err := j.getMountOptions(ctx.SampleSet)
+	mountOptions, err := getMountOptions(ctx.SampleSet)
 	if err != nil {
 		return err
 	}
@@ -157,7 +160,7 @@ func (j *JuiceFS) CreatePV(pv *v1.PersistentVolume, ctx *common.RequestContext) 
 }
 
 // isSecretValid check if the secret created by user is valid for JuiceFS csi driver
-func (j *JuiceFS) isSecretValid(secret *v1.Secret) bool {
+func isSecretValid(secret *v1.Secret) bool {
 	for _, key := range JuiceFSSecretDataKeys {
 		if _, exists := secret.Data[key]; !exists {
 			return false
@@ -167,7 +170,7 @@ func (j *JuiceFS) isSecretValid(secret *v1.Secret) bool {
 }
 
 // GetMountOptions get the JuiceFS mount command options set by user
-func (j *JuiceFS) getMountOptions(sampleSet *v1alpha1.SampleSet) (string, error) {
+func getMountOptions(sampleSet *v1alpha1.SampleSet) (string, error) {
 	optionMap := make(map[string]reflect.Value)
 	// get default mount options and values
 	utils.NoZeroOptionToMap(optionMap, JuiceFSDefaultMountOptions)
@@ -457,18 +460,16 @@ func (j *JuiceFS) DoSyncJob(ctx context.Context, opt *v1alpha1.SyncJobOptions, l
 	args = append(args, opt.Destination)
 
 	cmd := exec.CommandContext(ctx,"juicefs", args...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
+	output, err := cmd.CombinedOutput()
+	log.V(1).Info(string(output))
+	if err != nil {
 		return fmt.Errorf("juice sync cmd: %s; error: %s", cmd.String(), err.Error())
 	}
-	log.Info(stdout.String())
-	log.Info(stderr.String())
 	return nil
 }
 
 // DoWarmupJob warmup data from remote object storage to cache nodes, this can speed up model training process in kubernetes cluster
-// TODO: different cache nodes should warmup different data, the warmup Strategy should match the Sampler API
+// TODO: different cache nodes should warmup different data, the warmup Strategy should match the sampler api
 // defined in paddle.io submodule, like RandomSampler/SequenceSampler/DistributedBatchSampler etc...
 // More information: https://www.paddlepaddle.org.cn/documentation/docs/zh/api/paddle/io/Overview_cn.html
 func (j *JuiceFS) DoWarmupJob(ctx context.Context, opt *v1alpha1.WarmupJobOptions, log logr.Logger) error {
@@ -484,87 +485,237 @@ func (j *JuiceFS) DoWarmupJob(ctx context.Context, opt *v1alpha1.WarmupJobOption
 	if len(hostNameSplit) == 0 {
 		return fmt.Errorf("warmup job must run in statefulset pods")
 	}
-	index := hostNameSplit[len(hostNameSplit)-1]
-	runtimeSuffix := "-" + common.RuntimeContainerName + "-" + index
+	index, err := strconv.Atoi(hostNameSplit[len(hostNameSplit)-1])
+	if err != nil {
+		return fmt.Errorf("hostname %s is not valid", hostName)
+	}
+	runtimeSuffix := "-" + common.RuntimeContainerName + "-" + strconv.Itoa(index)
 	sampleSetName := strings.TrimSuffix(hostName, runtimeSuffix)
 	mountPath := j.getRuntimeDataMountPath(sampleSetName)
 
-	// 2. preform pre- and post-warmup task in master node and worker nodes separately
-	if index == "0" {
-		defer j.postWarmupMaster(mountPath, opt.Partitions)
-		if err = j.preWarmupMaster(ctx, mountPath, opt); err != nil {
+	// 2. preform pre-warmup task and add defer post-warmup task in master node and worker nodes separately
+	if index == 0 {
+		defer postWarmupMaster(mountPath, int(opt.Partitions), log)
+		if err = preWarmupMaster(ctx, mountPath, opt); err != nil {
 			return fmt.Errorf("master node do pre-warmup job error: %s", err.Error())
 		}
 	} else {
-		defer j.postWarmupWorker(mountPath, index)
-		if err = j.preWarmupWorker(ctx, mountPath, index); err != nil {
-			return fmt.Errorf("worker %s do pre-warmup job error: %s", index, err.Error())
+		defer postWarmupWorker(mountPath, index, log)
+		if err = preWarmupWorker(ctx, mountPath, index); err != nil {
+			return fmt.Errorf("worker %d do pre-warmup job error: %s", index, err.Error())
 		}
 	}
 
 	// 3. add --file option and construct warmup job args
-	opt.File = mountPath + "/" + common.WarmupFilePrefix + "." + index
+	opt.File = mountPath + common.WarmupDirPath + common.WarmupFilePrefix + "." + strconv.Itoa(index)
 	warmupArgs := utils.NoZeroOptionToArgs(&opt.JuiceFSWarmupOptions)
 	args := []string{"warmup"}
 	args = append(args, warmupArgs...)
 	args = append(args, opt.Paths...)
 
-	// executor juicefs warmup --file xxx paths... command
+	// 4. executor juicefs warmup --file xxx paths... command
 	cmd := exec.CommandContext(ctx, "juicefs", args...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err = cmd.Run(); err != nil {
-		return fmt.Errorf("juice warmup cmd: %s; error: %s; stderr: %s",
-			cmd.String(), err.Error(), stderr.String())
+	output, err := cmd.CombinedOutput()
+	log.V(1).Info(string(output))
+	if err != nil {
+		return fmt.Errorf("juice warmup cmd: %s; error: %s", cmd.String(), err.Error())
 	}
-	log.Info(stdout.String())
-	//log.Error(cmd.)
 	return nil
 }
 
-func (j *JuiceFS) preWarmupMaster(ctx context.Context, mountPath string, opt *v1alpha1.WarmupJobOptions) error {
-	// 1. delete all files in mountPath with the prefix .warmup
-	//warmUpFiles := mountPath + "/" + common.WarmupFilePrefix + "*"
-	//cmd := exec.CommandContext(ctx, "rm", "-rf", warmUpFiles)
-
-	// 2. wait .worker file generated by workers with time out context
-
-	// 3. create .warmup file by the command `bash -c find ... > ... `
-
-	// 4. create .warmup.{index} file with different strategy specified in options
-
-
-	warmupFile := mountPath + "/" + common.WarmupFilePrefix
-	filePaths := strings.Join(opt.Paths, " ")
-	findCmd := "find " + filePaths + "-type f -not -path '*/\\.*' > " + warmupFile
-	cmd := exec.CommandContext(ctx, "bash", "-c", findCmd)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("find cmd: %s; error: %s; stderr: %s",
-			cmd.String(), err.Error(), stderr.String())
+func preWarmupMaster(ctx context.Context, mountPath string, opt *v1alpha1.WarmupJobOptions) error {
+	// 1. create .warmup dir in mount path
+	warmupPath := mountPath + common.WarmupDirPath
+	//if err := exec.Command("rm", "-rf", warmupPath).Run(); err != nil {
+	//	return fmt.Errorf("preWarmupMaster rm warmup dir %s error: %s", warmupPath, err.Error())
+	//}
+	if err := os.Mkdir(warmupPath, os.ModePerm); err != nil {
+		return fmt.Errorf("preWarmupMaster create warmup dir %s error: %s", warmupPath, err.Error())
 	}
-	opt.File = warmupFile
+	partitions := int(opt.Partitions)
+
+	// 2. wait file worker.{index} created by worker nodes util timeout
+	for i := 1; i < partitions; i++ {
+		workerFile := warmupPath + common.WarmupWorkerPrefix + "." + strconv.Itoa(i)
+		utils.WaitFileCreatedWithTimeout(workerFile, 120 * time.Second)
+	}
+
+	// 3. if opt.File not set by user, create .warmup file by the command find
+	if opt.File == "" {
+		filePaths := strings.Join(opt.Paths, " ")
+		totalFile := warmupPath + common.WarmupTotalFile
+		findCmd := "find " + filePaths + " -type f -not -path '*/\\.*' > " + totalFile
+		cmd := exec.CommandContext(ctx, "/bin/bash", "-c", findCmd)
+		if stderr, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("preWarmupMaster cmd: %s; error: %s; stderr: %s",
+				cmd.String(), err.Error(), string(stderr))
+		}
+		opt.File = totalFile
+	}
+
+	// 4. create tmp files .file.{index} and get writers for them
+	tmpPrefix := warmupPath + common.WarmupTmpPrefix + "."
+	var tmpFiles []*os.File
+	var writers []*bufio.Writer
+	for i := 0; i < partitions; i++ {
+		path := tmpPrefix + strconv.Itoa(i)
+		file, err := os.Create(path)
+		if err != nil {
+			return fmt.Errorf("preWarmupMaster create file %s error: %s", path, err.Error())
+		}
+		tmpFiles = append(tmpFiles, file)
+		writers = append(writers, bufio.NewWriter(file))
+	}
+
+	// 5. create tmp files .file.{index} with different strategy specified in options
+	switch opt.Strategy.Name {
+	case common.StrategySequence:
+		if err := warmupSequentially(opt, writers); err != nil {
+			return fmt.Errorf("preWarmupMaster create tmp warmup file error: %s", err.Error())
+		}
+	case common.StrategyRandom:
+		if err := warmupRandomly(opt, writers); err != nil {
+			return fmt.Errorf("preWarmupMaster create tmp warmup file error: %s", err.Error())
+		}
+	default:
+		return fmt.Errorf("preWarmupMaster the warmup strategy %s is not supported", opt.Strategy.Name)
+	}
+
+	// 6. flush writers and close files
+	for i, writer := range writers {
+		if err := writer.Flush(); err != nil {
+			path := tmpPrefix + strconv.Itoa(i)
+			return fmt.Errorf("preWarmupMaster flush file %s error: %s", path, err.Error())
+		}
+	}
+	for _, file := range tmpFiles {
+		if err := file.Close(); err != nil {
+			return fmt.Errorf("preWarmupMaster close file %s error: %s", file.Name(), err.Error())
+		}
+	}
+
+	// 7. move tmp file .file.{index} to file.{index}
+	targetPrefix := warmupPath + common.WarmupFilePrefix + "."
+	for i := 0; i < partitions; i++ {
+		tmpPath := tmpPrefix + strconv.Itoa(i)
+		targetPath := targetPrefix + strconv.Itoa(i)
+		if err := exec.Command("mv", tmpPath, targetPath).Run(); err != nil {
+			return fmt.Errorf("preWarmupMaster mv %s to %s error: %s", tmpPath, targetPath, err.Error())
+		}
+	}
+
+	opt.File = warmupPath + common.WarmupFilePrefix + ".0"
 	return nil
 }
 
-func (j *JuiceFS) preWarmupWorker(ctx context.Context, mountPath string, index string) error {
-	// 1. create .worker.{index} file in mount path
+func warmupSequentially(opt *v1alpha1.WarmupJobOptions, writers []*bufio.Writer) error {
+	file, err := os.Open(opt.File)
+	if err != nil {
+		return fmt.Errorf("warmupSequentially open file %s error: %s", opt.File, err.Error())
+	}
+	defer file.Close()
+	var i uint64 = 0
 
-	// 2. wait util .warmup.{index} created by master node
-
+	partition := uint64(opt.Partitions)
+	scanner := bufio.NewScanner(file)
+	for ; scanner.Scan(); i++ {
+		index := i % partition
+		if _, err := fmt.Fprintln(writers[index], scanner.Text()); err != nil {
+			return fmt.Errorf("warmupSequentially writer partition %d error: %s", index, err.Error())
+		}
+	}
 	return nil
 }
 
-func (j *JuiceFS) postWarmupMaster(mountPath string, partitions int32) {
-	// 1. list .worker.{index} file and wait .warmup.done.{index} created by worker
+func warmupRandomly(opt *v1alpha1.WarmupJobOptions, writers []*bufio.Writer) error {
+	file, err := os.Open(opt.File)
+	if err != nil {
+		return fmt.Errorf("warmupRandomly open file %s error: %s", opt.File, err.Error())
+	}
+	defer file.Close()
 
+	rand.Seed(time.Now().UnixNano())
+	//partition := uint64(opt.Partitions)
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		index := rand.Int31n(opt.Partitions)
+		if _, err := fmt.Fprintln(writers[index], scanner.Text()); err != nil {
+			return fmt.Errorf("warmupRandomly writer partition %d error: %s", index, err.Error())
+		}
+	}
+	return nil
 }
 
-func (j *JuiceFS) postWarmupWorker(mountPath string, index string) {
+func preWarmupWorker(ctx context.Context, mountPath string, index int) error {
+	// 1. wait .warmup dir created by master node util timeout
+	warmupPath := mountPath + common.WarmupDirPath
+	if ok := utils.WaitFileCreatedWithTimeout(warmupPath, 30*time.Second); !ok {
+		return fmt.Errorf("preWarmupWorker wait master node create dir %s timeout", warmupPath)
+	}
+	// 2. create worker.{index} file in mount path
+	workerFile := warmupPath + common.WarmupWorkerPrefix + "." + strconv.Itoa(index)
+	if err := exec.CommandContext(ctx, "touch", workerFile).Run(); err != nil {
+		return fmt.Errorf("preWarmupWorker create file %s error: %s", workerFile, err.Error())
+	}
+	// 3. wait util file.{index} created by master node util timeout
+	filepath := warmupPath + common.WarmupFilePrefix + "." + strconv.Itoa(index)
+	if ok := utils.WaitFileCreatedWithTimeout(filepath, 600*time.Second); !ok {
+		return fmt.Errorf("preWarmupWorker wait master node create file %s timeout", filepath)
+	}
+	return nil
+}
+
+func postWarmupMaster(mountPath string, partitions int, log logr.Logger) {
+	// 1. check if .warmup dir exists in mount path
+	warmupPath := mountPath + common.WarmupDirPath
+	if _, err := os.Stat(warmupPath); err != nil {
+		log.Error(err, "postWarmupMaster stat path error", "path", warmupPath)
+		return
+	}
+
+	// 2. check if file worker.{index} exists, and wait file done.{index} created by worker
+	donePrefix := warmupPath + common.WarmupDonePrefix + "."
+	workerPrefix := warmupPath + common.WarmupWorkerPrefix + "."
+	// begin from index 1
+	for i := 1; i < partitions; i++ {
+		doneFile := donePrefix + strconv.Itoa(i)
+		workerFile := workerPrefix + strconv.Itoa(i)
+		if _, err := os.Stat(workerFile); err != nil {
+			log.V(1).Info("postWarmupMaster worker file not exists", "path", workerFile)
+			continue
+		}
+		for _, err := os.Stat(doneFile); err != nil; _, err = os.Stat(doneFile) {
+			log.V(1).Info("postWarmupMaster wait util done file created", "path", doneFile)
+			time.Sleep(1 * time.Second)
+			if _, e := os.Stat(workerFile); e != nil {
+				log.V(1).Info("postWarmupMaster worker file has been deleted", "path", workerFile)
+				break
+			}
+		}
+		log.V(1).Info("postWarmupMaster done file has been created", "path", doneFile)
+	}
+
+	// 3. rm dir .warmup
+	if err := exec.Command("rm", "-rf", warmupPath).Run(); err != nil {
+		log.Error(err, "postWarmupMaster rm warmup dir error", "path", warmupPath)
+		return
+	}
+	log.V(1).Info("postWarmupMaster done successfully")
+}
+
+func postWarmupWorker(mountPath string, index int, log logr.Logger) {
+	// 1. wait master node create .warmup dir with timeout
+	path := mountPath + common.WarmupDirPath
+	if ok := utils.WaitFileCreatedWithTimeout(path, 30*time.Second); !ok {
+		log.Error(fmt.Errorf("postWarmupWorker wait master create path %s timeout", path), "")
+		return
+	}
 	// 2. create file with name as .warmup.done.{index}
-
-	// 1. delete file with name as .worker.{index}
+	filename := path + common.WarmupDonePrefix + "." + strconv.Itoa(index)
+	if err := exec.Command("touch", filename).Run(); err != nil {
+		log.Error(err, "touch warmup done file error, please touch it manually.", "filename", filename)
+		return
+	}
 }
 
 // DoRmrJob delete the data of JuiceFS storage backend under the specified paths.
@@ -584,14 +735,12 @@ func (j *JuiceFS) DoRmrJob(ctx context.Context, opt *v1alpha1.RmrJobOptions, log
 	}
 	//cmd := exec.CommandContext(ctx,"juicefs", args...)
 	cmd := exec.CommandContext(ctx,"rm", args...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
+	output, err := cmd.CombinedOutput()
+	log.V(1).Info(string(output))
+	if err != nil {
 		return fmt.Errorf("juice rmr cmd: %s; error: %s; stderr: %s",
-			cmd.String(), err.Error(), stderr.String())
+			cmd.String(), err.Error(), string(output))
 	}
-	log.Info(stdout.String())
-	log.Info(stderr.String())
 	return nil
 }
 

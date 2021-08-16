@@ -15,7 +15,6 @@
 package driver
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -197,14 +196,12 @@ func (d *BaseDriver) DoClearJob(ctx context.Context, opt *v1alpha1.ClearJobOptio
 	}
 
 	cmd := exec.CommandContext(ctx,"rm", args...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("cmd: %s; error: %s; stderr: %s",
-			cmd.String(), err.Error(), stderr.String())
+	output, err := cmd.CombinedOutput()
+	log.V(1).Info(string(output))
+	if err != nil {
+		return fmt.Errorf("clear job cmd: %s; error: %s; stderr: %s",
+			cmd.String(), err.Error(), string(output))
 	}
-	log.Info(stdout.String())
-	log.Info(stderr.String())
 	return nil
 }
 

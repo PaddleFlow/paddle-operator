@@ -17,18 +17,18 @@ package driver
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
-	"log"
-	"os/exec"
-	"strings"
-	"testing"
-
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/paddleflow/paddle-operator/api/v1alpha1"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/utils"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"os"
+	"os/exec"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"strconv"
+	"strings"
+	"sync"
+	"testing"
 )
 
 func TestJuiceFS_getMountOptions(t *testing.T) {
@@ -95,8 +95,7 @@ func TestJuiceFS_getMountOptions(t *testing.T) {
 		},
 	}
 
-	driver := NewJuiceFSDriver()
-	options, err := driver.getMountOptions(sampleSet)
+	options, err := getMountOptions(sampleSet)
 	if err != nil {
 		t.Errorf("test getMountOptions error: %s", err.Error())
 	}
@@ -141,24 +140,6 @@ func TestJuiceFS_getVolumeInfo(t *testing.T) {
 
 }
 
-func TestJuiceFS_DoSyncJob(t *testing.T) {
-	options := &v1alpha1.SyncJobOptions{
-		Source: "bos://imagenet.bj.bcebos.com/juicefs",
-		Destination: "file:///mnt/imagenet",
-		JuiceFSSyncOptions: v1alpha1.JuiceFSSyncOptions{
-			Threads: 50,
-			Update: true,
-			BWLimit: 10,
-			Exclude: "/2017-[0-9]{2}-[0-9]{2}/",
-			Worker: "192.168.2.220",
-		},
-	}
-	driver := NewJuiceFSDriver()
-	if err := driver.DoSyncJob(context.Background(), options, nil); err != nil {
-		t.Log("juicefs do sync job error: ", err.Error())
-	}
-}
-
 func TestNoZeroOptionToArgs(t *testing.T) {
 	options := common.ServerOptions{
 		ServerPort: 7716,
@@ -175,27 +156,64 @@ func TestNoZeroOptionToArgs(t *testing.T) {
 	t.Log(strings.Join(args, " "))
 }
 
-func TestJuiceFS_CreateWarmupJobOptions(t *testing.T) {
-	cmd := exec.Command("sh", "-c", "echo stdout; echo 1>&2 stderr")
-
-	cmd.CombinedOutput()
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if err := cmd.Start(); err != nil {
-		log.Fatal(err)
-	}
-
-	slurp, _ := ioutil.ReadAll(stderr)
-	fmt.Printf("%s\n", slurp)
-
-	if err := cmd.Wait(); err != nil {
-		log.Fatal(err)
-	}
-}
-
 func TestJuiceFS_DoWarmupJob(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	mountPath, err := os.UserHomeDir()
+	if err != nil {
+		t.Error(err, "get user home dir error")
+	}
+	path, err := os.Getwd()
+	if err != nil {
+		t.Error(err, "get current directory error")
+	}
+	total := strings.TrimSuffix(path, "/controllers/extensions/driver")
+	opts := &v1alpha1.WarmupJobOptions{
+		Paths: []string{total},
+		Partitions: 4,
+		Strategy: v1alpha1.SampleStrategy{
+			Name: common.StrategyRandom,
+		},
+	}
+	logr := zap.New(func(o *zap.Options) {
+		o.Development = true
+	})
+	doWarmupJob := func(index int, opt *v1alpha1.WarmupJobOptions) error {
+		logr.V(1).Info("get index", "index", index)
 
+		if index == 0 {
+			defer postWarmupMaster(mountPath, int(opt.Partitions), logr)
+			if err = preWarmupMaster(ctx, mountPath, opt); err != nil {
+				return fmt.Errorf("master node do pre-warmup job error: %s", err.Error())
+			}
+			logr.V(1).Info("preWarmupMaster finish....")
+		} else {
+			defer postWarmupWorker(mountPath, index, logr)
+			if err = preWarmupWorker(ctx, mountPath, index); err != nil {
+				return fmt.Errorf("worker %d do pre-warmup job error: %s", index, err.Error())
+			}
+			logr.V(1).Info("preWarmupWoker finish....")
+		}
+		opt.File = mountPath + common.WarmupDirPath + common.WarmupFilePrefix + "." + strconv.Itoa(index)
+		warmupArgs := utils.NoZeroOptionToArgs(&opt.JuiceFSWarmupOptions)
+		args := []string{"warmup"}
+		args = append(args, warmupArgs...)
+		args = append(args, opt.Paths...)
+		cmd := exec.CommandContext(ctx, "juicefs", args...)
+		logr.V(1).Info(cmd.String())
+		return nil
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < int(opts.Partitions); i++ {
+		wg.Add(1)
+		go func(index int) {
+			opt := opts.DeepCopy()
+			if err := doWarmupJob(index, opt); err != nil {
+				t.Error(err)
+			}
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
 }

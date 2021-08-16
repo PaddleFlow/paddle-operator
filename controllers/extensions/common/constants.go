@@ -114,9 +114,12 @@ const (
 	FilePathCacheInfo = "cacheInfo.json"
 	TerminateSignal   = "terminate"
 
-	WarmupFilePrefix  = ".warmup"
-	WarmupDoneSuffix  = ".done"
-	WorkerFilePrefix  = ".worker"
+	WarmupDirPath      = "/.warmup"
+	WarmupTotalFile    = "/total"
+	WarmupDonePrefix   = "/done"
+	WarmupFilePrefix   = "/file"
+	WarmupTmpPrefix    = "/.file"
+	WarmupWorkerPrefix = "/worker"
 )
 
 const (
