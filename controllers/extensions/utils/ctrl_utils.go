@@ -278,6 +278,30 @@ func DiskSpaceOfPaths(timeout time.Duration, paths... string) (map[string]string
 	return diskStatus, nil
 }
 
+func WaitFileCreatedWithTimeout(path string, duration time.Duration) bool {
+	ticker := time.NewTicker(duration)
+	defer ticker.Stop()
+	done := make(chan bool)
+	go func() {
+		for _, err := os.Stat(path); err != nil; _, err = os.Stat(path) {
+			if os.IsNotExist(err) {
+				time.Sleep(500 * time.Millisecond)
+				continue
+			}
+			break
+		}
+		done <- true
+	}()
+	for {
+		select {
+		case <-done:
+			return true
+		case <-ticker.C:
+			return false
+		}
+	}
+}
+
 func GetRuntimeImage() (string, error) {
 	image := os.Getenv("RUNTIME_IMAGE")
 	if image == "" {
