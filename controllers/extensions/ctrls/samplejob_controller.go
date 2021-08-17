@@ -48,7 +48,8 @@ type SampleJobReconciler struct {
 //+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=samplejobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=samplejobs/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=samplejobs/finalizers,verbs=update
-//+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=samplesets,verbs=get;list;watch
+//+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=samplesets,verbs=get;list;watch;create;update;patch
+//+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=samplesets/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 //+kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get;list;watch
@@ -119,7 +120,15 @@ func (r *SampleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	// 6. Get driver and construct reconcile context
+	// 6. update SampleSet cache status to trigger SampleSet controller collect new cache info
+	if sampleSet.Status.CacheStatus != nil {
+		sampleSet.Status.CacheStatus.DiskUsageRate = ""
+		if err := r.Status().Update(ctx, sampleSet); err != nil {
+			return utils.RequeueWithError(err)
+		}
+	}
+
+	// 7. Get driver and construct reconcile context
 	var driverName v1alpha1.DriverName
 	if sampleSet.Spec.CSI == nil {
 		driverName = driver.DefaultDriver
@@ -142,7 +151,7 @@ func (r *SampleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		Scheme:   r.Scheme,
 		Recorder: r.Recorder,
 	}
-	// 7. construct SampleJob Controller
+	// 8. construct SampleJob Controller
 	sjc := NewSampleJobController(sampleJob, CSIDriver, RCtx)
 
 	return sjc.reconcilePhase()
@@ -298,7 +307,7 @@ func (s *SampleJobController) reconcileRunning() (ctrl.Result, error) {
 	// 2 .if sync job status is running, then update SampleJob phase to Running
 	if result != nil && result.Status == common.JobStatusRunning {
 		s.Log.Info("wait util job is done")
-		return utils.RequeueAfter(20 * time.Second)
+		return utils.RequeueAfter(10 * time.Second)
 	}
 	// 3. if sync job status is failed, then update SampleJob phase to Failed
 	if result != nil && result.Status == common.JobStatusFail {

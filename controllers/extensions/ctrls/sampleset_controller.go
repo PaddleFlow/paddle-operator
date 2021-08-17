@@ -661,5 +661,5 @@ func (s *SampleSetController) reconcilePartialReady() (ctrl.Result, error) {
 		return utils.NoRequeue()
 	}
 	s.Log.Info("wait all runtime server ready")
-	return utils.RequeueAfter(30 * time.Second)
+	return utils.RequeueAfter(10 * time.Second)
 }

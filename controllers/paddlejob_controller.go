@@ -81,7 +81,8 @@ type PaddleJobReconciler struct {
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 //+kubebuilder:rbac:groups=scheduling.volcano.sh,resources=podgroups,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=scheduling.volcano.sh,resources=podgroups/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=samplesets,verbs=get;list;watch
+//+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=samplesets,verbs=get;list;watch;create;update;patch
+//+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=samplesets/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch
 //+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 
@@ -222,47 +223,10 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// If SampleSetRef is specified, get sampleset and list node with label
-	var nodeLabel string
-	var runtimePrefix string
-	var runtimeNames []string
+	sampleSetCtx := &SampleSetContext{Context: ctx}
 	if pdj.Spec.SampleSetRef != nil {
-		namespace := pdj.Namespace
-		if pdj.Spec.SampleSetRef.Namespace != "" {
-			namespace = pdj.Spec.SampleSetRef.Namespace
-		}
-		name := pdj.Spec.SampleSetRef.Name
-		key := types.NamespacedName{
-			Name: name,
-			Namespace: namespace,
-		}
-		sampleSet := &v1alpha1.SampleSet{}
-		if err := r.Get(ctx, key, sampleSet); err != nil {
-			log.Error(err, "sampleset is not exists, please create it and try again", "sampleset", key.String())
-			r.Recorder.Eventf(&pdj, corev1.EventTypeWarning, "Create", "sampleset %s is not exists", key.String())
+		if err := r.dealWithSampleSet(sampleSetCtx, &pdj); err != nil {
 			return ctrl.Result{}, err
-		}
-		var driverName v1alpha1.DriverName = ""
-		if sampleSet.Spec.CSI != nil && sampleSet.Spec.CSI.Driver != "" {
-			driverName = sampleSet.Spec.CSI.Driver
-		}
-		csiDriver, err := driver.GetDriver(driverName)
-		if err != nil {
-			log.Error(err, "get csi driver error, it may not supported", "driverName", sampleSet.Spec.CSI.Driver)
-			r.Recorder.Eventf(&pdj, corev1.EventTypeWarning, "Create", "driver %s is not exists", key.String())
-			return ctrl.Result{}, err
-		}
-		nodeList := &corev1.NodeList{}
-		nodeLabel = csiDriver.GetLabel(name)
-		runtimePrefix = csiDriver.GetRuntimeName(name)
-		if err = r.List(ctx, nodeList, client.HasLabels{nodeLabel}); err != nil {
-			log.Error(err, "list nodes with label error", "label", nodeLabel)
-			r.Recorder.Eventf(&pdj, corev1.EventTypeWarning, "Create", "driver %s is not exists", key.String())
-			return ctrl.Result{}, err
-		}
-		for _, node := range nodeList.Items {
-			runtimeName, exists := node.Labels[nodeLabel]
-			if !exists { continue }
-			runtimeNames = append(runtimeNames, runtimeName)
 		}
 	}
 
@@ -273,7 +237,7 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 		var pod *corev1.Pod
 		if pdj.Spec.SampleSetRef != nil {
-			pod = constructPodWithSampleSet(&pdj, idx, resType, nodeLabel, runtimePrefix, runtimeNames)
+			pod = constructPodWithSampleSet(&pdj, resType, idx, sampleSetCtx)
 		} else {
 			pod = constructPod(&pdj, resType, idx)
 		}
@@ -579,4 +543,52 @@ func (r *PaddleJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return builder.Complete(r)
+}
+
+func (r *PaddleJobReconciler) dealWithSampleSet(ctx *SampleSetContext, pdj *pdv1.PaddleJob) error {
+	namespace := pdj.Namespace
+	if pdj.Spec.SampleSetRef.Namespace != "" {
+		namespace = pdj.Spec.SampleSetRef.Namespace
+	}
+	// 1. get SampleSet by the name specified in SampleSetRef
+	name := pdj.Spec.SampleSetRef.Name
+	key := types.NamespacedName{
+		Name: name,
+		Namespace: namespace,
+	}
+	sampleSet := &v1alpha1.SampleSet{}
+	if err := r.Get(ctx.Context, key, sampleSet); err != nil {
+		r.Recorder.Eventf(pdj, corev1.EventTypeWarning, "Create", "sampleset %s is not exists", key.String())
+		return fmt.Errorf("sampleset %s is not exists, please create it and try again", key.String())
+	}
+	// 2. get csi driver to obtain runtime label and runtime server pods name
+	var driverName v1alpha1.DriverName = ""
+	if sampleSet.Spec.CSI != nil && sampleSet.Spec.CSI.Driver != "" {
+		driverName = sampleSet.Spec.CSI.Driver
+	}
+	csiDriver, err := driver.GetDriver(driverName)
+	if err != nil {
+		r.Recorder.Eventf(pdj, corev1.EventTypeWarning, "Create", "driver %s is not exists", key.String())
+		return fmt.Errorf("get csi driver %s error: %s", sampleSet.Spec.CSI.Driver, err.Error())
+	}
+	nodeList := &corev1.NodeList{}
+	ctx.RuntimeLabel = csiDriver.GetLabel(name)
+	ctx.RuntimePrefix = csiDriver.GetRuntimeName(name)
+	if err = r.List(ctx.Context, nodeList, client.HasLabels{ctx.RuntimeLabel}); err != nil {
+		r.Recorder.Event(pdj, corev1.EventTypeWarning, "Create", "list nodes error")
+		return fmt.Errorf("list nodes with label %s error: %s", ctx.RuntimeLabel, err.Error())
+	}
+	for _, node := range nodeList.Items {
+		runtimeName, exists := node.Labels[ctx.RuntimeLabel]
+		if !exists { continue }
+		ctx.RuntimeNames = append(ctx.RuntimeNames, runtimeName)
+	}
+	// 3. update SampleSet cache status to trigger SampleSet controller collect cache info
+	if sampleSet.Status.CacheStatus != nil {
+		sampleSet.Status.CacheStatus.DiskUsageRate = ""
+		if err := r.Status().Update(ctx.Context, sampleSet); err != nil {
+			return fmt.Errorf("update sampleset %s cache status error: %s", key.String(), err.Error())
+		}
+	}
+	return nil
 }

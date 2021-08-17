@@ -15,6 +15,7 @@
 package controllers
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -491,8 +492,14 @@ func getPGMinResource(pdj *pdv1.PaddleJob) *corev1.ResourceList {
 	return &totalRes
 }
 
-func constructPodWithSampleSet(pdj *pdv1.PaddleJob, idx int, resType, label,
-	runtimePrefix string, runtimeNames []string) (pod *corev1.Pod) {
+type SampleSetContext struct {
+	RuntimeLabel  string
+	RuntimePrefix string
+	RuntimeNames  []string
+	Context  context.Context
+}
+
+func constructPodWithSampleSet(pdj *pdv1.PaddleJob, resType string,  idx int, ctx *SampleSetContext) (pod *corev1.Pod) {
 	pod = constructPod(pdj, resType, idx)
 	// 1. add volume and volume mounts to pod
 	pvcs := &corev1.PersistentVolumeClaimVolumeSource{
@@ -514,11 +521,11 @@ func constructPodWithSampleSet(pdj *pdv1.PaddleJob, idx int, resType, label,
 	pod.Spec.Containers[0].VolumeMounts = volumeMounts
 
 	// 2. add node affinity to pod with the same index
-	if len(runtimeNames) == 0 {
+	if len(ctx.RuntimeNames) == 0 {
 		return pod
 	}
-	runtimeName := fmt.Sprintf("%s-%d", runtimePrefix, idx)
-	if !containsString(runtimeNames, runtimeName) {
+	runtimeName := fmt.Sprintf("%s-%d", ctx.RuntimePrefix, idx)
+	if !containsString(ctx.RuntimeNames, runtimeName) {
 		return pod
 	}
 
@@ -534,7 +541,7 @@ func constructPodWithSampleSet(pdj *pdv1.PaddleJob, idx int, resType, label,
 	nodeSelectorTerms := pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
 
 	requirement := corev1.NodeSelectorRequirement{
-		Key: label,
+		Key: ctx.RuntimeLabel,
 		Operator: corev1.NodeSelectorOpIn,
 		Values: []string{runtimeName},
 	}
