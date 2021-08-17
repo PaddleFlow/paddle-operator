@@ -16,6 +16,8 @@ package ctrls
 
 import (
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 
 	appv1 "k8s.io/api/apps/v1"
@@ -458,10 +460,27 @@ func AllBaseUris(c *Controller) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	// sort pod name with index
+	var podSlice []common.PodNameIndex
+	for _, pod := range podList.Items {
+		nameSplit := strings.Split(pod.Name, "-")
+		if len(nameSplit) == 0 { continue }
+		indexStr := nameSplit[len(nameSplit)-1]
+		index, err := strconv.Atoi(indexStr)
+		if err != nil { continue }
+		nameIndex := common.PodNameIndex{
+			Name: pod.Name,
+			Index: index,
+		}
+		podSlice = append(podSlice, nameIndex)
+	}
+	sort.Slice(podSlice, func(i, j int) bool {
+		return podSlice[i].Index < podSlice[j].Index
+	})
 
 	var baseUris []string
 	serviceName := c.GetServiceName(c.Req.Name)
-	for _, pod := range podList.Items {
+	for _, pod := range podSlice {
 		baseUri := utils.GetBaseUriByName(pod.Name, serviceName)
 		baseUris = append(baseUris, baseUri)
 	}
@@ -622,8 +641,7 @@ func (c *Controller) DeleteResource(r *Resource) error {
 
 func (c *Controller) UpdateResource(object client.Object, r *Resource) error {
 	if err := c.Update(c.Ctx, object); err != nil {
-		e := fmt.Errorf("update %s %s error %s", r.Name, object.GetName(), err.Error())
-		return e
+		return fmt.Errorf("update %s %s error %s", r.Name, object.GetName(), err.Error())
 	}
 	c.Log.Info("update resource successfully", "name", object.GetName(), "resource", r.Name)
 	return nil
@@ -631,8 +649,7 @@ func (c *Controller) UpdateResource(object client.Object, r *Resource) error {
 
 func (c *Controller) UpdateResourceStatus(object client.Object, r *Resource) error {
 	if err := c.Status().Update(c.Ctx, object); err != nil {
-		e := fmt.Errorf("update %s %s status error %s", r.Name, object.GetName(), err.Error())
-		return e
+		return fmt.Errorf("update %s %s status error %s", r.Name, object.GetName(), err.Error())
 	}
 	c.Log.Info("update resource status successfully", "name", object.GetName(), "resource", r.Name)
 	return nil

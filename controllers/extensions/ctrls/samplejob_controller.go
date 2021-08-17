@@ -175,7 +175,7 @@ func (r *SampleJobReconciler) AddFinalizer (ctx context.Context, sampleJob *v1al
 func (r *SampleJobReconciler) deleteSampleJob(ctx context.Context, sampleJob *v1alpha1.SampleJob) (ctrl.Result, error) {
 	// TODO: clean cronjob
 
-	sampleJobFinalizer := GetSampleSetFinalizer(sampleJob.Name)
+	sampleJobFinalizer := GetSampleJobFinalizer(sampleJob.Name)
 	if utils.HasFinalizer(&sampleJob.ObjectMeta, sampleJobFinalizer) {
 		utils.RemoveFinalizer(&sampleJob.ObjectMeta, sampleJobFinalizer)
 	}
