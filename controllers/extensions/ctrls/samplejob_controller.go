@@ -82,7 +82,12 @@ func (r *SampleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return r.AddFinalizer(ctx, sampleJob)
 	}
 
-	// 3. check if job type is exists or registered in JobTypeMap
+	// 3. if SampleJob has deletion timestamp, then delete finalizer and resources create by this controller
+	if utils.HasDeletionTimestamp(&sampleJob.ObjectMeta) {
+		return r.deleteSampleJob(ctx, sampleJob)
+	}
+
+	// 4. check if job type is exists or registered in JobTypeMap
 	if _, exists := JobTypeMap[sampleJob.Spec.Type]; !exists {
 		err := fmt.Errorf("job type %s is not supported", sampleJob.Spec.Type)
 		r.Log.Error(err, "please set field spec.type correctly and try again")
@@ -90,7 +95,7 @@ func (r *SampleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return utils.NoRequeue()
 	}
 
-	// 4. check if SampleSet is exists and get SampleSet
+	// 5. check if SampleSet is exists and get SampleSet
 	if sampleJob.Spec.SampleSetRef == nil || sampleJob.Spec.SampleSetRef.Name == "" {
 		err := fmt.Errorf("samplejob %s spec.sampleSetRef is empty", req.Name)
 		r.Log.Error(err, "please set field spec.sampleSetRef and try again")
@@ -111,7 +116,7 @@ func (r *SampleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return utils.RequeueWithError(err)
 	}
 
-	// 5. add SampleSet spec.secretRef to SampleJob
+	// 6. add SampleSet spec.secretRef to SampleJob
 	secretRef := sampleSet.Spec.SecretRef
 	if sampleJob.Status.SecretRef == nil || !reflect.DeepEqual(sampleJob.Status.SecretRef, secretRef) {
 		sampleJob.Status.SecretRef = secretRef.DeepCopy()
@@ -120,7 +125,7 @@ func (r *SampleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	// 6. update SampleSet cache status to trigger SampleSet controller collect new cache info
+	// 7. update SampleSet cache status to trigger SampleSet controller collect new cache info
 	if sampleSet.Status.CacheStatus != nil {
 		sampleSet.Status.CacheStatus.DiskUsageRate = ""
 		if err := r.Status().Update(ctx, sampleSet); err != nil {
@@ -128,7 +133,7 @@ func (r *SampleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	// 7. Get driver and construct reconcile context
+	// 8. Get driver and construct reconcile context
 	var driverName v1alpha1.DriverName
 	if sampleSet.Spec.CSI == nil {
 		driverName = driver.DefaultDriver
@@ -151,7 +156,7 @@ func (r *SampleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		Scheme:   r.Scheme,
 		Recorder: r.Recorder,
 	}
-	// 8. construct SampleJob Controller
+	// 9. construct SampleJob Controller
 	sjc := NewSampleJobController(sampleJob, CSIDriver, RCtx)
 
 	return sjc.reconcilePhase()
@@ -164,6 +169,21 @@ func (r *SampleJobReconciler) AddFinalizer (ctx context.Context, sampleJob *v1al
 	if err := r.Update(ctx, sampleJob); err != nil {
 		return utils.RequeueWithError(err)
 	}
+	return utils.NoRequeue()
+}
+
+func (r *SampleJobReconciler) deleteSampleJob(ctx context.Context, sampleJob *v1alpha1.SampleJob) (ctrl.Result, error) {
+	// TODO: clean cronjob
+
+	sampleJobFinalizer := GetSampleSetFinalizer(sampleJob.Name)
+	if utils.HasFinalizer(&sampleJob.ObjectMeta, sampleJobFinalizer) {
+		utils.RemoveFinalizer(&sampleJob.ObjectMeta, sampleJobFinalizer)
+	}
+	if err := r.Update(ctx, sampleJob); err != nil {
+		return utils.RequeueWithError(err)
+	}
+
+	r.Log.Info("==== deleted all resource ====")
 	return utils.NoRequeue()
 }
 
@@ -202,10 +222,6 @@ func NewSampleJobController(
 }
 
 func (s *SampleJobController) reconcilePhase() (ctrl.Result, error) {
-	if utils.HasDeletionTimestamp(&s.SampleJob.ObjectMeta) {
-		return s.deleteSampleJob()
-	}
-
 	// Reconcile the phase of SampleSet from None to Ready
 	switch s.SampleJob.Status.Phase {
 	case common.SampleJobNone:
@@ -383,20 +399,5 @@ func (s *SampleJobController) reconcileSucceeded() (ctrl.Result, error) {
 	s.Log.Info("job succeeded and it cannot be updated")
 	s.Recorder.Event(s.SampleJob, v1.EventTypeNormal, jobType.DoJobSuccessfully(),
 		"samplejob cannot be updated after succeeded")
-	return utils.NoRequeue()
-}
-
-func (s *SampleJobController) deleteSampleJob() (ctrl.Result, error) {
-	// TODO: send signal to runtime server to terminate the job in processing
-
-	sampleJobFinalizer := GetSampleSetFinalizer(s.SampleJob.Name)
-	if utils.HasFinalizer(&s.SampleJob.ObjectMeta, sampleJobFinalizer) {
-		utils.RemoveFinalizer(&s.SampleJob.ObjectMeta, sampleJobFinalizer)
-	}
-	if err := s.UpdateResource(s.SampleJob, SampleJob); err != nil {
-		return utils.RequeueWithError(err)
-	}
-
-	s.Log.Info("==== deleted all resource ====")
 	return utils.NoRequeue()
 }

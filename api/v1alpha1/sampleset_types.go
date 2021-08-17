@@ -26,10 +26,9 @@ type SampleSetPhase string
 // MediumType store medium type
 type MediumType string
 
-// DriverName a
+// DriverName specified the name of csi driver
 type DriverName string
 
-// Source describes a mounting. <br>
 type Source struct {
 	// URI should be in the following format: [NAME://]BUCKET[.ENDPOINT][/PREFIX]
 	// Cannot be updated after SampleSet sync data to cache engine
@@ -49,7 +48,7 @@ type MountOptions struct {
 	JuiceFSMountOptions *JuiceFSMountOptions `json:"juiceFSMountOptions,omitempty"`
 }
 
-// CSI describes a runtime to be used to support dataset
+// CSI describes csi driver name and mount options to support cache data
 type CSI struct {
 	// Name of cache runtime driver, now only support juicefs.
 	// +kubebuilder:validation:Enum=juicefs
@@ -61,7 +60,7 @@ type CSI struct {
 	MountOptions `json:",inline,omitempty"`
 }
 
-// CacheLevel describes configurations a tier needs.
+// CacheLevel describes configurations a tier needs
 type CacheLevel struct {
 	// Medium Type of the tier. One of the three types: `MEM`, `SSD`, `HDD`
 	// +kubebuilder:validation:Enum=MEM;SSD;HDD
