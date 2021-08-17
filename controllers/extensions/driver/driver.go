@@ -186,6 +186,12 @@ func (d *BaseDriver) DoClearJob(ctx context.Context, opt *v1alpha1.ClearJobOptio
 	if len(opt.Paths) == 0 {
 		return errors.New("clear job option paths not set")
 	}
+	for _, path := range opt.Paths {
+		if _, err := os.Stat(path); err != nil {
+			return fmt.Errorf("path %s is not valid, error: %s", path, err.Error())
+		}
+	}
+
 	args := []string{"-rf"}
 	for _, path := range opt.Paths {
 		if !strings.HasPrefix(path, "/") {
@@ -265,7 +271,7 @@ func (d *BaseDriver) CreateCacheStatus(opt *common.ServerOptions, status *v1alph
 }
 
 func (d *BaseDriver) CreateRmrJobOptions(opt *v1alpha1.RmrJobOptions, ctx *common.RequestContext) error {
-	if ctx.SampleJob != nil || ctx.SampleJob.Spec.RmrOptions != nil {
+	if ctx.SampleJob == nil || ctx.SampleJob.Spec.RmrOptions == nil {
 		return fmt.Errorf("the options of rmr job cannot be empty")
 	}
 	ctx.SampleJob.Spec.RmrOptions.DeepCopyInto(opt)

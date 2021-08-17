@@ -722,6 +722,11 @@ func (j *JuiceFS) DoRmrJob(ctx context.Context, opt *v1alpha1.RmrJobOptions, log
 	if len(opt.Paths) == 0 {
 		return errors.New("rmr job option paths not set")
 	}
+	for _, path := range opt.Paths {
+		if _, err := os.Stat(path); err != nil {
+			return fmt.Errorf("path %s is not valid, error: %s", path, err.Error())
+		}
+	}
 	//args := []string{"rmr"}
 	args := []string{"-rf"}
 	for _, path := range opt.Paths {
