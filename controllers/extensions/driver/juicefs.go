@@ -69,10 +69,7 @@ func init() {
 
 	// default JuiceFS mount volume options pass to pv
 	JuiceFSDefaultMountOptions = &v1alpha1.JuiceFSMountOptions{
-		OpenCache: 7200, CacheSize: 1024 * 1024,
-		AttrCache: 7200, EntryCache: 7200,
-		DirEntryCache: 7200, Prefetch: 1,
-		BufferSize: 1024, CacheDir: "/dev/shm/",
+		CacheSize: 1024 * 1024 * 1024, CacheDir: "/dev/shm/",
 	}
 
 	JuiceFSSupportStorage = []string{
@@ -451,6 +448,11 @@ func (j *JuiceFS) getVolumeInfo(pv *v1.PersistentVolume) (
 	return volumes, volumeMounts, serverOpt, nil
 }
 
+// DoSyncJob sync data from source databases to JuiceFS backend object storage, this job will only work in the
+// first runtime server. According to the design concept of container, it is not a good practice to specify --worker
+// option when do sync job. When executor sync command in first runtime server, the data will be automatically
+// warmed up to this node, this may bring duplicate cached data problem in kubernetes cluster.
+// TODO: clean cached data after sync command done or is there a better way?
 func (j *JuiceFS) DoSyncJob(ctx context.Context, opt *v1alpha1.SyncJobOptions, log logr.Logger) error {
 	syncArgs := utils.NoZeroOptionToArgs(&opt.JuiceFSSyncOptions)
 
@@ -516,6 +518,7 @@ func (j *JuiceFS) DoWarmupJob(ctx context.Context, opt *v1alpha1.WarmupJobOption
 	// 4. executor juicefs warmup --file xxx paths... command
 	cmd := exec.CommandContext(ctx, "juicefs", args...)
 	output, err := cmd.CombinedOutput()
+	log.V(1).Info(cmd.String())
 	log.V(1).Info(string(output))
 	if err != nil {
 		return fmt.Errorf("juice warmup cmd: %s; error: %s", cmd.String(), err.Error())
@@ -646,7 +649,7 @@ func warmupRandomly(opt *v1alpha1.WarmupJobOptions, writers []*bufio.Writer) err
 func preWarmupWorker(ctx context.Context, mountPath string, index int) error {
 	// 1. wait .warmup dir created by master node util timeout
 	warmupPath := mountPath + common.WarmupDirPath
-	if ok := utils.WaitFileCreatedWithTimeout(ctx, warmupPath, 30*time.Second); !ok {
+	if ok := utils.WaitFileCreatedWithTimeout(ctx, warmupPath, 120*time.Second); !ok {
 		return fmt.Errorf("preWarmupWorker wait master node create dir %s timeout", warmupPath)
 	}
 	// 2. create worker.{index} file in mount path
@@ -811,7 +814,7 @@ func (j *JuiceFS) CreateSyncJobOptions(opt *v1alpha1.SyncJobOptions, ctx *common
 
 func (j *JuiceFS) CreateWarmupJobOptions(opt *v1alpha1.WarmupJobOptions, ctx *common.RequestContext) error {
 	// if SampleJob is not nil, use sync job options from SampleJob
-	if ctx.SampleJob == nil || ctx.SampleJob.Spec.WarmupOptions == nil {
+	if ctx.SampleJob != nil && ctx.SampleJob.Spec.WarmupOptions != nil {
 		ctx.SampleJob.Spec.WarmupOptions.DeepCopyInto(opt)
 	}
 	mountPath := j.getRuntimeDataMountPath(ctx.Req.Name)

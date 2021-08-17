@@ -78,3 +78,8 @@ type JobResult struct {
 	Status  JobStatus `json:"status,omitempty"`
 	Message string    `json:"message,omitempty"`
 }
+
+type PodNameIndex struct {
+	Name string
+	Index int
+}

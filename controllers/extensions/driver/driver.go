@@ -187,7 +187,7 @@ func (d *BaseDriver) DoClearJob(ctx context.Context, opt *v1alpha1.ClearJobOptio
 		return errors.New("clear job option paths not set")
 	}
 	for _, path := range opt.Paths {
-		if _, err := os.Stat(path); err != nil {
+		if _, err := os.Stat(strings.TrimSuffix(path, "*")); err != nil {
 			return fmt.Errorf("path %s is not valid, error: %s", path, err.Error())
 		}
 	}

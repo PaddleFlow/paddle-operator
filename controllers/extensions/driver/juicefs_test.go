@@ -158,7 +158,7 @@ func TestNoZeroOptionToArgs(t *testing.T) {
 
 func TestJuiceFS_DoWarmupJob(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
+	defer cancel()
 	mountPath, err := os.UserHomeDir()
 	if err != nil {
 		t.Error(err, "get user home dir error")
@@ -182,7 +182,7 @@ func TestJuiceFS_DoWarmupJob(t *testing.T) {
 		logr.V(1).Info("get index", "index", index)
 
 		if index == 0 {
-			defer postWarmupMaster(ctx, mountPath, int(opt.Partitions), logr)
+			//defer postWarmupMaster(ctx, mountPath, int(opt.Partitions), logr)
 			if err = preWarmupMaster(ctx, mountPath, opt); err != nil {
 				return fmt.Errorf("master node do pre-warmup job error: %s", err.Error())
 			}
