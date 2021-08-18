@@ -109,7 +109,7 @@ func NoZeroOptionToArgs(options interface{}) []string {
 		switch v.Kind() {
 		case reflect.Bool:
 			args = append(args, fmt.Sprintf("--%s", opt))
-		case reflect.Slice:  // []string
+		case reflect.Slice: // []string
 			for j := 0; j < v.Len(); j++ {
 				args = append(args, fmt.Sprintf(`--%s=%v`, opt, v.Index(j)))
 			}
@@ -120,11 +120,11 @@ func NoZeroOptionToArgs(options interface{}) []string {
 	return args
 }
 
-func DiskUsageOfPaths(timeout time.Duration, paths... string) (string, error) {
+func DiskUsageOfPaths(timeout time.Duration, paths ...string) (string, error) {
 	args := []string{"-scb"}
 	args = append(args, paths...)
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout*time.Second)
 	defer cancel()
 
 	var stdout, stderr bytes.Buffer
@@ -154,11 +154,11 @@ func DiskUsageOfPaths(timeout time.Duration, paths... string) (string, error) {
 	return totalSizeStr, nil
 }
 
-func FileNumberOfPaths(timeout time.Duration, paths... string) (string, error) {
+func FileNumberOfPaths(timeout time.Duration, paths ...string) (string, error) {
 	filePaths := strings.Join(paths, " ")
 	arg := "ls -lR " + filePaths + "| grep \"^-\" | wc -l"
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout*time.Second)
 	defer cancel()
 
 	var stdout, stderr bytes.Buffer
@@ -175,8 +175,8 @@ func FileNumberOfPaths(timeout time.Duration, paths... string) (string, error) {
 	return humanize.Comma(fileNum), nil
 }
 
-func JuiceFileNumberOfPath(timeout time.Duration, path... string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout * time.Second)
+func JuiceFileNumberOfPath(timeout time.Duration, path ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout*time.Second)
 	defer cancel()
 
 	args := []string{"info"}
@@ -216,11 +216,11 @@ func JuiceFileNumberOfPath(timeout time.Duration, path... string) (string, error
 	return humanize.Comma(fileNumTotal), nil
 }
 
-func DiskSpaceOfPaths(timeout time.Duration, paths... string) (map[string]string, error) {
+func DiskSpaceOfPaths(timeout time.Duration, paths ...string) (map[string]string, error) {
 	args := []string{"--output=fstype,size,used,avail", "-BK"}
 	args = append(args, paths...)
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout*time.Second)
 	defer cancel()
 
 	var stdout, stderr bytes.Buffer
@@ -270,8 +270,8 @@ func DiskSpaceOfPaths(timeout time.Duration, paths... string) (map[string]string
 	}
 
 	diskStatus := map[string]string{
-		"diskSize": strconv.FormatUint(diskSizeTotal, 10),
-		"diskUsed": strconv.FormatUint(diskUsedTotal, 10),
+		"diskSize":  strconv.FormatUint(diskSizeTotal, 10),
+		"diskUsed":  strconv.FormatUint(diskUsedTotal, 10),
 		"diskAvail": strconv.FormatUint(diskAvailTotal, 10),
 	}
 

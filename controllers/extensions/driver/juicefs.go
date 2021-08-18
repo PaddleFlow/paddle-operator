@@ -39,19 +39,19 @@ import (
 )
 
 const (
-	JuiceFSDriver v1alpha1.DriverName = "juicefs"
-	JuiceFSCacheDirOption = "cache-dir"
-	JuiceFSCacheSizeOption = "cache-size"
-	JuiceFSCSIDriverName = "csi.juicefs.com"
+	JuiceFSDriver          v1alpha1.DriverName = "juicefs"
+	JuiceFSCacheDirOption                      = "cache-dir"
+	JuiceFSCacheSizeOption                     = "cache-size"
+	JuiceFSCSIDriverName                       = "csi.juicefs.com"
 )
 
 const (
-	JuiceFSSecretName string = "name"
+	JuiceFSSecretName    string = "name"
 	JuiceFSSecretStorage string = "storage"
 	JuiceFSSecretMetaURL string = "metaurl"
-	JuiceFSSecretBucket string = "bucket"
-	JuiceFSSecretSK string = "secret-key"
-	JuiceFSSecretAK string = "access-key"
+	JuiceFSSecretBucket  string = "bucket"
+	JuiceFSSecretSK      string = "secret-key"
+	JuiceFSSecretAK      string = "access-key"
 )
 
 var (
@@ -105,7 +105,7 @@ func (j *JuiceFS) CreatePV(pv *v1.PersistentVolume, ctx *common.RequestContext) 
 
 	label := j.GetLabel(ctx.Req.Name)
 	objectMeta := metav1.ObjectMeta{
-		Name: ctx.Req.Name,
+		Name:      ctx.Req.Name,
 		Namespace: ctx.Req.Namespace,
 		Labels: map[string]string{
 			label: "true",
@@ -123,7 +123,7 @@ func (j *JuiceFS) CreatePV(pv *v1.PersistentVolume, ctx *common.RequestContext) 
 	}
 
 	secretReference := &v1.SecretReference{
-		Name: ctx.Secret.Name,
+		Name:      ctx.Secret.Name,
 		Namespace: ctx.Secret.Namespace,
 	}
 	namespacedName := ctx.Req.NamespacedName.String()
@@ -138,8 +138,8 @@ func (j *JuiceFS) CreatePV(pv *v1.PersistentVolume, ctx *common.RequestContext) 
 		StorageClassName: StorageClassName,
 		PersistentVolumeSource: v1.PersistentVolumeSource{
 			CSI: &v1.CSIPersistentVolumeSource{
-				Driver: JuiceFSCSIDriverName,
-				FSType: string(JuiceFSDriver),
+				Driver:       JuiceFSCSIDriverName,
+				FSType:       string(JuiceFSDriver),
 				VolumeHandle: volumeHandle,
 				VolumeAttributes: map[string]string{
 					"mountOptions": mountOptions,
@@ -148,8 +148,8 @@ func (j *JuiceFS) CreatePV(pv *v1.PersistentVolume, ctx *common.RequestContext) 
 			},
 		},
 		PersistentVolumeReclaimPolicy: v1.PersistentVolumeReclaimRetain,
-		NodeAffinity: ctx.SampleSet.Spec.NodeAffinity.DeepCopy(),
-		VolumeMode: &volumeMode,
+		NodeAffinity:                  ctx.SampleSet.Spec.NodeAffinity.DeepCopy(),
+		VolumeMode:                    &volumeMode,
 	}
 	pv.Spec = spec
 
@@ -249,7 +249,7 @@ func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx *common.RequestContex
 	}
 
 	objectMeta := metav1.ObjectMeta{
-		Name: runtimeName,
+		Name:      runtimeName,
 		Namespace: ctx.Req.Namespace,
 		Labels: map[string]string{
 			label: "true",
@@ -266,7 +266,7 @@ func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx *common.RequestContex
 	}
 
 	rootOpt := &common.RootCmdOptions{
-		Driver: string(j.Name),
+		Driver:      string(j.Name),
 		Development: true,
 	}
 	command := []string{common.CmdRoot, common.CmdServer}
@@ -277,14 +277,14 @@ func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx *common.RequestContex
 
 	labelSelector := metav1.LabelSelector{
 		MatchLabels: map[string]string{
-			label: "true",
+			label:  "true",
 			"name": runtimeName,
 		},
 	}
 	podAffinityTerm := v1.PodAffinityTerm{
 		LabelSelector: &labelSelector,
-		Namespaces: []string{ctx.Req.Namespace},
-		TopologyKey: "kubernetes.io/hostname",
+		Namespaces:    []string{ctx.Req.Namespace},
+		TopologyKey:   "kubernetes.io/hostname",
 	}
 	podAntiAffinity := v1.PodAntiAffinity{
 		RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
@@ -312,26 +312,26 @@ func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx *common.RequestContex
 
 	isPrivileged := true
 	container := v1.Container{
-		Name: common.RuntimeContainerName,
+		Name:  common.RuntimeContainerName,
 		Image: image,
 		Ports: []v1.ContainerPort{
 			{
-				Name: ctx.Req.Name,
+				Name:          ctx.Req.Name,
 				ContainerPort: common.RuntimeServicePort,
 			},
 		},
 		SecurityContext: &v1.SecurityContext{
 			Privileged: &isPrivileged,
 		},
-		Command: command,
+		Command:      command,
 		VolumeMounts: volumeMounts,
-		Lifecycle: lifecycle,
+		Lifecycle:    lifecycle,
 	}
 
 	template := v1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
-				label: "true",
+				label:  "true",
 				"name": runtimeName,
 			},
 		},
@@ -349,7 +349,7 @@ func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx *common.RequestContex
 
 	selector := metav1.LabelSelector{
 		MatchLabels: map[string]string{
-			label: "true",
+			label:  "true",
 			"name": runtimeName,
 		},
 	}
@@ -357,10 +357,10 @@ func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx *common.RequestContex
 	serviceName := j.GetServiceName(ctx.Req.Name)
 	replicas := ctx.SampleSet.Spec.Partitions
 	spec := appv1.StatefulSetSpec{
-		Replicas: &replicas,
-		Selector: &selector,
-		Template: template,
-		ServiceName: serviceName,
+		Replicas:            &replicas,
+		Selector:            &selector,
+		Template:            template,
+		ServiceName:         serviceName,
 		PodManagementPolicy: appv1.OrderedReadyPodManagement,
 	}
 	ds.Spec = spec
@@ -416,8 +416,8 @@ func (j *JuiceFS) getVolumeInfo(pv *v1.PersistentVolume) (
 		volumes = append(volumes, hostPathVolume)
 		mountPath := j.getRuntimeCacheMountPath(name)
 		volumeMount := v1.VolumeMount{
-			Name: name,
-			MountPath: mountPath,
+			Name:             name,
+			MountPath:        mountPath,
 			MountPropagation: &mountPropagation,
 		}
 		volumeMounts = append(volumeMounts, volumeMount)
@@ -438,8 +438,8 @@ func (j *JuiceFS) getVolumeInfo(pv *v1.PersistentVolume) (
 
 	mountPath := j.getRuntimeDataMountPath(pv.Name)
 	volumeMount := v1.VolumeMount{
-		Name: pv.Name,
-		MountPath: mountPath,
+		Name:             pv.Name,
+		MountPath:        mountPath,
 		MountPropagation: &mountPropagation,
 	}
 	volumeMounts = append(volumeMounts, volumeMount)
@@ -461,7 +461,7 @@ func (j *JuiceFS) DoSyncJob(ctx context.Context, opt *v1alpha1.SyncJobOptions, l
 	args = append(args, opt.Source)
 	args = append(args, opt.Destination)
 
-	cmd := exec.CommandContext(ctx,"juicefs", args...)
+	cmd := exec.CommandContext(ctx, "juicefs", args...)
 	output, err := cmd.CombinedOutput()
 	log.V(1).Info(cmd.String())
 	log.V(1).Info(string(output))
@@ -537,7 +537,7 @@ func preWarmupMaster(ctx context.Context, mountPath string, opt *v1alpha1.Warmup
 	// 2. wait file worker.{index} created by worker nodes util timeout
 	for i := 1; i < partitions; i++ {
 		workerFile := warmupPath + common.WarmupWorkerPrefix + "." + strconv.Itoa(i)
-		utils.WaitFileCreatedWithTimeout(ctx, workerFile, 120 * time.Second)
+		utils.WaitFileCreatedWithTimeout(ctx, workerFile, 120*time.Second)
 	}
 
 	// 3. if opt.File not set by user, create .warmup file by the command find
@@ -732,7 +732,7 @@ func (j *JuiceFS) DoRmrJob(ctx context.Context, opt *v1alpha1.RmrJobOptions, log
 	}
 	//cmd := exec.CommandContext(ctx,"juicefs", args...)
 	rmCmd := "rm -rf " + strings.Join(opt.Paths, " ")
-	cmd := exec.CommandContext(ctx,"/bin/bash", "-c", rmCmd)
+	cmd := exec.CommandContext(ctx, "/bin/bash", "-c", rmCmd)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("juice rmr cmd: %s; error: %s", cmd.String(), err.Error())
 	}
@@ -786,7 +786,7 @@ func (j *JuiceFS) CreateSyncJobOptions(opt *v1alpha1.SyncJobOptions, ctx *common
 	}
 
 	// add relative path to sync destination uri
-	mountPath := "file://"  + j.getRuntimeDataMountPath(ctx.SampleSet.Name)
+	mountPath := "file://" + j.getRuntimeDataMountPath(ctx.SampleSet.Name)
 	if opt.Destination != "" {
 		opt.Destination = mountPath + "/" + strings.TrimPrefix(opt.Destination, "/")
 	} else {

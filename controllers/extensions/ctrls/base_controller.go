@@ -51,7 +51,7 @@ var (
 	Terminate *JobType
 
 	optionError *OptionError
-	JobTypeMap map[v1alpha1.SampleJobType]*JobType
+	JobTypeMap  map[v1alpha1.SampleJobType]*JobType
 )
 
 func init() {
@@ -163,26 +163,26 @@ func init() {
 	WarmupJob.Dependents = []*Resource{SampleSet}
 
 	JobTypeMap = map[v1alpha1.SampleJobType]*JobType{
-		common.JobTypeSync: SyncJob,
+		common.JobTypeSync:   SyncJob,
 		common.JobTypeWarmup: WarmupJob,
-		common.JobTypeClear: ClearJob,
-		common.JobTypeRmr: RmrJob,
+		common.JobTypeClear:  ClearJob,
+		common.JobTypeRmr:    RmrJob,
 	}
 }
 
-type OptionError struct {}
+type OptionError struct{}
 
 func (e *OptionError) Error() string { return "option error" }
 
 type Dependence interface {
-	GetName()       string
+	GetName() string
 	GetDependents() []*Resource
 }
 
 type Resource struct {
-	Name        string
-	WithLabel   bool
-	Dependents  []*Resource
+	Name       string
+	WithLabel  bool
+	Dependents []*Resource
 
 	Object       func() client.Object
 	ObjectKey    func(c *Controller) client.ObjectKey
@@ -326,7 +326,7 @@ func EventListOptions(c *Controller) []client.ListOption {
 	lOpt := client.Limit(1)
 	runtimeName := c.GetRuntimeName(c.Req.Name)
 	nOpt := client.InNamespace(c.Req.Namespace)
-	values := []string{"Pod", c.Req.Namespace, runtimeName+"-0", "Warning"}
+	values := []string{"Pod", c.Req.Namespace, runtimeName + "-0", "Warning"}
 	fOpt := client.MatchingFields{
 		common.IndexerKeyEvent: strings.Join(values, "-"),
 	}
@@ -348,14 +348,14 @@ func RuntimePodListOptions(c *Controller) []client.ListOption {
 	fOpt := client.MatchingFields{
 		common.IndexerKeyRuntime: string(v1.PodRunning),
 	}
-	return []client.ListOption{nOpt,lOpt, fOpt}
+	return []client.ListOption{nOpt, lOpt, fOpt}
 }
 
 type JobType struct {
-	Name        string
-	OptionPath  string
-	ResultPath  string
-	Dependents  []*Resource
+	Name       string
+	OptionPath string
+	ResultPath string
+	Dependents []*Resource
 
 	Options       func() interface{}
 	BaseUris      func(c *Controller) ([]string, error)
@@ -443,7 +443,9 @@ func ClearCreateOptions(c *Controller, opt interface{}, ctx *common.RequestConte
 	return nil
 }
 
-func TerminateCreateOptions(c *Controller, opt interface{}, ctx *common.RequestContext) error { return nil }
+func TerminateCreateOptions(c *Controller, opt interface{}, ctx *common.RequestContext) error {
+	return nil
+}
 
 // BaseUris func(c *Controller) ([]string, error)
 
@@ -464,12 +466,16 @@ func AllBaseUris(c *Controller) ([]string, error) {
 	var podSlice []common.PodNameIndex
 	for _, pod := range podList.Items {
 		nameSplit := strings.Split(pod.Name, "-")
-		if len(nameSplit) == 0 { continue }
+		if len(nameSplit) == 0 {
+			continue
+		}
 		indexStr := nameSplit[len(nameSplit)-1]
 		index, err := strconv.Atoi(indexStr)
-		if err != nil { continue }
+		if err != nil {
+			continue
+		}
 		nameIndex := common.PodNameIndex{
-			Name: pod.Name,
+			Name:  pod.Name,
 			Index: index,
 		}
 		podSlice = append(podSlice, nameIndex)
@@ -501,12 +507,14 @@ func (c *Controller) GetResource(object client.Object, r *Resource) error {
 	// get object by key
 	if err := c.Get(c.Ctx, key, object); err != nil {
 		// if error is not found, return it without wrapper
-		if errors.IsNotFound(err) {return err}
+		if errors.IsNotFound(err) {
+			return err
+		}
 		return fmt.Errorf("get %s %s error: %s", r.Name, key.String(), err.Error())
 	}
 	// if is not labeled resource, then return without check label
 	if !r.WithLabel {
-		c.Log.Info("get resource successful",  "resource", r.Name, "name", key.String())
+		c.Log.Info("get resource successful", "resource", r.Name, "name", key.String())
 		return nil
 	}
 	// check if label in object, if not return already exist error
@@ -515,7 +523,7 @@ func (c *Controller) GetResource(object client.Object, r *Resource) error {
 		err := fmt.Errorf("%s %s is is already exist, delete it and try again", r.Name, key.String())
 		c.Recorder.Event(c.Sample, v1.EventTypeWarning, r.ErrorAlreadyExist(), err.Error())
 	}
-	c.Log.Info("get resource successfully",  "name", key.String(), "resource", r.Name)
+	c.Log.Info("get resource successfully", "name", key.String(), "resource", r.Name)
 	return nil
 }
 
@@ -541,7 +549,7 @@ func (c *Controller) ResourcesExistWithObject(object client.Object, r *Resource)
 
 	if err := c.GetResource(object, r); err != nil {
 		if errors.IsNotFound(err) {
-			c.Log.Info("resource not exist",  "resource", r.Name,
+			c.Log.Info("resource not exist", "resource", r.Name,
 				"name", r.ObjectKey(c).String())
 			return false, nil
 		}
@@ -571,14 +579,18 @@ func (c *Controller) CreateResource(r *Resource) error {
 
 	// if resource is already exist return with nil
 	exist, err := c.ResourcesExist(r)
-	if err != nil { return err }
-	if exist { return nil }
+	if err != nil {
+		return err
+	}
+	if exist {
+		return nil
+	}
 
 	ctx, err := c.GetRequestContext(r)
 	if err != nil {
 		return fmt.Errorf("create %s resources get request context error: %s", r.Name, err.Error())
 	}
-	
+
 	object := r.Object()
 	key := r.ObjectKey(c).String()
 	if err := r.CreateObject(c, object, ctx); err != nil {
@@ -592,7 +604,7 @@ func (c *Controller) CreateResource(r *Resource) error {
 		return e
 	}
 	c.Log.Info("create resource successfully", "name", key, "resource", r.Name)
-	c.Recorder.Eventf(c.Sample, v1.EventTypeNormal, r.CreateSuccessfully(), 
+	c.Recorder.Eventf(c.Sample, v1.EventTypeNormal, r.CreateSuccessfully(),
 		"create %s %s successfully", r.Name, key)
 	return nil
 }
@@ -675,13 +687,19 @@ func (c *Controller) GetRequestContext(d Dependence) (*common.RequestContext, er
 		// SampleSet or SampleJob has been set then continue
 		switch object.(type) {
 		case *v1alpha1.SampleSet:
-			if ctx.SampleSet != nil { continue }
+			if ctx.SampleSet != nil {
+				continue
+			}
 		case *v1alpha1.SampleJob:
-			if ctx.SampleSet != nil { continue }
+			if ctx.SampleSet != nil {
+				continue
+			}
 		}
 		// get object resource
 		err := c.GetResource(object, resource)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		switch object.(type) {
 		case *v1.PersistentVolume:
 			ctx.PV = object.(*v1.PersistentVolume)
@@ -772,9 +790,13 @@ func (c *Controller) GetJobResult(filename types.UID, j *JobType) (*common.JobRe
 	// 3. get job result from runtime server
 	for _, baseUri := range baseUris {
 		result, err := utils.GetJobResult(filename, baseUri, j.ResultPath)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		// if sync job status is success, job result nned not return
-		if result.Status == common.JobStatusSuccess { continue }
+		if result.Status == common.JobStatusSuccess {
+			continue
+		}
 		// if result status is running or fail return the result
 		c.Log.Info("get job result successfully", "filename", filename,
 			"baseUri", baseUri, "ResultPath", j.ResultPath)

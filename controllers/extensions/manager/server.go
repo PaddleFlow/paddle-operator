@@ -38,20 +38,20 @@ import (
 
 type Server struct {
 	driver.Driver
-	Log logr.Logger
-	ctx context.Context
+	Log    logr.Logger
+	ctx    context.Context
 	cancel context.CancelFunc
 
 	watcher   *fsnotify.Watcher
 	svrOpt    *common.ServerOptions
 	rootOpt   *common.RootCmdOptions
-	doers     map[string]func([]byte)error
+	doers     map[string]func([]byte) error
 	optResMap map[string]string
 }
 
 func NewServer(rootOpt *common.RootCmdOptions, svrOpt *common.ServerOptions) (*Server, error) {
 	driverName := v1alpha1.DriverName(rootOpt.Driver)
-	csiDriver, err :=  driver.GetDriver(driverName)
+	csiDriver, err := driver.GetDriver(driverName)
 	if err != nil {
 		return nil, err
 	}
@@ -65,14 +65,14 @@ func NewServer(rootOpt *common.RootCmdOptions, svrOpt *common.ServerOptions) (*S
 	}, func(o *zap.Options) {
 		o.ZapOpts = append(o.ZapOpts, zapOpt.AddCaller())
 	},
-	func(o *zap.Options) {
-		if !rootOpt.Development {
-			encCfg := zapOpt.NewProductionEncoderConfig()
-			encCfg.EncodeLevel = zapcore.CapitalLevelEncoder
-			encCfg.EncodeTime = zapcore.ISO8601TimeEncoder
-			o.Encoder = zapcore.NewConsoleEncoder(encCfg)
-		}
-	})
+		func(o *zap.Options) {
+			if !rootOpt.Development {
+				encCfg := zapOpt.NewProductionEncoderConfig()
+				encCfg.EncodeLevel = zapcore.CapitalLevelEncoder
+				encCfg.EncodeTime = zapcore.ISO8601TimeEncoder
+				o.Encoder = zapcore.NewConsoleEncoder(encCfg)
+			}
+		})
 
 	// create file system notify watcher and add dir to watch
 	watcher, err := fsnotify.NewWatcher()
@@ -82,7 +82,7 @@ func NewServer(rootOpt *common.RootCmdOptions, svrOpt *common.ServerOptions) (*S
 
 	// make maps
 	optResMap := make(map[string]string)
-	doer := make(map[string]func([]byte)error)
+	doer := make(map[string]func([]byte) error)
 
 	// make Cancel Context
 	ctx, cancel := context.WithCancel(context.Background())
@@ -100,7 +100,6 @@ func NewServer(rootOpt *common.RootCmdOptions, svrOpt *common.ServerOptions) (*S
 	}
 	return server, nil
 }
-
 
 func (s *Server) Run() error {
 	defer s.cancel()
@@ -129,7 +128,7 @@ func (s *Server) Run() error {
 		common.PathClearOptions,
 		common.PathRmrOptions,
 		common.PathWarmupOptions,
-		); err != nil {
+	); err != nil {
 		return err
 	}
 
@@ -218,10 +217,14 @@ func (s *Server) watchAndDo() {
 	for {
 		select {
 		case event, ok := <-s.watcher.Events:
-			if !ok { return }
+			if !ok {
+				return
+			}
 			s.handleEvent(event)
 		case err, ok := <-s.watcher.Errors:
-			if !ok { return }
+			if !ok {
+				return
+			}
 			s.Log.Error(err, "watcher get error")
 		}
 	}
@@ -279,7 +282,7 @@ func (s *Server) writeResultFile(status common.JobStatus, message string, patter
 		s.Log.Error(err, "")
 	}
 	result := common.JobResult{
-		Status: status,
+		Status:  status,
 		Message: message,
 	}
 	body, err := json.Marshal(result)
@@ -345,9 +348,9 @@ func (s *Server) doRmr(body []byte) error {
 	return s.DoRmrJob(s.ctx, opt, s.Log)
 }
 
-func (s *Server) addWatchDirs(patterns... string) error {
+func (s *Server) addWatchDirs(patterns ...string) error {
 	for _, pattern := range patterns {
-		err := s.watcher.Add(s.svrOpt.ServerDir +pattern)
+		err := s.watcher.Add(s.svrOpt.ServerDir + pattern)
 		if err != nil {
 			return fmt.Errorf("add watcher dir %s error", pattern)
 		}
@@ -355,7 +358,7 @@ func (s *Server) addWatchDirs(patterns... string) error {
 	return nil
 }
 
-func (s *Server) addStaticHandlers(patterns... string) error {
+func (s *Server) addStaticHandlers(patterns ...string) error {
 	// Add static file server
 	http.Handle("/", http.FileServer(http.Dir(s.svrOpt.ServerDir)))
 
@@ -377,7 +380,7 @@ func (s *Server) addStaticHandlers(patterns... string) error {
 	return nil
 }
 
-func (s *Server) addUploadHandlers(patterns... string) {
+func (s *Server) addUploadHandlers(patterns ...string) {
 	for _, pattern := range patterns {
 		uploadUrl := common.PathUploadPrefix + pattern
 		http.HandleFunc(uploadUrl, s.uploadHandleFunc(pattern))

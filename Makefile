@@ -8,7 +8,8 @@ MANAGER_IMG ?= registry.baidubce.com/paddle-operator/manager
 CRD_OPTIONS ?= "crd:maxDescLen=0,generateEmbeddedObjectMeta=true,trivialVersions=true,preserveUnknownFields=false"
 
 # Set version and get git tag
-VERSION=v0.3-beta
+#VERSION=v0.3-beta
+VERSION=latest
 # GIT_SHA=$(shell git rev-parse --short HEAD || echo "HEAD")
 # GIT_VERSION=${VERSION}-${GIT_SHA}
 GIT_VERSION=${VERSION}
@@ -113,26 +114,32 @@ docker-build-all: docker-build docker-build-sampleset docker-build-samplejob doc
 # Build sampleset controller image
 docker-build-sampleset: test
 	docker build . --build-arg MANAGER_IMG=${MANAGER_IMG} --build-arg GIT_VERSION=${GIT_VERSION} \
-		-f Dockerfile.sampleset -t ${SAMPLESET_IMG}:${GIT_VERSION}
+		-f docker/Dockerfile.sampleset -t ${SAMPLESET_IMG}:${GIT_VERSION}
 
 # Build samplejob controller image
 docker-build-samplejob: test
-	docker build . -f Dockerfile.samplejob -t ${SAMPLEJOB_IMG}:${GIT_VERSION}
+	docker build . -f docker/Dockerfile.samplejob -t ${SAMPLEJOB_IMG}:${GIT_VERSION}
 
 # Build cache manager runtime image
 docker-build-manager: test
-	docker build . -f Dockerfile.manager -t ${MANAGER_IMG}:${GIT_VERSION}
+	docker build . -f docker/Dockerfile.manager -t ${MANAGER_IMG}:${GIT_VERSION}
 
 # Push the docker image
 docker-push:
 	docker push ${IMG}:${GIT_VERSION}
 
 # Push all docker images
-docker-push-all: docker-push docker-push-sampleset
+docker-push-all: docker-push docker-push-sampleset docker-push-samplejob docker-push-manager
 
 # Push the sampleset docker image
 docker-push-sampleset:
 	docker push ${SAMPLESET_IMG}:${GIT_VERSION}
+
+docker-push-samplejob:
+	docker push ${SAMPLEJOB_IMG}:${GIT_VERSION}
+
+docker-push-manager:
+	docker push ${MANAGER_IMG}:${GIT_VERSION}
 
 # Download controller-gen locally if necessary
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen

@@ -66,12 +66,12 @@ func TestBaseDriver_GetCacheStatus(t *testing.T) {
 
 	svrOpt := &common.ServerOptions{
 		ServerPort: common.RuntimeServicePort,
-		ServerDir: home + common.PathServerRoot,
+		ServerDir:  home + common.PathServerRoot,
 		CacheDirs: []string{
 			"",
 			"",
 		},
-		DataDir: "",
+		DataDir:  "",
 		Interval: 30,
 	}
 
@@ -123,11 +123,11 @@ func TestBaseDriver_CreateClearJobOptions(t *testing.T) {
 	}
 	volumeMounts := []v1.VolumeMount{
 		{
-			Name: "dev-shm-imagenet-0",
+			Name:      "dev-shm-imagenet-0",
 			MountPath: "/cache/dev-shm-imagenet-0",
 		},
 		{
-			Name: "dev-shm-imagenet-1",
+			Name:      "dev-shm-imagenet-1",
 			MountPath: "/cache/dev-shm-imagenet-1",
 		},
 	}
@@ -142,7 +142,6 @@ func TestBaseDriver_CreateClearJobOptions(t *testing.T) {
 						},
 					},
 				},
-
 			},
 		},
 	}

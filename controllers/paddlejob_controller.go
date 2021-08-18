@@ -553,7 +553,7 @@ func (r *PaddleJobReconciler) dealWithSampleSet(ctx *SampleSetContext, pdj *pdv1
 	// 1. get SampleSet by the name specified in SampleSetRef
 	name := pdj.Spec.SampleSetRef.Name
 	key := types.NamespacedName{
-		Name: name,
+		Name:      name,
 		Namespace: namespace,
 	}
 	sampleSet := &v1alpha1.SampleSet{}
@@ -580,7 +580,9 @@ func (r *PaddleJobReconciler) dealWithSampleSet(ctx *SampleSetContext, pdj *pdv1
 	}
 	for _, node := range nodeList.Items {
 		runtimeName, exists := node.Labels[ctx.RuntimeLabel]
-		if !exists { continue }
+		if !exists {
+			continue
+		}
 		ctx.RuntimeNames = append(ctx.RuntimeNames, runtimeName)
 	}
 	// 3. update SampleSet cache status to trigger SampleSet controller collect cache info

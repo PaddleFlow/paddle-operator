@@ -492,10 +492,10 @@ type SampleSetContext struct {
 	RuntimeLabel  string
 	RuntimePrefix string
 	RuntimeNames  []string
-	Context  context.Context
+	Context       context.Context
 }
 
-func constructPodWithSampleSet(pdj *pdv1.PaddleJob, resType string,  idx int, ctx *SampleSetContext) (pod *corev1.Pod) {
+func constructPodWithSampleSet(pdj *pdv1.PaddleJob, resType string, idx int, ctx *SampleSetContext) (pod *corev1.Pod) {
 	pod = constructPod(pdj, resType, idx)
 	// 1. add volume and volume mounts to pod
 	pvcs := &corev1.PersistentVolumeClaimVolumeSource{
@@ -508,7 +508,7 @@ func constructPodWithSampleSet(pdj *pdv1.PaddleJob, resType string,  idx int, ct
 		},
 	}
 	volumeMount := corev1.VolumeMount{
-		Name: pdj.Spec.SampleSetRef.Name,
+		Name:      pdj.Spec.SampleSetRef.Name,
 		MountPath: pdj.Spec.SampleSetRef.MountPath,
 	}
 	pod.Spec.Volumes = append(pod.Spec.Volumes, volume)
@@ -537,9 +537,9 @@ func constructPodWithSampleSet(pdj *pdv1.PaddleJob, resType string,  idx int, ct
 	nodeSelectorTerms := pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
 
 	requirement := corev1.NodeSelectorRequirement{
-		Key: ctx.RuntimeLabel,
+		Key:      ctx.RuntimeLabel,
 		Operator: corev1.NodeSelectorOpIn,
-		Values: []string{runtimeName},
+		Values:   []string{runtimeName},
 	}
 	nodeSelectorTerm := corev1.NodeSelectorTerm{
 		MatchExpressions: []corev1.NodeSelectorRequirement{requirement},

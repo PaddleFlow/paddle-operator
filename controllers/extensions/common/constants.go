@@ -27,19 +27,19 @@ const (
 
 const (
 	// SampleSetNone After create SampleSet CR, before create PV/PVC
-	SampleSetNone    v1alpha1.SampleSetPhase = ""
+	SampleSetNone v1alpha1.SampleSetPhase = ""
 	// SampleSetBound After create PV/PVC, before create runtime daemon set
-	SampleSetBound   v1alpha1.SampleSetPhase = "Bound"
+	SampleSetBound v1alpha1.SampleSetPhase = "Bound"
 	// SampleSetMount After create runtime daemon set, before data syncing.
-	SampleSetMount   v1alpha1.SampleSetPhase = "Mount"
+	SampleSetMount v1alpha1.SampleSetPhase = "Mount"
 	// SampleSetSyncing syncing data to cache engine backend
 	SampleSetSyncing v1alpha1.SampleSetPhase = "Syncing"
 	// SampleSetSyncFailed if sync job is fail
-	SampleSetSyncFailed   v1alpha1.SampleSetPhase = "SyncFailed"
+	SampleSetSyncFailed v1alpha1.SampleSetPhase = "SyncFailed"
 	// SampleSetPartialReady means
 	SampleSetPartialReady v1alpha1.SampleSetPhase = "PartialReady"
 	// SampleSetReady After data sync finish and SampleSet is ready to be use
-	SampleSetReady   v1alpha1.SampleSetPhase = "Ready"
+	SampleSetReady v1alpha1.SampleSetPhase = "Ready"
 )
 
 const (
@@ -83,7 +83,7 @@ const (
 )
 
 const (
-	IndexerKeyEvent = "eventIndexerKey"
+	IndexerKeyEvent   = "eventIndexerKey"
 	IndexerKeyRuntime = "runtimeIndexerKey"
 )
 
@@ -130,43 +130,43 @@ const (
 
 const (
 	// StorageBOS Baidu Cloud Object Storage
-	StorageBOS   = "bos"
+	StorageBOS = "bos"
 	// StorageS3 Amazon S3
-	StorageS3    = "s3"
+	StorageS3 = "s3"
 	// StorageHDFS Hadoop File System (HDFS)
-	StorageHDFS  = "hdfs"
+	StorageHDFS = "hdfs"
 	// StorageGCS Google Cloud Storage
-	StorageGCS   = "gcs"
+	StorageGCS = "gcs"
 	// StorageWASB Windows Azure Blob Storage
-	StorageWASB  = "wasb"
+	StorageWASB = "wasb"
 	// StorageOSS Aliyun OSS
-	StorageOSS   = "oss"
+	StorageOSS = "oss"
 	// StorageCOS Tencent Cloud COS
-	StorageCOS   = "cos"
+	StorageCOS = "cos"
 	// StorageKS3 KSYun KS3
-	StorageKS3   = "ks3"
+	StorageKS3 = "ks3"
 	// StorageUFILE UCloud UFile
 	StorageUFILE = "ufile"
 	// StorageQingStor Qingcloud QingStor
 	StorageQingStor = "qingstor"
 	// StorageJSS JCloud Object Storage
-	StorageJSS   = "jss"
+	StorageJSS = "jss"
 	// StorageQiNiu Qiniu
 	StorageQiNiu = "qiniu"
 	// StorageB2 Backblaze B2
-	StorageB2    = "b2"
+	StorageB2 = "b2"
 	// StorageSpace Digital Ocean Space
 	StorageSpace = "space"
 	// StorageOBS Huawei Object Storage Service
-	StorageOBS   = "obs"
+	StorageOBS = "obs"
 	// StorageOOS CTYun OOS
-	StorageOOS   = "oos"
+	StorageOOS = "oos"
 	// StorageSCW Scaleway Object Storage
-	StorageSCW   = "scw"
+	StorageSCW = "scw"
 	// StorageMinio MinIO
 	StorageMinio = "minio"
 	// StorageSCS Sina Cloud Storage
-	StorageSCS   = "scs"
+	StorageSCS = "scs"
 )
 
 const (

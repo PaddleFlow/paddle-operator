@@ -40,7 +40,7 @@ const (
 
 var (
 	StorageClassName = "paddle-operator"
-	driverMap map[v1alpha1.DriverName]Driver
+	driverMap        map[v1alpha1.DriverName]Driver
 )
 
 func init() {
@@ -112,7 +112,7 @@ type BaseDriver struct {
 func (d *BaseDriver) CreatePVC(pvc *v1.PersistentVolumeClaim, ctx *common.RequestContext) error {
 	label := d.GetLabel(ctx.Req.Name)
 	objectMeta := metav1.ObjectMeta{
-		Name: ctx.Req.Name,
+		Name:      ctx.Req.Name,
 		Namespace: ctx.Req.Namespace,
 		Labels: map[string]string{
 			label: "true",
@@ -149,7 +149,7 @@ func (d *BaseDriver) CreateService(service *v1.Service, ctx *common.RequestConte
 	label := d.GetLabel(ctx.Req.Name)
 	serviceName := d.GetServiceName(ctx.Req.Name)
 	objectMeta := metav1.ObjectMeta{
-		Name: serviceName,
+		Name:      serviceName,
 		Namespace: ctx.Req.Namespace,
 		Labels: map[string]string{
 			label: "true",
@@ -162,7 +162,7 @@ func (d *BaseDriver) CreateService(service *v1.Service, ctx *common.RequestConte
 
 	runtimeName := d.GetRuntimeName(ctx.Req.Name)
 	selector := map[string]string{
-		label: "true",
+		label:  "true",
 		"name": runtimeName,
 	}
 
@@ -172,8 +172,8 @@ func (d *BaseDriver) CreateService(service *v1.Service, ctx *common.RequestConte
 	}
 
 	spec := v1.ServiceSpec{
-		Selector: selector,
-		Ports: []v1.ServicePort{port},
+		Selector:  selector,
+		Ports:     []v1.ServicePort{port},
 		ClusterIP: "None",
 	}
 	service.Spec = spec
@@ -192,7 +192,7 @@ func (d *BaseDriver) DoClearJob(ctx context.Context, opt *v1alpha1.ClearJobOptio
 		}
 	}
 	rmCmd := "rm -rf " + strings.Join(opt.Paths, " ")
-	cmd := exec.CommandContext(ctx,"/bin/bash", "-c", rmCmd)
+	cmd := exec.CommandContext(ctx, "/bin/bash", "-c", rmCmd)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("clear job cmd: %s; error: %s", cmd.String(), err.Error())
 	}
@@ -222,7 +222,7 @@ func (d *BaseDriver) CreateCacheStatus(opt *common.ServerOptions, status *v1alph
 		errs = append(errs, fmt.Sprintf("get totalSize error: %s", err.Error()))
 	}
 
-	var fileNumberOfPaths func(timeout time.Duration, paths... string) (string, error)
+	var fileNumberOfPaths func(timeout time.Duration, paths ...string) (string, error)
 	if d.Name == JuiceFSDriver {
 		fileNumberOfPaths = utils.JuiceFileNumberOfPath
 	} else {
@@ -302,7 +302,7 @@ func (d *BaseDriver) CreateClearJobOptions(opt *v1alpha1.ClearJobOptions, ctx *c
 		opt.Paths = validPaths
 	} else {
 		for _, mountPath := range hostMountPathMap {
-			opt.Paths = append(opt.Paths, strings.TrimSuffix(mountPath, "/") + "/*")
+			opt.Paths = append(opt.Paths, strings.TrimSuffix(mountPath, "/")+"/*")
 		}
 	}
 	return nil
@@ -310,7 +310,7 @@ func (d *BaseDriver) CreateClearJobOptions(opt *v1alpha1.ClearJobOptions, ctx *c
 
 // GetLabel label is concatenated by PaddleLabel、driver name and SampleSet name
 func (d *BaseDriver) GetLabel(sampleSetName string) string {
-	return common.PaddleLabel + "/" +  string(d.Name) + "-" + sampleSetName
+	return common.PaddleLabel + "/" + string(d.Name) + "-" + sampleSetName
 }
 
 func (d *BaseDriver) GetRuntimeName(sampleSetName string) string {
