@@ -36,17 +36,17 @@ import (
 func TestJuiceFS_getMountOptions(t *testing.T) {
 	mountOptions := v1alpha1.MountOptions{
 		JuiceFSMountOptions: &v1alpha1.JuiceFSMountOptions{
-			OpenCache: 7200,
-			CacheSize: 307200,
-			AttrCache: 7200,
-			EntryCache: 7200,
-			DirEntryCache: 7200,
-			Prefetch: 1,
-			BufferSize: 1024,
-			EnableXattr: true,
-			WriteBack: true,
+			OpenCache:      7200,
+			CacheSize:      307200,
+			AttrCache:      7200,
+			EntryCache:     7200,
+			DirEntryCache:  7200,
+			Prefetch:       1,
+			BufferSize:     1024,
+			EnableXattr:    true,
+			WriteBack:      true,
 			FreeSpaceRatio: "0.2",
-			CacheDir: "/dev/shm/imagenet",
+			CacheDir:       "/dev/shm/imagenet",
 		},
 	}
 
@@ -64,20 +64,20 @@ func TestJuiceFS_getMountOptions(t *testing.T) {
 				Name: "imagenet",
 			},
 			CSI: &v1alpha1.CSI{
-				Driver: JuiceFSDriver,
+				Driver:       JuiceFSDriver,
 				MountOptions: mountOptions,
 			},
 			Cache: v1alpha1.Cache{
 				Levels: []v1alpha1.CacheLevel{
 					{
 						MediumType: common.MediumTypeMEM,
-						Path: "/dev/shm/imagenet-0:/dev/shm/imagenet-1",
-						CacheSize: 150,
+						Path:       "/dev/shm/imagenet-0:/dev/shm/imagenet-1",
+						CacheSize:  150,
 					},
 					{
 						MediumType: common.MediumTypeSSD,
-						Path: "/data/imagenet",
-						CacheSize: 150,
+						Path:       "/data/imagenet",
+						CacheSize:  150,
 					},
 				},
 			},
@@ -85,10 +85,10 @@ func TestJuiceFS_getMountOptions(t *testing.T) {
 				Required: &corev1.NodeSelector{
 					NodeSelectorTerms: []corev1.NodeSelectorTerm{{
 						MatchExpressions: []corev1.NodeSelectorRequirement{{
-								Key: "sampleset",
-								Operator: corev1.NodeSelectorOpIn,
-								Values: []string{"true"},
-							},
+							Key:      "sampleset",
+							Operator: corev1.NodeSelectorOpIn,
+							Values:   []string{"true"},
+						},
 						},
 					},
 					},
@@ -109,8 +109,6 @@ func TestJuiceFS_getMountOptions(t *testing.T) {
 			}
 		}
 	}
-
-	t.Log("mountOptions: ", options)
 }
 
 func TestJuiceFS_getVolumeInfo(t *testing.T) {
@@ -135,27 +133,10 @@ func TestJuiceFS_getVolumeInfo(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	t.Log("serverOpt=== ", serverOpt)
 	if len(volumes) != 4 || len(volumeMounts) != 4 || serverOpt.DataDir == "" || len(serverOpt.CacheDirs) != 3 {
 		t.Errorf("len of volumes or volumeMounts not right \n")
 	}
 
-}
-
-func TestNoZeroOptionToArgs(t *testing.T) {
-	options := common.ServerOptions{
-		ServerPort: 7716,
-		ServerDir: "/runtime",
-		DataDir: "/mnt/imagenet",
-		CacheDirs: []string{
-			"/dev/shm/imagenet",
-			"/dev/ssd/imagenet",
-		},
-		Interval: 120,
-		Timeout: 120,
-	}
-	args := utils.NoZeroOptionToArgs(&options)
-	t.Log(strings.Join(args, " "))
 }
 
 func TestJuiceFS_DoWarmupJob(t *testing.T) {
@@ -171,7 +152,7 @@ func TestJuiceFS_DoWarmupJob(t *testing.T) {
 	}
 	total := strings.TrimSuffix(path, "/controllers/extensions/driver")
 	opts := &v1alpha1.WarmupJobOptions{
-		Paths: []string{total},
+		Paths:      []string{total},
 		Partitions: 4,
 		Strategy: v1alpha1.SampleStrategy{
 			Name: common.StrategyRandom,

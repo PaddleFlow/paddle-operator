@@ -29,11 +29,11 @@ import (
 )
 
 var (
-	rootCmdOptions common.RootCmdOptions
-	serverOptions common.ServerOptions
-	rmrJobOptions v1alpha1.RmrJobOptions
-	syncJobOptions v1alpha1.SyncJobOptions
-	clearJobOptions v1alpha1.ClearJobOptions
+	rootCmdOptions   common.RootCmdOptions
+	serverOptions    common.ServerOptions
+	rmrJobOptions    v1alpha1.RmrJobOptions
+	syncJobOptions   v1alpha1.SyncJobOptions
+	clearJobOptions  v1alpha1.ClearJobOptions
 	warmupJobOptions v1alpha1.WarmupJobOptions
 )
 
@@ -43,7 +43,7 @@ var rootCmd = &cobra.Command{
 }
 
 var serverCmd = &cobra.Command{
-	Use: common.CmdServer,
+	Use:   common.CmdServer,
 	Short: "run data management server",
 	Run: func(cmd *cobra.Command, args []string) {
 		server, err := manager.NewServer(&rootCmdOptions, &serverOptions)
@@ -103,7 +103,7 @@ var rmrJobCmd = &cobra.Command{
 }
 
 var clearJobCmd = &cobra.Command{
-	Use: common.CmdClear,
+	Use:   common.CmdClear,
 	Short: "clear cache data from local host",
 	Run: func(cmd *cobra.Command, args []string) {
 		driverName := v1alpha1.DriverName(rootCmdOptions.Driver)

@@ -110,7 +110,7 @@ func (r *SampleSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 }
 
 // AddFinalizer add finalizer to SampleSet
-func (r *SampleSetReconciler) AddFinalizer (ctx context.Context, sampleSet *v1alpha1.SampleSet) (ctrl.Result, error) {
+func (r *SampleSetReconciler) AddFinalizer(ctx context.Context, sampleSet *v1alpha1.SampleSet) (ctrl.Result, error) {
 	sampleSetFinalizer := GetSampleSetFinalizer(sampleSet.Name)
 	sampleSet.Finalizers = append(sampleSet.Finalizers, sampleSetFinalizer)
 	if err := r.Update(ctx, sampleSet); err != nil {
@@ -136,10 +136,10 @@ func (r *SampleSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 	return ctrl.NewControllerManagedBy(mgr).
-			For(&v1alpha1.SampleSet{}).
-			Owns(&v1.Event{}).
-			Owns(&v1.Pod{}).
-			Complete(r)
+		For(&v1alpha1.SampleSet{}).
+		Owns(&v1.Event{}).
+		Owns(&v1.Pod{}).
+		Complete(r)
 }
 
 type SampleSetController struct {
@@ -153,8 +153,8 @@ func NewSampleSetController(
 	ctx *common.ReconcileContext) *SampleSetController {
 	return &SampleSetController{
 		Controller: Controller{
-			Driver: CSIDriver,
-			Sample: sampleSet,
+			Driver:           CSIDriver,
+			Sample:           sampleSet,
 			ReconcileContext: ctx,
 		},
 		SampleSet: sampleSet,
@@ -273,7 +273,7 @@ func (s *SampleSetController) reconcileBound() (ctrl.Result, error) {
 		if statefulSet.Status.ReadyReplicas > 0 {
 			s.SampleSet.Status.Phase = common.SampleSetMount
 			runtimeStatus := &v1alpha1.RuntimeStatus{
-				SpecReplicas: s.SampleSet.Spec.Partitions,
+				SpecReplicas:  s.SampleSet.Spec.Partitions,
 				ReadyReplicas: statefulSet.Status.ReadyReplicas,
 				RuntimeReady: fmt.Sprintf("%d/%d",
 					statefulSet.Status.ReadyReplicas,
@@ -360,31 +360,45 @@ func (s *SampleSetController) reconcileMount() (ctrl.Result, error) {
 func (s *SampleSetController) reconcileSyncing() (ctrl.Result, error) {
 	s.Log.Info("==== reconcileSyncing ====")
 
-	time.Sleep(1 * time.Second)
-	// 1. get the result of sync data job
+	// 1. get cache status from the first runtime server
+	newStatus, err := s.CollectCacheStatusByIndex(0)
+	if err != nil {
+		return utils.RequeueAfter(10 * time.Second)
+	}
+	if !reflect.DeepEqual(newStatus, s.SampleSet.Status.CacheStatus) {
+		s.SampleSet.Status.CacheStatus = newStatus
+		err = s.UpdateResourceStatus(s.SampleSet, SampleSet)
+		if err != nil {
+			return utils.RequeueWithError(err)
+		}
+		return utils.NoRequeue()
+	}
+
+	// 2. get the result of sync data job
 	filename := s.SampleSet.Status.JobsName.SyncJobName
 	result, err := s.GetJobResult(filename, SyncJob)
 	if err != nil {
 		return utils.RequeueWithError(err)
 	}
-	// 2. if sync job status is running the wait seconds and requeue
+
+	// 3. if sync job status is running then wait seconds and requeue
 	if result != nil && result.Status == common.JobStatusRunning {
 		s.Log.Info("wait util sync job done")
-		return utils.RequeueAfter(30 * time.Second)
+		return utils.RequeueAfter(10 * time.Second)
 	}
-	// 3. if sync job status is failed, then update phase to SyncFailed
+	// 4. if sync job status is failed, then update phase to SyncFailed
 	if result != nil && result.Status == common.JobStatusFail {
 		e := errors.New(result.Message)
 		s.SampleSet.Status.Phase = common.SampleSetSyncFailed
 		s.Log.Error(e, "sync job error", "jobName", filename)
 		s.Recorder.Event(s.SampleSet, v1.EventTypeWarning, SyncJob.ErrorDoJob(), e.Error())
 	}
-	// 4. if sync job status is success, then return phase to mount
+	// 5. if sync job status is success, then return phase to mount
 	if result == nil {
 		s.SampleSet.Status.Phase = common.SampleSetMount
 	}
 
-	// 5. update SampleSet phase
+	// 6. update SampleSet phase
 	if err := s.UpdateResourceStatus(s.SampleSet, SampleSet); err != nil {
 		return utils.RequeueWithError(err)
 	}
@@ -431,7 +445,7 @@ func (s *SampleSetController) reconcileReady() (ctrl.Result, error) {
 			return utils.RequeueWithError(err)
 		}
 		s.Log.Info("updated sampleset cache status")
-		return utils.RequeueAfter(common.RuntimeCacheInterval * time.Second + 1)
+		return utils.RequeueAfter(common.RuntimeCacheInterval*time.Second + 1)
 	}
 
 	return utils.NoRequeue()
@@ -582,7 +596,9 @@ func (s *SampleSetController) reconcilePartialReady() (ctrl.Result, error) {
 			return utils.RequeueWithError(e)
 		}
 		// if label is exist and the value is equal to the name of pod, continue
-		if v, exist := node.Labels[label]; exist && v == value { continue }
+		if v, exist := node.Labels[label]; exist && v == value {
+			continue
+		}
 		// update the label of node
 		node.Labels[label] = value
 		if err := s.UpdateResource(node, Node); err != nil {

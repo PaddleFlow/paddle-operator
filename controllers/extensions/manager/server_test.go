@@ -33,24 +33,22 @@ import (
 
 func TestServer_Run(t *testing.T) {
 	rootOpt := &common.RootCmdOptions{
-		Driver: "juicefs",
+		Driver:      "juicefs",
 		Development: true,
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		t.Error(err)
 	}
-	//t.Log("home== ", home)
 	rootPath := home + common.PathServerRoot
-	//t.Log("rootPath== ", rootPath)
 	svrOpt := &common.ServerOptions{
 		ServerPort: common.RuntimeServicePort,
-		ServerDir: rootPath,
+		ServerDir:  rootPath,
 		CacheDirs: []string{
 			"",
 			"",
 		},
-		DataDir: "",
+		DataDir:  "",
 		Interval: 30,
 	}
 
@@ -68,19 +66,19 @@ func TestServer_Run(t *testing.T) {
 		opt := &v1alpha1.ClearJobOptions{}
 		err := json.Unmarshal(body, opt)
 		if err != nil {
-		return err
-	}
+			return err
+		}
 		//fmt.Println("do clear option: ", opt)
 		time.Sleep(600 * time.Second)
 		return nil
 	}
 
 	var syncOptions = v1alpha1.SyncJobOptions{
-		Source: "bos://imagenet.bj.bcebos.com/imagenet",
+		Source:      "bos://imagenet.bj.bcebos.com/imagenet",
 		Destination: "bos://imagenet.bj.bcebos.com/test",
 		JuiceFSSyncOptions: v1alpha1.JuiceFSSyncOptions{
-			Start: "startKey",
-			Worker: "imagenet-1",
+			Start:   "startKey",
+			Worker:  "imagenet-1",
 			BWLimit: 8,
 			NoHttps: true,
 		},

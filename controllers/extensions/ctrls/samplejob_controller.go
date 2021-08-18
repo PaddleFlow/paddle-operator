@@ -103,7 +103,7 @@ func (r *SampleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return utils.NoRequeue()
 	}
 	sampleSetKey := types.NamespacedName{
-		Name: sampleJob.Spec.SampleSetRef.Name,
+		Name:      sampleJob.Spec.SampleSetRef.Name,
 		Namespace: req.Namespace,
 	}
 	sampleSet := &v1alpha1.SampleSet{}
@@ -163,7 +163,7 @@ func (r *SampleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 }
 
 // AddFinalizer add finalizer to SampleJob
-func (r *SampleJobReconciler) AddFinalizer (ctx context.Context, sampleJob *v1alpha1.SampleJob) (ctrl.Result, error) {
+func (r *SampleJobReconciler) AddFinalizer(ctx context.Context, sampleJob *v1alpha1.SampleJob) (ctrl.Result, error) {
 	sampleJobFinalizer := GetSampleJobFinalizer(sampleJob.Name)
 	sampleJob.Finalizers = append(sampleJob.Finalizers, sampleJobFinalizer)
 	if err := r.Update(ctx, sampleJob); err != nil {
@@ -198,7 +198,7 @@ func (r *SampleJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.SampleJob{}).
-			Owns(&v1.Pod{}).
+		Owns(&v1.Pod{}).
 		Complete(r)
 }
 
@@ -213,8 +213,8 @@ func NewSampleJobController(
 	ctx *common.ReconcileContext) *SampleJobController {
 	return &SampleJobController{
 		Controller: Controller{
-			Driver: CSIDriver,
-			Sample: sampleJob,
+			Driver:           CSIDriver,
+			Sample:           sampleJob,
 			ReconcileContext: ctx,
 		},
 		SampleJob: sampleJob,

@@ -122,7 +122,7 @@ func CollectAllCacheStatus(runtimePodNames []string, serviceName string) (*v1alp
 	var statusList []*v1alpha1.CacheStatus
 
 	for i := 0; i < len(runtimePodNames); i++ {
-		result := <- resultChan
+		result := <-resultChan
 		if result.Error != nil {
 			return nil, result.Error
 		}
@@ -172,7 +172,7 @@ func CollectAllCacheStatus(runtimePodNames []string, serviceName string) (*v1alp
 	if diskSizeTotal == 0 {
 		diskUsageRate = 0.0
 	} else {
-		diskUsageRate = float64(diskUsedTotal)/float64(diskSizeTotal)*100
+		diskUsageRate = float64(diskUsedTotal) / float64(diskSizeTotal) * 100
 	}
 	statusAll.DiskUsageRate = fmt.Sprintf("%.1f%%", diskUsageRate)
 

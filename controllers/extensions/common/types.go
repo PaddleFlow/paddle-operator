@@ -30,10 +30,10 @@ import (
 
 type ReconcileContext struct {
 	client.Client
-	Ctx context.Context
-	Req *ctrl.Request
-	Log logr.Logger
-	Scheme *runtime.Scheme
+	Ctx      context.Context
+	Req      *ctrl.Request
+	Log      logr.Logger
+	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 }
 
@@ -41,10 +41,10 @@ type RequestContext struct {
 	SampleSet *v1alpha1.SampleSet
 	SampleJob *v1alpha1.SampleJob
 
-	Req *ctrl.Request
-	Secret *v1.Secret
-	PV *v1.PersistentVolume
-	Service *v1.Service
+	Req         *ctrl.Request
+	Secret      *v1.Secret
+	PV          *v1.PersistentVolume
+	Service     *v1.Service
 	StatefulSet *appv1.StatefulSet
 }
 
@@ -59,17 +59,17 @@ type RootCmdOptions struct {
 
 type ServerOptions struct {
 	// the port for runtime service
-	ServerPort int      `json:"serverPort,omitempty"`
+	ServerPort int `json:"serverPort,omitempty"`
 	// the root dir static file service
-	ServerDir  string   `json:"serverDir,omitempty"`
+	ServerDir string `json:"serverDir,omitempty"`
 	// cache data directories that mounted to the container
-	CacheDirs  []string `json:"cacheDirs,omitempty"`
+	CacheDirs []string `json:"cacheDirs,omitempty"`
 	// the sample set data path mounted to the container
-	DataDir    string   `json:"dataDir,omitempty"`
+	DataDir string `json:"dataDir,omitempty"`
 	// time interval for writing cache status to specified path
-	Interval   int64    `json:"interval,omitempty"`
+	Interval int64 `json:"interval,omitempty"`
 	// The timeout period of the command to collect cached data information
-	Timeout    int64    `json:"timeout,omitempty"`
+	Timeout int64 `json:"timeout,omitempty"`
 }
 
 type JobStatus string
@@ -80,6 +80,6 @@ type JobResult struct {
 }
 
 type PodNameIndex struct {
-	Name string
+	Name  string
 	Index int
 }
