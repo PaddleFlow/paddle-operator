@@ -20,12 +20,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/paddleflow/paddle-operator/api/v1alpha1"
-	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
 	appv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	"github.com/paddleflow/paddle-operator/api/v1alpha1"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
 )
 
 func TestBaseDriver_DoClearJob(t *testing.T) {
@@ -46,10 +48,12 @@ func TestBaseDriver_DoClearJob(t *testing.T) {
 		t.Errorf("make dir %s error: %s", path2, err.Error())
 	}
 	paths = append(paths, path2)
-
+	logr := zap.New(func(o *zap.Options) {
+		o.Development = true
+	})
 	opt := &v1alpha1.ClearJobOptions{Paths: paths}
 	d, _ := GetDriver("juicefs")
-	if err := d.DoClearJob(context.Background(), opt, nil); err != nil {
+	if err := d.DoClearJob(context.Background(), opt, logr); err != nil {
 		t.Errorf("DoClearJob error: %s", err.Error())
 	}
 }
