@@ -463,6 +463,7 @@ func (j *JuiceFS) DoSyncJob(ctx context.Context, opt *v1alpha1.SyncJobOptions, l
 
 	cmd := exec.CommandContext(ctx,"juicefs", args...)
 	output, err := cmd.CombinedOutput()
+	log.V(1).Info(cmd.String())
 	log.V(1).Info(string(output))
 	if err != nil {
 		return fmt.Errorf("juice sync cmd: %s; error: %s", cmd.String(), err.Error())
@@ -513,7 +514,6 @@ func (j *JuiceFS) DoWarmupJob(ctx context.Context, opt *v1alpha1.WarmupJobOption
 	warmupArgs := utils.NoZeroOptionToArgs(&opt.JuiceFSWarmupOptions)
 	args := []string{"warmup"}
 	args = append(args, warmupArgs...)
-	args = append(args, opt.Paths...)
 
 	// 4. executor juicefs warmup --file xxx paths... command
 	cmd := exec.CommandContext(ctx, "juicefs", args...)
@@ -719,7 +719,7 @@ func postWarmupWorker(ctx context.Context, mountPath string, index int, log logr
 }
 
 // DoRmrJob delete the data of JuiceFS storage backend under the specified paths.
-// (TODO) there some bugs in JuiceFS rmr command, after rmr paths the sync command
+// TODO: there some bugs in JuiceFS rmr command, after rmr paths the sync command
 // can't work correctly in container, but posix rm can work well with JuiceFS sync command.
 func (j *JuiceFS) DoRmrJob(ctx context.Context, opt *v1alpha1.RmrJobOptions, log logr.Logger) error {
 	if len(opt.Paths) == 0 {
@@ -730,21 +730,11 @@ func (j *JuiceFS) DoRmrJob(ctx context.Context, opt *v1alpha1.RmrJobOptions, log
 			return fmt.Errorf("path %s is not valid, error: %s", path, err.Error())
 		}
 	}
-	//args := []string{"rmr"}
-	args := []string{"-rf"}
-	for _, path := range opt.Paths {
-		if !strings.HasPrefix(path, "/") {
-			return fmt.Errorf("path %s is not valid", path)
-		}
-		args = append(args, path)
-	}
 	//cmd := exec.CommandContext(ctx,"juicefs", args...)
-	cmd := exec.CommandContext(ctx,"rm", args...)
-	output, err := cmd.CombinedOutput()
-	log.V(1).Info(string(output))
-	if err != nil {
-		return fmt.Errorf("juice rmr cmd: %s; error: %s; stderr: %s",
-			cmd.String(), err.Error(), string(output))
+	rmCmd := "rm -rf " + strings.Join(opt.Paths, " ")
+	cmd := exec.CommandContext(ctx,"/bin/bash", "-c", rmCmd)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("juice rmr cmd: %s; error: %s", cmd.String(), err.Error())
 	}
 	return nil
 }

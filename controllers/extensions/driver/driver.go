@@ -191,22 +191,12 @@ func (d *BaseDriver) DoClearJob(ctx context.Context, opt *v1alpha1.ClearJobOptio
 			return fmt.Errorf("path %s is not valid, error: %s", path, err.Error())
 		}
 	}
-
-	args := []string{"-rf"}
-	for _, path := range opt.Paths {
-		if !strings.HasPrefix(path, "/") {
-			return fmt.Errorf("path %s is not valid", path)
-		}
-		args = append(args, path)
+	rmCmd := "rm -rf " + strings.Join(opt.Paths, " ")
+	cmd := exec.CommandContext(ctx,"/bin/bash", "-c", rmCmd)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("clear job cmd: %s; error: %s", cmd.String(), err.Error())
 	}
-
-	cmd := exec.CommandContext(ctx,"rm", args...)
-	output, err := cmd.CombinedOutput()
-	log.V(1).Info(string(output))
-	if err != nil {
-		return fmt.Errorf("clear job cmd: %s; error: %s; stderr: %s",
-			cmd.String(), err.Error(), string(output))
-	}
+	log.V(1).Info(cmd.String())
 	return nil
 }
 

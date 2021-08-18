@@ -91,7 +91,7 @@ const (
 	RuntimeContainerName  = "runtime"
 	RuntimeCacheMountPath = "/cache"
 	RuntimeDateMountPath  = "/mnt"
-	RuntimeCacheInterval  = 120
+	RuntimeCacheInterval  = 60
 )
 
 const (

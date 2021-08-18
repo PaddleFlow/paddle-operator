@@ -17,18 +17,20 @@ package driver
 import (
 	"context"
 	"fmt"
-	"github.com/paddleflow/paddle-operator/api/v1alpha1"
-	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
-	"github.com/paddleflow/paddle-operator/controllers/extensions/utils"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
 	"os/exec"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	"github.com/paddleflow/paddle-operator/api/v1alpha1"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
+	"github.com/paddleflow/paddle-operator/controllers/extensions/utils"
 )
 
 func TestJuiceFS_getMountOptions(t *testing.T) {
@@ -182,7 +184,7 @@ func TestJuiceFS_DoWarmupJob(t *testing.T) {
 		logr.V(1).Info("get index", "index", index)
 
 		if index == 0 {
-			//defer postWarmupMaster(ctx, mountPath, int(opt.Partitions), logr)
+			defer postWarmupMaster(ctx, mountPath, int(opt.Partitions), logr)
 			if err = preWarmupMaster(ctx, mountPath, opt); err != nil {
 				return fmt.Errorf("master node do pre-warmup job error: %s", err.Error())
 			}
