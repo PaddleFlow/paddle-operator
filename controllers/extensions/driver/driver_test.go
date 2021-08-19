@@ -17,7 +17,6 @@ package driver
 import (
 	"context"
 	"os"
-	"strings"
 	"testing"
 
 	appv1 "k8s.io/api/apps/v1"
@@ -55,50 +54,6 @@ func TestBaseDriver_DoClearJob(t *testing.T) {
 	d, _ := GetDriver("juicefs")
 	if err := d.DoClearJob(context.Background(), opt, logr); err != nil {
 		t.Errorf("DoClearJob error: %s", err.Error())
-	}
-}
-
-func TestBaseDriver_GetCacheStatus(t *testing.T) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		t.Error(err)
-	}
-
-	svrOpt := &common.ServerOptions{
-		ServerPort: common.RuntimeServicePort,
-		ServerDir:  home + common.PathServerRoot,
-		CacheDirs: []string{
-			"",
-			"",
-		},
-		DataDir:  "",
-		Interval: 30,
-	}
-
-	status := &v1alpha1.CacheStatus{}
-	d, _ := GetDriver("juicefs")
-	err = d.CreateCacheStatus(svrOpt, status)
-	if status.TotalSize == "" {
-		t.Error(err)
-	}
-	t.Log(status)
-
-	txt := `Filesystem      Size  Used Avail Use% Mounted on
-/dev/vda1        40G   26G   13G  68% /
-tmpfs           3.9G   64M  3.9G   2% /dev/shm
-total            44G   26G   16G  62% -
-`
-	lines := strings.Split(strings.TrimSpace(txt), "\n")
-	if len(lines) == 0 {
-		t.Error(lines)
-	}
-	total := strings.TrimSpace(lines[len(lines)-1])
-	if !strings.Contains(total, "total") {
-		t.Error("not contain total")
-	}
-	totalSlice := strings.FieldsFunc(total, func(r rune) bool { return r == ' ' || r == '\t' })
-	if len(totalSlice) != 6 {
-		t.Error("deal with output error")
 	}
 }
 
