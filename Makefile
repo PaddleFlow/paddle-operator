@@ -8,8 +8,7 @@ MANAGER_IMG ?= registry.baidubce.com/paddle-operator/manager
 CRD_OPTIONS ?= "crd:maxDescLen=0,generateEmbeddedObjectMeta=true,trivialVersions=true,preserveUnknownFields=false"
 
 # Set version and get git tag
-#VERSION=v0.3-beta
-VERSION=latest
+VERSION=v0.3-beta
 # GIT_SHA=$(shell git rev-parse --short HEAD || echo "HEAD")
 # GIT_VERSION=${VERSION}-${GIT_SHA}
 GIT_VERSION=${VERSION}

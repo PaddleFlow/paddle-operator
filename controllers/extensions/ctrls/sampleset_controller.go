@@ -360,18 +360,21 @@ func (s *SampleSetController) reconcileMount() (ctrl.Result, error) {
 func (s *SampleSetController) reconcileSyncing() (ctrl.Result, error) {
 	s.Log.Info("==== reconcileSyncing ====")
 
+	time.Sleep(5 * time.Second)
 	// 1. get cache status from the first runtime server
 	newStatus, err := s.CollectCacheStatusByIndex(0)
 	if err != nil {
-		return utils.RequeueAfter(10 * time.Second)
+		return utils.RequeueAfter(5 * time.Second)
 	}
 	if !reflect.DeepEqual(newStatus, s.SampleSet.Status.CacheStatus) {
-		s.SampleSet.Status.CacheStatus = newStatus
-		err = s.UpdateResourceStatus(s.SampleSet, SampleSet)
-		if err != nil {
-			return utils.RequeueWithError(err)
+		if newStatus != nil && newStatus.TotalSize != "0 B" {
+			s.SampleSet.Status.CacheStatus = newStatus
+			err = s.UpdateResourceStatus(s.SampleSet, SampleSet)
+			if err != nil {
+				return utils.RequeueWithError(err)
+			}
+			return utils.NoRequeue()
 		}
-		return utils.NoRequeue()
 	}
 
 	// 2. get the result of sync data job
