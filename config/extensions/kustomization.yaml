@@ -1,0 +1,15 @@
+resources:
+- sampleset_controller.yaml
+- samplejob_controller.yaml
+
+namespace: paddle-system
+
+namePrefix: paddle-
+
+images:
+- name: sampleset
+  newName: registry.baidubce.com/paddle-operator/sampleset
+  newTag: v0.3.0
+- name: samplejob
+  newName: registry.baidubce.com/paddle-operator/samplejob
+  newTag: v0.3.0

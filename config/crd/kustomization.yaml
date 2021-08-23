@@ -4,8 +4,8 @@
 resources:
 - bases/batch.paddlepaddle.org_paddlejobs.yaml
 # - v1beta1/batch.paddlepaddle.org_paddlejobs.yaml
-#- bases/batch.paddlepaddle.org_samplesets.yaml
-#- bases/batch.paddlepaddle.org_samplejobs.yaml
+- bases/batch.paddlepaddle.org_samplesets.yaml
+- bases/batch.paddlepaddle.org_samplejobs.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 patchesStrategicMerge:
