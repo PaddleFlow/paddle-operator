@@ -818,6 +818,10 @@ func (c *Controller) CollectCacheStatus(podNames []string) (*v1alpha1.CacheStatu
 	if status.ErrorMassage != "" {
 		c.Log.Error(fmt.Errorf(status.ErrorMassage), "error massage from cache status")
 	}
+	// There some error when obtain the total size of mounted sample data
+	if status.TotalSize == "0 B" {
+		return nil, nil
+	}
 	c.Log.Info("collect cache status successfully", "podNames", podNames)
 	return status, nil
 }

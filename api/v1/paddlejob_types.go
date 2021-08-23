@@ -148,7 +148,7 @@ type PaddleJobSpec struct {
 	// WithGloo indicate whether enable gloo, 0/1/2 for disable/enable for worker/enable for server
 	WithGloo *int `json:"withGloo,omitempty"`
 
-	// SampleSetRef defines the sample data set to be for training and its mount path in worker pods
+	// SampleSetRef defines the sample data set used for training and its mount path in worker pods
 	// +optional
 	SampleSetRef *SampleSetRef `json:"sampleSetRef,omitempty"`
 

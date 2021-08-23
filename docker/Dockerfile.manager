@@ -7,7 +7,6 @@ COPY go.mod go.mod
 COPY go.sum go.sum
 
 ENV GOPROXY="https://goproxy.cn,direct"
-ENV RUNTIME_IMAGE=$EXECUTOR_IMG:$GIT_VERSION
 # cache deps before building and copying source so that we don't need to re-download as much
 # and so that source changes don't invalidate our downloaded layer
 RUN go mod download
@@ -25,12 +24,12 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a -o nuwa cmd
 FROM bitnami/minideb:stretch
 WORKDIR /
 
-ENV JUICEFS_VERSION=0.15.2
 ENV JUICEFS_PATH=/usr/bin/juicefs
 
-RUN apt-get update && apt-get install -y wget && \
-    wget https://github.com/juicedata/juicefs/releases/download/v${JUICEFS_VERSION}/juicefs-${JUICEFS_VERSION}-linux-amd64.tar.gz && \
-    tar xzf juicefs-${JUICEFS_VERSION}-linux-amd64.tar.gz && rm -rf README.md README_CN.md juicefs-${JUICEFS_VERSION}-linux-amd64.tar.gz && \
+RUN apt-get update && apt-get install -y wget curl && \
+    JFS_LATEST_TAG=$(curl -s https://api.github.com/repos/juicedata/juicefs/releases/latest | grep 'tag_name' | cut -d '"' -f 4 | tr -d 'v') && \
+    wget "https://github.com/juicedata/juicefs/releases/download/v${JFS_LATEST_TAG}/juicefs-${JFS_LATEST_TAG}-linux-amd64.tar.gz" && \
+    tar xzf juicefs-${JFS_LATEST_TAG}-linux-amd64.tar.gz && rm -rf README.md README_CN.md juicefs-${JFS_LATEST_TAG}-linux-amd64.tar.gz && \
     chmod +x juicefs && mv juicefs ${JUICEFS_PATH}
 
 COPY --from=builder /workspace/nuwa /usr/bin/nuwa

@@ -346,7 +346,9 @@ func (s *SampleSetController) reconcileMount() (ctrl.Result, error) {
 	if err != nil {
 		return utils.RequeueAfter(10 * time.Second)
 	}
-	s.SampleSet.Status.CacheStatus = status
+	if status != nil {
+		s.SampleSet.Status.CacheStatus = status
+	}
 
 	// 3. update SampleSet phase to partial ready
 	s.SampleSet.Status.Phase = common.SampleSetPartialReady
@@ -366,15 +368,13 @@ func (s *SampleSetController) reconcileSyncing() (ctrl.Result, error) {
 	if err != nil {
 		return utils.RequeueAfter(5 * time.Second)
 	}
-	if !reflect.DeepEqual(newStatus, s.SampleSet.Status.CacheStatus) {
-		if newStatus != nil && newStatus.TotalSize != "0 B" {
-			s.SampleSet.Status.CacheStatus = newStatus
-			err = s.UpdateResourceStatus(s.SampleSet, SampleSet)
-			if err != nil {
-				return utils.RequeueWithError(err)
-			}
-			return utils.NoRequeue()
+	if newStatus != nil && !reflect.DeepEqual(newStatus, s.SampleSet.Status.CacheStatus) {
+		s.SampleSet.Status.CacheStatus = newStatus
+		err = s.UpdateResourceStatus(s.SampleSet, SampleSet)
+		if err != nil {
+			return utils.RequeueWithError(err)
 		}
+		return utils.NoRequeue()
 	}
 
 	// 2. get the result of sync data job
@@ -387,7 +387,7 @@ func (s *SampleSetController) reconcileSyncing() (ctrl.Result, error) {
 	// 3. if sync job status is running then wait seconds and requeue
 	if result != nil && result.Status == common.JobStatusRunning {
 		s.Log.Info("wait util sync job done")
-		return utils.RequeueAfter(10 * time.Second)
+		return utils.RequeueAfter(5 * time.Second)
 	}
 	// 4. if sync job status is failed, then update phase to SyncFailed
 	if result != nil && result.Status == common.JobStatusFail {
@@ -439,9 +439,9 @@ func (s *SampleSetController) reconcileReady() (ctrl.Result, error) {
 	// 2. get the cache status from runtime servers
 	newStatus, err := s.CollectCacheStatusByPartitions(int(partitions))
 	if err != nil {
-		return utils.RequeueAfter(10 * time.Second)
+		return utils.RequeueAfter(5 * time.Second)
 	}
-	if !reflect.DeepEqual(newStatus, s.SampleSet.Status.CacheStatus) {
+	if newStatus != nil && !reflect.DeepEqual(newStatus, s.SampleSet.Status.CacheStatus) {
 		s.SampleSet.Status.CacheStatus = newStatus
 		err = s.UpdateResourceStatus(s.SampleSet, SampleSet)
 		if err != nil {
@@ -485,7 +485,7 @@ func (s *SampleSetController) deleteSampleSet() (ctrl.Result, error) {
 	}
 	if len(podList.Items) > 0 {
 		s.Log.Info("wait all statefulset replicas deleted")
-		return utils.RequeueAfter(10 * time.Second)
+		return utils.RequeueAfter(5 * time.Second)
 	}
 	// 5. delete runtime service
 	if err := s.DeleteResource(Service); err != nil {
@@ -635,9 +635,9 @@ func (s *SampleSetController) reconcilePartialReady() (ctrl.Result, error) {
 	// 7. collect all cache status from running runtime server
 	status, err := s.CollectCacheStatus(runtimePodNames)
 	if err != nil {
-		return utils.RequeueAfter(10 * time.Second)
+		return utils.RequeueAfter(5 * time.Second)
 	}
-	if !reflect.DeepEqual(status, s.SampleSet.Status.CacheStatus) {
+	if status != nil && !reflect.DeepEqual(status, s.SampleSet.Status.CacheStatus) {
 		needUpdateStatefulSet = true
 		s.SampleSet.Status.CacheStatus = status
 		s.Log.Info("cache status has changed")
