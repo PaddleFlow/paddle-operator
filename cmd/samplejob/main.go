@@ -55,7 +55,7 @@ func init() {
 	//+kubebuilder:scaffold:scheme
 
 	flag.StringVar(&namespace, "namespace", "", "The namespace the controller binds to.")
-	flag.BoolVar(&development, "development", true, "Enable development mode for controller.")
+	flag.BoolVar(&development, "development", false, "Enable development mode for controller.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,

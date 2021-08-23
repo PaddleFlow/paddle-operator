@@ -121,7 +121,7 @@ var clearJobCmd = &cobra.Command{
 func init() {
 	// initialize options for root command
 	rootCmd.PersistentFlags().StringVar(&rootCmdOptions.Driver, "driver", string(driver.JuiceFSDriver), "specify the cache engine")
-	rootCmd.PersistentFlags().BoolVar(&rootCmdOptions.Development, "development", true, "configures the logger to use a Zap development config")
+	rootCmd.PersistentFlags().BoolVar(&rootCmdOptions.Development, "development", false, "configures the logger to use a Zap development config")
 
 	// initialize options for runtime server
 	serverCmd.Flags().IntVar(&serverOptions.ServerPort, "serverPort", common.RuntimeServicePort, "the port for runtime service")

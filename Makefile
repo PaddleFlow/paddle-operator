@@ -8,7 +8,7 @@ MANAGER_IMG ?= registry.baidubce.com/paddle-operator/manager
 CRD_OPTIONS ?= "crd:maxDescLen=0,generateEmbeddedObjectMeta=true,trivialVersions=true,preserveUnknownFields=false"
 
 # Set version and get git tag
-VERSION=v0.3.0
+VERSION=v0.4-alpha
 # GIT_SHA=$(shell git rev-parse --short HEAD || echo "HEAD")
 # GIT_VERSION=${VERSION}-${GIT_SHA}
 GIT_VERSION=${VERSION}
@@ -97,9 +97,6 @@ generate: controller-gen
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
 ##@ Build
-
-# Build all controller manager
-build-all: manager build-sampleset
 
 # Build sampleset controller manager
 build-sampleset: generate fmt vet

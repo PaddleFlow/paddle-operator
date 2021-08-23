@@ -9,7 +9,7 @@ namePrefix: paddle-
 images:
 - name: sampleset
   newName: registry.baidubce.com/paddle-operator/sampleset
-  newTag: v0.3.0
+  newTag: v0.4-alpha
 - name: samplejob
   newName: registry.baidubce.com/paddle-operator/samplejob
-  newTag: v0.3.0
+  newTag: v0.4-alpha
