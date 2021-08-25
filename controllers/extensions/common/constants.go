@@ -83,8 +83,9 @@ const (
 )
 
 const (
-	IndexerKeyEvent   = "eventIndexerKey"
-	IndexerKeyRuntime = "runtimeIndexerKey"
+	IndexerKeyEvent     = "eventIndexerKey"
+	IndexerKeyRuntime   = "runtimeIndexerKey"
+	IndexerKeyPaddleJob = "paddleJobIndexerKey"
 )
 
 const (

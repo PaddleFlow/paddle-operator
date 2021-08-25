@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	batchv1 "github.com/paddleflow/paddle-operator/api/v1"
 	"github.com/paddleflow/paddle-operator/api/v1alpha1"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/driver"
@@ -41,6 +42,7 @@ var (
 	Service     *Resource
 	SampleSet   *Resource
 	SampleJob   *Resource
+	PaddleJob   *Resource
 	StatefulSet *Resource
 	RuntimePod  *Resource
 
@@ -113,6 +115,10 @@ func init() {
 	RuntimePod = NewResource("Pod")
 	RuntimePod.WithLabel = true
 	RuntimePod.ListOptions = RuntimePodListOptions
+
+	// list
+	PaddleJob = NewResource("PaddleJob")
+	PaddleJob.ListOptions = PaddleJobListOptions
 
 	// sync job options
 	SyncJob = NewJobOptions("SyncJob")
@@ -349,6 +355,15 @@ func RuntimePodListOptions(c *Controller) []client.ListOption {
 		common.IndexerKeyRuntime: string(v1.PodRunning),
 	}
 	return []client.ListOption{nOpt, lOpt, fOpt}
+}
+
+func PaddleJobListOptions(c *Controller) []client.ListOption {
+	nOpt := client.InNamespace(c.Req.Namespace)
+	values := []string{c.Req.Name, string(batchv1.Running)}
+	fOpt := client.MatchingFields{
+		common.IndexerKeyPaddleJob: strings.Join(values, "-"),
+	}
+	return []client.ListOption{nOpt, fOpt}
 }
 
 type JobType struct {
@@ -864,4 +879,18 @@ func EventIndexerFunc(obj client.Object) []string {
 func RuntimePodIndexerFunc(obj client.Object) []string {
 	pod := obj.(*v1.Pod)
 	return []string{string(pod.Status.Phase)}
+}
+
+func PaddleJobIndexerFunc(obj client.Object) []string {
+	pdj := obj.(*batchv1.PaddleJob)
+	sampleSetName := ""
+	if pdj.Spec.SampleSetRef != nil {
+		sampleSetName = pdj.Spec.SampleSetRef.Name
+	}
+	keys := []string{
+		sampleSetName,
+		string(pdj.Status.Phase),
+	}
+	keyStr := strings.Join(keys, "-")
+	return []string{keyStr}
 }

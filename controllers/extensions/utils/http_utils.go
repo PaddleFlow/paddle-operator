@@ -162,7 +162,7 @@ func CollectAllCacheStatus(runtimePodNames []string, serviceName string) (*v1alp
 	if totalSize >= cachedSizeTotal {
 		statusAll.CachedSize = humanize.IBytes(cachedSizeTotal)
 	} else {
-		statusAll.CachedSize = humanize.IBytes(totalSize)
+		statusAll.CachedSize = statusAll.TotalSize
 	}
 	statusAll.DiskSize = humanize.IBytes(diskSizeTotal * 1024)
 	statusAll.DiskUsed = humanize.IBytes(diskUsedTotal * 1024)

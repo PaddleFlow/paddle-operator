@@ -30,6 +30,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	batchv1 "github.com/paddleflow/paddle-operator/api/v1"
 	"github.com/paddleflow/paddle-operator/api/v1alpha1"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/common"
 	"github.com/paddleflow/paddle-operator/controllers/extensions/driver"
@@ -135,6 +136,14 @@ func (r *SampleSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		RuntimePodIndexerFunc); err != nil {
 		return err
 	}
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&batchv1.PaddleJob{},
+		common.IndexerKeyPaddleJob,
+		PaddleJobIndexerFunc); err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.SampleSet{}).
 		Owns(&v1.Event{}).
@@ -438,8 +447,8 @@ func (s *SampleSetController) reconcileReady() (ctrl.Result, error) {
 
 	// 2. get the cache status from runtime servers
 	newStatus, err := s.CollectCacheStatusByPartitions(int(partitions))
-	if err != nil {
-		return utils.RequeueAfter(5 * time.Second)
+	if err != nil || newStatus == nil {
+		return utils.RequeueAfter(common.RuntimeCacheInterval*time.Second+1)
 	}
 	if newStatus != nil && !reflect.DeepEqual(newStatus, s.SampleSet.Status.CacheStatus) {
 		s.SampleSet.Status.CacheStatus = newStatus
@@ -448,7 +457,22 @@ func (s *SampleSetController) reconcileReady() (ctrl.Result, error) {
 			return utils.RequeueWithError(err)
 		}
 		s.Log.Info("updated sampleset cache status")
-		return utils.RequeueAfter(common.RuntimeCacheInterval*time.Second + 1)
+		return utils.RequeueAfter(common.RuntimeCacheInterval*time.Second+1)
+	}
+
+	// 3. if all sample data has been cached in local disk
+	if newStatus.TotalSize == newStatus.CachedSize {
+		return utils.NoRequeue()
+	}
+
+	// 4. if there are some PaddleJob is in running phase, requeue and keep update cache status
+	pdjList := &batchv1.PaddleJobList{}
+	err = s.ListResources(pdjList, PaddleJob)
+	if err != nil {
+		return utils.RequeueWithError(err)
+	}
+	if len(pdjList.Items) > 0 {
+		return utils.RequeueAfter(2*common.RuntimeCacheInterval*time.Second+2)
 	}
 
 	return utils.NoRequeue()
