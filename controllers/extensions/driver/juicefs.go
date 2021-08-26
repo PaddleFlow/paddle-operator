@@ -72,6 +72,8 @@ func init() {
 		CacheSize: 1024 * 1024 * 1024, CacheDir: "/dev/shm/",
 	}
 
+	// all JuiceFS supported storage backend can refer to
+	// https://github.com/juicedata/juicefs/blob/main/docs/zh_cn/how_to_setup_object_storage.md
 	JuiceFSSupportStorage = []string{
 		common.StorageBOS, common.StorageS3, common.StorageHDFS,
 		common.StorageGCS, common.StorageWASB, common.StorageOSS,
@@ -79,7 +81,11 @@ func init() {
 		common.StorageQingStor, common.StorageJSS, common.StorageQiNiu,
 		common.StorageB2, common.StorageSpace, common.StorageOBS,
 		common.StorageOOS, common.StorageSCW, common.StorageMinio,
-		common.StorageSCS,
+		common.StorageSCS, common.StorageIBMCOS, common.StorageWASABI,
+		common.StorageMSS, common.StorageNOS, common.StorageEOS,
+		common.StorageSpeedy, common.StorageCeph, common.StorageSwift,
+		common.StorageWebDAV, common.StorageRedis, common.StorageTiKV,
+		common.StorageFile,
 	}
 
 }

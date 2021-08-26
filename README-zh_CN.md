@@ -1,42 +1,42 @@
 # Paddle Operator
 
-English | [简体中文](./README-zh_CN.md)
+[English](./README.md) | 简体中文
 
-## Overview
+## 概述
 
 Paddle Operator makes it easy to run [paddle](https://www.paddlepaddle.org.cn/)
 distributed training job on kubernetes by providing PaddleJob custom resource etc.
 
-## Quick Start
-### Prerequisites
+## 快速上手
+### 前提条件
 
 * Kubernetes >= 1.8
 * kubectl
 
-### Installation
+### 安装
 
-With kubernetes ready, you can install paddle operator with configuration in *deploy* folder 
-(use *deploy/v1* for kubernetes v1.16+ or *deploy/v1beta1* for kubernetes 1.15-).
+配置好 Kubernetes 集群后, 您可以使用 *deploy* 文件夹下的 yaml 配置文件来安装 Paddle Operator。
+(对于 kubernetes v1.16+ 的集群使用 *deploy/v1* 的配置文件， kubernetes 1.15- 的集群使用 *deploy/v1beta1*)。
 
-Create PaddleJob crd,
+创建 PaddleJob 自定义资源,
 ```shell
 kubectl apply -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/main/deploy/v1/crd.yaml
 ```
 
-A succeed creation leads to result as follows,
+创建成功后，可以通过以下命令来查看创建的自定义资源
 ```shell
 kubectl get crd
 NAME                                    CREATED AT
 paddlejobs.batch.paddlepaddle.org       2021-02-08T07:43:24Z
 ```
 
-Then deploy controller,
+然后可以通过下面的命令来部署 controller
 
 ```shell
 kubectl apply -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/main/deploy/v1/operator.yaml
 ```
 
-the ready state of controller would be as follow,
+通过以下命令可以查看部署在集群中的 controller
 ```shell
 kubectl -n paddle-system get pods
 NAME                                         READY   STATUS    RESTARTS   AGE
@@ -64,7 +64,7 @@ Check paddle job status
 kubectl -n paddle-system get pdj
 ```
 
-### Work with Volcano
+### 使用Volcano调度任务
 
 Enable volcano before installation, add the following args in *deploy/v1/operator.yaml*
 ```
@@ -79,7 +79,7 @@ containers:
 
 then, job as in *deploy/examples/wide_and_deep_volcano.yaml* can be handled correctly.
 
-### Elastic Trainning
+### 弹性训练
 
 Elastic feature depend on etcd present, which should be set for controller as args,
 ```
@@ -88,23 +88,39 @@ Elastic feature depend on etcd present, which should be set for controller as ar
 
 then, job as in *deploy/elastic/resnet.yaml* can be handled correctly.
 
-### Data Acceleration
+### 数据缓存与加速
 
+受到 [Fluid](https://github.com/fluid-cloudnative/fluid) 项目的启发，Paddle Operator里添加了样本缓存组件，旨在将远程的样本数据缓存到训练集群本地，加速 PaddleJob 作业的执行效率。
 
+样本缓存组件目前支持的功能有：
 
+- __加速训练任务摄取样本数据__
 
-### Uninstall
-Simply
+    Paddle Operator的样本缓存组件使用 [JuiceFS](https://github.com/juicedata/juicefs) 作为缓存引擎，能够加速远程样本的访问速度，尤其是在海量小文件的场景模型训练任务能有显著的提升。
+
+- __缓存亲和性调度__
+
+    创建好样本数据集后，缓存组件会自动的将样本数据预热到训练集群中，当后续有训练任务需要使用这个样本集时，缓存组件能够将训练任务调度到有缓存的节点，大大缩短 PaddleJob 执行时间，一定程度也能提高 GPU 资源利用率。
+
+- __支持多种数据管理作业__
+
+    缓存组件通过 SampleJob 自定义资源，为用户提供了多种数据集管理命令，包括将远程样本数据同步到缓存引擎的 sync 作业，用于数据预热的 warmup 作业，清理缓存数据的 clear 作业 和 淘汰历史数据的 rmr 作业。
+
+更多关于样本缓存组件的信息请参考[扩展功能](./docs/zh_CN/ext-toc.md)
+
+### 卸载
+
+卸载 Paddle Operator 前，请确保命名空间 paddle-system 下的 PaddleJob 都被清理掉了。
+
 ```shell
 kubectl delete -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/main/deploy/v1/crd.yaml -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/main/deploy/v1/operator.yaml
 ```
-## Advanced usage
+
+## 高级配置
 
 More configuration can be found in Makefile, clone this repo and enjoy it.
 If you have any questions or concerns about the usage, please do not hesitate to contact us.
 
-## More Information
+## 更多资料
 
-Please refer to the
-[中文文档](https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/paddle_on_k8s.html) 
-for more information about paddle configuration.
+关于在 Kubernetes 集群使用 Paddle Operator 做分布式训练的更多示例可以参考 [FleetX](https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/paddle_on_k8s.html)

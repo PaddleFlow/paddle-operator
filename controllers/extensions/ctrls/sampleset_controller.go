@@ -448,7 +448,7 @@ func (s *SampleSetController) reconcileReady() (ctrl.Result, error) {
 	// 2. get the cache status from runtime servers
 	newStatus, err := s.CollectCacheStatusByPartitions(int(partitions))
 	if err != nil || newStatus == nil {
-		return utils.RequeueAfter(common.RuntimeCacheInterval*time.Second+1)
+		return utils.RequeueAfter(common.RuntimeCacheInterval*time.Second + 1)
 	}
 	if newStatus != nil && !reflect.DeepEqual(newStatus, s.SampleSet.Status.CacheStatus) {
 		s.SampleSet.Status.CacheStatus = newStatus
@@ -457,7 +457,7 @@ func (s *SampleSetController) reconcileReady() (ctrl.Result, error) {
 			return utils.RequeueWithError(err)
 		}
 		s.Log.Info("updated sampleset cache status")
-		return utils.RequeueAfter(common.RuntimeCacheInterval*time.Second+1)
+		return utils.RequeueAfter(common.RuntimeCacheInterval*time.Second + 1)
 	}
 
 	// 3. if all sample data has been cached in local disk
@@ -472,7 +472,7 @@ func (s *SampleSetController) reconcileReady() (ctrl.Result, error) {
 		return utils.RequeueWithError(err)
 	}
 	if len(pdjList.Items) > 0 {
-		return utils.RequeueAfter(2*common.RuntimeCacheInterval*time.Second+2)
+		return utils.RequeueAfter(2*common.RuntimeCacheInterval*time.Second + 2)
 	}
 
 	return utils.NoRequeue()

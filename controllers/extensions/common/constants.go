@@ -137,7 +137,7 @@ const (
 	// StorageHDFS Hadoop File System (HDFS)
 	StorageHDFS = "hdfs"
 	// StorageGCS Google Cloud Storage
-	StorageGCS = "gcs"
+	StorageGCS = "gs"
 	// StorageWASB Windows Azure Blob Storage
 	StorageWASB = "wasb"
 	// StorageOSS Aliyun OSS
@@ -168,6 +168,30 @@ const (
 	StorageMinio = "minio"
 	// StorageSCS Sina Cloud Storage
 	StorageSCS = "scs"
+	// StorageIBMCOS IBM Cloud Object Storage
+	StorageIBMCOS = "ibmcos"
+	// StorageWASABI Wasabi Cloud Object Storage
+	StorageWASABI = "wasabi"
+	// StorageMSS Meituan Storage Service
+	StorageMSS = "mss"
+	// StorageNOS NetEase Object Storage
+	StorageNOS = "nos"
+	// StorageEOS ECloud (China Mobile Cloud) Object Storage
+	StorageEOS = "eos"
+	// StorageSpeedy SpeedyCloud Object Storage
+	StorageSpeedy = "speedy"
+	// StorageCeph Ceph RADOS
+	StorageCeph = "ceph"
+	// StorageSwift Swift
+	StorageSwift = "swift"
+	// StorageWebDAV WebDAV
+	StorageWebDAV = "webdav"
+	// StorageRedis redis
+	StorageRedis = "redis"
+	// StorageTiKV tikv
+	StorageTiKV = "tikv"
+	// StorageFile file
+	StorageFile = "file"
 )
 
 const (

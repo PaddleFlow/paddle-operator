@@ -116,16 +116,7 @@ func (r *SampleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return utils.RequeueWithError(err)
 	}
 
-	// 6. add SampleSet spec.secretRef to SampleJob
-	secretRef := sampleSet.Spec.SecretRef
-	if sampleJob.Status.SecretRef == nil || !reflect.DeepEqual(sampleJob.Status.SecretRef, secretRef) {
-		sampleJob.Status.SecretRef = secretRef.DeepCopy()
-		if err := r.Update(ctx, sampleJob); err != nil {
-			return utils.RequeueWithError(err)
-		}
-	}
-
-	// 7. update SampleSet cache status to trigger SampleSet controller collect new cache info
+	// 6. update SampleSet cache status to trigger SampleSet controller collect new cache info
 	if sampleSet.Status.CacheStatus != nil {
 		sampleSet.Status.CacheStatus.DiskUsageRate = ""
 		if err := r.Status().Update(ctx, sampleSet); err != nil {
@@ -133,7 +124,7 @@ func (r *SampleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	// 8. Get driver and construct reconcile context
+	// 7. Get driver and construct reconcile context
 	var driverName v1alpha1.DriverName
 	if sampleSet.Spec.CSI == nil {
 		driverName = driver.DefaultDriver
@@ -156,7 +147,7 @@ func (r *SampleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		Scheme:   r.Scheme,
 		Recorder: r.Recorder,
 	}
-	// 9. construct SampleJob Controller
+	// 8. construct SampleJob Controller
 	sjc := NewSampleJobController(sampleJob, CSIDriver, RCtx)
 
 	return sjc.reconcilePhase()
@@ -250,7 +241,33 @@ func (s *SampleJobController) reconcileNone() (ctrl.Result, error) {
 		time.Sleep(10 * time.Second)
 	}
 
-	// 2. if job name is none then generate job name and post options to server
+	// 2. if job type is sync then check if secrets is exists
+	if s.SampleJob.Spec.Type == common.JobTypeSync {
+		if s.SampleJob.Spec.SecretRef == nil {
+			e := errors.New("spec.secretRef should not be empty")
+			s.Log.Error(e, "spec.secretRef is nil")
+			s.Recorder.Event(s.SampleJob, v1.EventTypeWarning, common.ErrorSecretNotExist, e.Error())
+			return utils.NoRequeue()
+		}
+		if s.SampleJob.Spec.SecretRef.Name == "" {
+			err := errors.New("spec.secretRef.name is not set")
+			s.Log.Error(err, "spec.secretRef.name is empty string")
+			s.Recorder.Event(s.SampleJob, v1.EventTypeWarning, common.ErrorSecretNotExist, err.Error())
+			return utils.NoRequeue()
+		}
+		exist, err := s.ResourcesExist(SourceSecret)
+		if err != nil {
+			return utils.RequeueWithError(err)
+		}
+		if !exist {
+			err := fmt.Errorf("secret %s is not exist", s.SampleJob.Spec.SecretRef.Name)
+			s.Log.Error(err, "please create secret object and named it as spec.secretRef.name")
+			s.Recorder.Event(s.SampleJob, v1.EventTypeWarning, common.ErrorSecretNotExist, err.Error())
+			return utils.NoRequeue()
+		}
+	}
+
+	// 3. if job name is none then generate job name and post options to server
 	if s.SampleJob.Status.JobName == "" {
 		jobName := uuid.NewUUID()
 		jobType := JobTypeMap[s.SampleJob.Spec.Type]
@@ -264,7 +281,7 @@ func (s *SampleJobController) reconcileNone() (ctrl.Result, error) {
 		s.SampleJob.Status.JobName = jobName
 	}
 
-	// update SampleSet phase to pending
+	// 4. update SampleSet phase to pending
 	s.SampleJob.Status.Phase = common.SampleJobPending
 	err := s.UpdateResourceStatus(s.SampleJob, SampleJob)
 	if err != nil {

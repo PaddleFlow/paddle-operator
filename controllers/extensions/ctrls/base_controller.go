@@ -34,17 +34,18 @@ import (
 )
 
 var (
-	PV          *Resource
-	PVC         *Resource
-	Node        *Resource
-	Secret      *Resource
-	Event       *Resource
-	Service     *Resource
-	SampleSet   *Resource
-	SampleJob   *Resource
-	PaddleJob   *Resource
-	StatefulSet *Resource
-	RuntimePod  *Resource
+	PV           *Resource
+	PVC          *Resource
+	Node         *Resource
+	Secret       *Resource
+	Event        *Resource
+	Service      *Resource
+	SampleSet    *Resource
+	SampleJob    *Resource
+	PaddleJob    *Resource
+	StatefulSet  *Resource
+	RuntimePod   *Resource
+	SourceSecret *Resource
 
 	RmrJob    *JobType
 	ClearJob  *JobType
@@ -66,7 +67,7 @@ func init() {
 	PV.ObjectKey = NameObjectKey
 	PV.CreateObject = PVCreateObject
 
-	// get create delete exist
+	// get create delete exists
 	PVC = NewResource("PVC")
 	PVC.WithLabel = true
 	PVC.Object = PVCObject
@@ -78,33 +79,38 @@ func init() {
 	Node.WithLabel = true
 	Node.ListOptions = NodeListOptions
 
-	// get exist
+	// get exists
 	Secret = NewResource("Secret")
 	Secret.Object = SecretObject
 	Secret.ObjectKey = SecretObjectKey
+
+	// get exists
+	SourceSecret = NewResource("SourceSecret")
+	SourceSecret.Object = SecretObject
+	SourceSecret.ObjectKey = SourceSecretObjectKey
 
 	// list
 	Event = NewResource("Event")
 	Event.ListOptions = EventListOptions
 
-	// get create delete exist
+	// get create delete exists
 	Service = NewResource("Service")
 	Service.WithLabel = true
 	Service.Object = ServiceObject
 	Service.ObjectKey = ServiceObjectKey
 	Service.CreateObject = ServiceCreateObject
 
-	// get delete update exist
+	// get delete update exists
 	SampleSet = NewResource("SampleSet")
 	SampleSet.Object = SampleSetObject
 	SampleSet.ObjectKey = NamespacedObjectKey
 
-	// get delete update exist
+	// get delete update exists
 	SampleJob = NewResource("SampleJob")
 	SampleJob.Object = SampleJobObject
 	SampleJob.ObjectKey = SampleJobObjectKey
 
-	// get create delete update exist
+	// get create delete update exists
 	StatefulSet = NewResource("StatefulSet")
 	StatefulSet.WithLabel = true
 	StatefulSet.Object = StatefulSetObject
@@ -163,7 +169,7 @@ func init() {
 	// dependents
 	PV.Dependents = []*Resource{Secret, SampleSet}
 	ClearJob.Dependents = []*Resource{StatefulSet}
-	SyncJob.Dependents = []*Resource{Secret, SampleSet}
+	SyncJob.Dependents = []*Resource{SourceSecret, SampleSet}
 	StatefulSet.Dependents = []*Resource{PV, SampleSet}
 	RmrJob.Dependents = []*Resource{SampleJob}
 	WarmupJob.Dependents = []*Resource{SampleSet}
@@ -266,15 +272,38 @@ func SecretObjectKey(c *Controller) client.ObjectKey {
 		}
 		return client.ObjectKey{Name: name, Namespace: namespace}
 	}
-	if sampleJob, ok := c.Sample.(*v1alpha1.SampleJob); ok {
-		name := sampleJob.Status.SecretRef.Name
+	panic(fmt.Errorf("%s is not register in SecretObjectKey", c.Sample.GetObjectKind().GroupVersionKind().String()))
+}
+
+func SourceSecretObjectKey(c *Controller) client.ObjectKey {
+	// under SampleSet controller
+	if sampleSet, ok := c.Sample.(*v1alpha1.SampleSet); ok {
+		name := sampleSet.Spec.SecretRef.Name
 		namespace := c.Req.Namespace
-		if sampleJob.Status.SecretRef.Namespace != "" {
-			namespace = sampleJob.Status.SecretRef.Namespace
+		if sampleSet.Spec.SecretRef.Namespace != "" {
+			namespace = sampleSet.Spec.SecretRef.Namespace
+		}
+		// if source secret is not nil then use it
+		if sampleSet.Spec.Source != nil && sampleSet.Spec.Source.SecretRef != nil {
+			if sampleSet.Spec.Source.SecretRef.Name != "" {
+				name = sampleSet.Spec.Source.SecretRef.Name
+			}
+			if sampleSet.Spec.Source.SecretRef.Namespace != "" {
+				namespace = sampleSet.Spec.Source.SecretRef.Namespace
+			}
 		}
 		return client.ObjectKey{Name: name, Namespace: namespace}
 	}
-	panic(fmt.Errorf("%s is not register in SecretObjectKey", c.Sample.GetObjectKind().GroupVersionKind().String()))
+	// under SampleJob Controller
+	if sampleJob, ok := c.Sample.(*v1alpha1.SampleJob); ok {
+		name := sampleJob.Spec.SecretRef.Name
+		namespace := c.Req.Namespace
+		if sampleJob.Spec.SecretRef.Namespace != "" {
+			namespace = sampleJob.Spec.SecretRef.Namespace
+		}
+		return client.ObjectKey{Name: name, Namespace: namespace}
+	}
+	panic(fmt.Errorf("%s is not register in SourceSecretObjectKey", c.Sample.GetObjectKind().GroupVersionKind().String()))
 }
 
 func ServiceObjectKey(c *Controller) client.ObjectKey {

@@ -235,6 +235,9 @@ type SampleJobSpec struct {
 	// the information of reference SampleSet object
 	// +kubebuilder:validation:Required
 	SampleSetRef *v1.LocalObjectReference `json:"sampleSetRef,omitempty"`
+	// Used for sync job, if the source data storage requires additional authorization information, set this field.
+	// +optional
+	SecretRef *v1.SecretReference `json:"secretRef,omitempty"`
 
 	/// The schedule in Cron format, see https://en.wikipedia.org/wiki/Cron.
 	// +optional
@@ -251,8 +254,6 @@ type SampleJobSpec struct {
 type SampleJobStatus struct {
 	// The phase of SampleJob is a simple, high-level summary of where the SampleJob is in its lifecycle.
 	Phase SampleJobPhase `json:"phase,omitempty"`
-	// the secret reference from SampleSet spec.secretRef
-	SecretRef *v1.SecretReference `json:"secretRef,omitempty"`
 	// the uuid for a job, used by controller to post and get the job options and requests.
 	JobName types.UID `json:"jobName,omitempty"`
 	// Current status of a cron job.
