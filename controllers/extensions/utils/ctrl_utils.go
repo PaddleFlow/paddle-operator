@@ -121,14 +121,14 @@ func NoZeroOptionToArgs(options interface{}) []string {
 }
 
 func DiskUsageOfPaths(timeout time.Duration, paths ...string) (string, error) {
-	args := []string{"-scb"}
-	args = append(args, paths...)
+	filePaths := strings.Join(paths, " ")
+	arg := "du -scb --exclude \"./.*\" " + filePaths
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout*time.Second)
 	defer cancel()
 
 	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, "du", args...)
+	cmd := exec.CommandContext(ctx, "bash", "-c", arg)
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("cmd:%s, error: %s", cmd.String(), stderr.String())

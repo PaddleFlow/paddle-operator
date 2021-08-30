@@ -4,8 +4,7 @@
 
 ## 概述
 
-Paddle Operator makes it easy to run [paddle](https://www.paddlepaddle.org.cn/)
-distributed training job on kubernetes by providing PaddleJob custom resource etc.
+Paddle Operator 通过提供 PaddleJob 自定义资源让您可以很方便地在 kubernetes 集群运行 [paddle](https://www.paddlepaddle.org.cn/) 分布式训练任务。
 
 ## 快速上手
 ### 前提条件
@@ -43,30 +42,30 @@ NAME                                         READY   STATUS    RESTARTS   AGE
 paddle-controller-manager-698dd7b855-n65jr   1/1     Running   0          1m
 ```
 
-By default, paddle controller runs in namespace *paddle-system* and only controls jobs in that namespace.
-To run controller in a different namespace or controll jobs in other namespaces, you can edit `charts/paddle-operator/values.yaml` and install the helm chart.
-You can also edit kustomization files or edit `deploy/v1/operator.yaml` directly for that purpose.
+paddle ccontroller 默认运行在命名空间 *paddle-system* 下，并且仅管理该命名空间中的作业。
+如果您需要在不同的命名空间下运行 paddle controller，您可以编辑文件 `charts/paddle-operator/values.yaml` 并安装该 helm chart。
+此外您还可以通过编辑 kustomization 文件或直接修改 `deploy/v1/operator.yaml` 来更改默认的命名空间。
 
-### Run demo paddlejob
+### 运行 PaddleJob 示例
 
-Deploy your first paddlejob demo with
+通过下面的命令来部署您的第一个 PaddleJob
 ```shell
 kubectl -n paddle-system apply -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/main/deploy/examples/wide_and_deep.yaml
 ```
 
-Check pods status
+查看 pods 状态
 ```shell
 kubectl -n paddle-system get pods
 ```
 
-Check paddle job status
+查看 PaddleJob 状态
 ```shell
 kubectl -n paddle-system get pdj
 ```
 
-### 使用Volcano调度任务
+### 使用 Volcano 来调度作业
 
-Enable volcano before installation, add the following args in *deploy/v1/operator.yaml*
+安装前在文件 *deploy/v1/operator.yaml* 中添加如下参数，可以开启使用 Volcano 调度器
 ```
 containers:
 - args:
@@ -77,20 +76,20 @@ containers:
   - /manager
 ```
 
-then, job as in *deploy/examples/wide_and_deep_volcano.yaml* can be handled correctly.
+然后请参考文件 *deploy/examples/wide_and_deep_volcano.yaml* 编写 PaddleJob Yaml 文件.
 
 ### 弹性训练
 
-Elastic feature depend on etcd present, which should be set for controller as args,
+弹性训练的功能依赖有 Etcd，并且在 paddle controller 中设置类似下述参数。
 ```
   --etcd-server=paddle-elastic-etcd.paddle-system.svc.cluster.local:2379      # enable elastic
 ```
 
-then, job as in *deploy/elastic/resnet.yaml* can be handled correctly.
+然后请参考文件 *deploy/elastic/resnet.yaml* 编写 PaddleJob Yaml 文件.
 
 ### 数据缓存与加速
 
-受到 [Fluid](https://github.com/fluid-cloudnative/fluid) 项目的启发，Paddle Operator里添加了样本缓存组件，旨在将远程的样本数据缓存到训练集群本地，加速 PaddleJob 作业的执行效率。
+受到 [Fluid](https://github.com/fluid-cloudnative/fluid) 项目的启发，Paddle Operator 里添加了样本缓存组件，旨在将远程的样本数据缓存到训练集群本地，加速 PaddleJob 作业的执行效率。
 
 样本缓存组件目前支持的功能有：
 
@@ -118,8 +117,7 @@ kubectl delete -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/m
 
 ## 高级配置
 
-More configuration can be found in Makefile, clone this repo and enjoy it.
-If you have any questions or concerns about the usage, please do not hesitate to contact us.
+您可以在 Makefile 文件中查看更多的设置，也可以 clone 该项目来进行修改。 如果您有任务问题或建议，欢迎联系我们。
 
 ## 更多资料
 

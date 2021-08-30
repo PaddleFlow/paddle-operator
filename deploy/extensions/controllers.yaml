@@ -35,7 +35,7 @@ spec:
         - --namespace=paddle-system
         command:
         - /manager
-        image: registry.baidubce.com/paddle-operator/samplejob:v0.3.0
+        image: registry.baidubce.com/paddle-operator/samplejob:v0.4-alpha
         imagePullPolicy: Always
         livenessProbe:
           httpGet:
@@ -86,7 +86,7 @@ spec:
         - --namespace=paddle-system
         command:
         - /manager
-        image: registry.baidubce.com/paddle-operator/sampleset:v0.3.0
+        image: registry.baidubce.com/paddle-operator/sampleset:v0.4-alpha
         imagePullPolicy: Always
         livenessProbe:
           httpGet:

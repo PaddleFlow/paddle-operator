@@ -8824,6 +8824,13 @@ spec:
                   name:
                     type: string
                 type: object
+              secretRef:
+                properties:
+                  name:
+                    type: string
+                  namespace:
+                    type: string
+                type: object
               syncOptions:
                 properties:
                   bwlimit:
@@ -8903,13 +8910,6 @@ spec:
                 type: string
               phase:
                 type: string
-              secretRef:
-                properties:
-                  name:
-                    type: string
-                  namespace:
-                    type: string
-                type: object
             type: object
         type: object
     served: true
