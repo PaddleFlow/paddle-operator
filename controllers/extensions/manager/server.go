@@ -148,6 +148,7 @@ func (s *Server) Run() error {
 		return err
 	}
 
+	// (TODO: xiaolao) Add one goroutine to clear options and results file
 	go s.watchAndDo()
 	go s.writeCacheStatus()
 

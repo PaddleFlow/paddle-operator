@@ -154,7 +154,6 @@ func (j *JuiceFS) CreatePV(pv *v1.PersistentVolume, ctx *common.RequestContext) 
 			},
 		},
 		PersistentVolumeReclaimPolicy: v1.PersistentVolumeReclaimRetain,
-		NodeAffinity:                  ctx.SampleSet.Spec.NodeAffinity.DeepCopy(),
 		VolumeMode:                    &volumeMode,
 	}
 	pv.Spec = spec
@@ -348,6 +347,7 @@ func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx *common.RequestContex
 			Volumes: volumes,
 			Affinity: &v1.Affinity{
 				PodAntiAffinity: &podAntiAffinity,
+				NodeAffinity: ctx.SampleSet.Spec.NodeAffinity.DeepCopy(),
 			},
 			Tolerations: ctx.SampleSet.Spec.Tolerations,
 		},

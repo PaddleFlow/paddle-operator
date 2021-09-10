@@ -153,7 +153,7 @@ type SampleSetSpec struct {
 	// This field influences the scheduling of pods that use the cached dataset.
 	// Cannot update after SampleSet phase is Bound
 	// +optional
-	NodeAffinity *corev1.VolumeNodeAffinity `json:"nodeAffinity,omitempty"`
+	NodeAffinity *corev1.NodeAffinity `json:"nodeAffinity,omitempty"`
 	// If specified, the pod's tolerations.
 	// Cannot update after SampleSet phase is Bound
 	// +optional

@@ -69,27 +69,34 @@ type Driver interface {
 	// CreateRuntime create runtime StatefulSet to manager cache data
 	CreateRuntime(ds *appv1.StatefulSet, ctx *common.RequestContext) error
 
-	//CreateCronJob(cronJob *v1beta1.CronJob, ctx *common.RequestContext) error
-
 	// GetRuntimeName get the runtime StatefulSet name
 	GetRuntimeName(sampleSetName string) string
 
+	// CreateSyncJobOptions create the options of sync job, the controller will post it to runtime server
 	CreateSyncJobOptions(opt *v1alpha1.SyncJobOptions, ctx *common.RequestContext) error
 
+	// CreateWarmupJobOptions create the options of warmup job, this method now only use by SampleJob Controller
 	CreateWarmupJobOptions(opt *v1alpha1.WarmupJobOptions, ctx *common.RequestContext) error
 
+	// CreateRmrJobOptions create the options of rmr job, used by SampleJob controller
 	CreateRmrJobOptions(opt *v1alpha1.RmrJobOptions, ctx *common.RequestContext) error
 
+	// CreateClearJobOptions create the options of clear job, used by SampleJob controller
 	CreateClearJobOptions(opt *v1alpha1.ClearJobOptions, ctx *common.RequestContext) error
 
+	// CreateCacheStatus get the data status in mount and cache paths
 	CreateCacheStatus(opt *common.ServerOptions, status *v1alpha1.CacheStatus) error
 
+	// DoSyncJob call by runtime server, sync data from remote storage to cache engine
 	DoSyncJob(ctx context.Context, opt *v1alpha1.SyncJobOptions, log logr.Logger) error
 
+	// DoClearJob call by runtime server, clear the cached data
 	DoClearJob(ctx context.Context, opt *v1alpha1.ClearJobOptions, log logr.Logger) error
 
+	// DoWarmupJob call by runtime server, warmup data to local storage on each node respectively
 	DoWarmupJob(ctx context.Context, opt *v1alpha1.WarmupJobOptions, log logr.Logger) error
 
+	// DoRmrJob call by runtime server, remove the data of specified path from cache engine
 	DoRmrJob(ctx context.Context, opt *v1alpha1.RmrJobOptions, log logr.Logger) error
 }
 
@@ -108,7 +115,7 @@ type BaseDriver struct {
 	Name v1alpha1.DriverName
 }
 
-// CreatePVC a
+// CreatePVC create persistent volume claim, and it will be used by runtime server and PaddleJob worker pods
 func (d *BaseDriver) CreatePVC(pvc *v1.PersistentVolumeClaim, ctx *common.RequestContext) error {
 	label := d.GetLabel(ctx.Req.Name)
 	objectMeta := metav1.ObjectMeta{

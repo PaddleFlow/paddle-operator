@@ -106,5 +106,5 @@ If you have any questions or concerns about the usage, please do not hesitate to
 ## More Information
 
 Please refer to the
-[中文文档](https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/paddle_on_k8s.html) 
+[Fleex](https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/paddle_on_k8s.html) 
 for more information about paddle configuration.

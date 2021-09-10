@@ -1,3 +1,23 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Paddle Operator 样本缓存组件快速上手](#paddle-operator-%E6%A0%B7%E6%9C%AC%E7%BC%93%E5%AD%98%E7%BB%84%E4%BB%B6%E5%BF%AB%E9%80%9F%E4%B8%8A%E6%89%8B)
+  - [前提条件](#%E5%89%8D%E6%8F%90%E6%9D%A1%E4%BB%B6)
+  - [安装缓存组件](#%E5%AE%89%E8%A3%85%E7%BC%93%E5%AD%98%E7%BB%84%E4%BB%B6)
+    - [1. 安装自定义资源](#1-%E5%AE%89%E8%A3%85%E8%87%AA%E5%AE%9A%E4%B9%89%E8%B5%84%E6%BA%90)
+    - [2. 部署 Operator](#2-%E9%83%A8%E7%BD%B2-operator)
+    - [3. 部署样本缓存组件的 Controller](#3-%E9%83%A8%E7%BD%B2%E6%A0%B7%E6%9C%AC%E7%BC%93%E5%AD%98%E7%BB%84%E4%BB%B6%E7%9A%84-controller)
+    - [4. 安装 CSI 存储插件](#4-%E5%AE%89%E8%A3%85-csi-%E5%AD%98%E5%82%A8%E6%8F%92%E4%BB%B6)
+  - [缓存组件使用示例](#%E7%BC%93%E5%AD%98%E7%BB%84%E4%BB%B6%E4%BD%BF%E7%94%A8%E7%A4%BA%E4%BE%8B)
+    - [1. 准备 Redis 数据库](#1-%E5%87%86%E5%A4%87-redis-%E6%95%B0%E6%8D%AE%E5%BA%93)
+    - [2. 创建 Secret](#2-%E5%88%9B%E5%BB%BA-secret)
+    - [3. 创建 SampleSet](#3-%E5%88%9B%E5%BB%BA-sampleset)
+    - [4. 体验 SampleJob（可选）](#4-%E4%BD%93%E9%AA%8C-samplejob%E5%8F%AF%E9%80%89)
+    - [5. 创建 PaddleJob](#5-%E5%88%9B%E5%BB%BA-paddlejob)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Paddle Operator 样本缓存组件快速上手
 
 本文档主要讲述了如何安装部署 Paddle Operator 样本缓存组件，并通过实际的示例演示了缓存组件的基础功能。
@@ -67,7 +87,7 @@ juicefs-csi-node-87f29                        3/3     Running   0          13d
 juicefs-csi-node-8h2z5                        3/3     Running   0          13d
 ```
 
-注意：如果 Kubernetes 无法发现 CSI 驱动程序，并出现类似这样的错误：**driver name csi.juicefs.com not found in the list of registered CSI drivers**，这是由于 CSI 驱动没有注册到 kubelet 的指定路径，您可以通过下面的步骤进行修复。
+**注意**：如果 Kubernetes 无法发现 CSI 驱动程序，并出现类似这样的错误：**driver name csi.juicefs.com not found in the list of registered CSI drivers**，这是由于 CSI 驱动没有注册到 kubelet 的指定路径，您可以通过下面的步骤进行修复。
 
 在集群中的 worker 节点执行以下命令来获取 kubelet 的根目录
 ```shell
@@ -96,7 +116,7 @@ docker run -d --name redis \
 	redis redis-server --appendonly yes
 ```
 
-注意：以上命令将本地目录 `redis-data` 挂载到 Docker 容器的 `/data` 数据卷中，您可以按需求挂载不同的文件目录。
+**注意**：以上命令将本地目录 `redis-data` 挂载到 Docker 容器的 `/data` 数据卷中，您可以按需求挂载不同的文件目录。
 
 ### 2. 创建 Secret
 
@@ -122,7 +142,7 @@ docker run -d --name redis \
 | bucket  | redis://192.168.7.227:6379/1 |
 | metaurl | redis://192.168.7.227:6379/0  |
 
-注意：请将 IP `192.168.7.227` 替换成您在第一步中运行 Redis 容器的宿主机的 IP 地址。
+**注意**：请将 IP `192.168.7.227` 替换成您在第一步中运行 Redis 容器的宿主机的 IP 地址。
 
 然后创建 secret.yaml 文件
 ```yaml
@@ -190,7 +210,7 @@ paddle-sampleset-manager-69bc7fb85d-4rjcg    1/1     Running   0          11h
 
 缓存组件提供了 SampleJob 用来做样本数据集的管理，目前支持了4种 Job 类型，分别是 sync/warmup/clear/rmr。
 
-注意：由于 SampleSet 的数据缓存信息不是实时更新的，SampleJob 执行完成后缓存信息会在 30s 内完成更新。
+**注意**：由于 SampleSet 的数据缓存信息不是实时更新的，SampleJob 执行完成后缓存信息会在 30s 内完成更新。
 
 删除缓存引擎中的数据，rmr job 里的 rmrOptions 是必填的，paths 里的参数是数据的相对路径。
 ```bash
@@ -294,7 +314,7 @@ imagenet   4.2 GiB      4.2 GiB       7.3 GiB       1/1       Ready   90m
 
 ### 5. 创建 PaddleJob 
 
-以下示例使用 Nginx 镜像代替模型训练镜像来简单示范下，如何在 PaddleJob 中声明使用创建好的 SampleSet 样本数据集。 如果您的集群中有 GPU 硬件资源，并且想要测试缓存组件给模型训练带来的提升效果，请参考文档：[性能测试](./ext-beachmark.md)
+以下示例使用 nginx 镜像来简单示范下如何在 PaddleJob 中声明使用 SampleSet 样本数据集。 如果您的集群中有 GPU 硬件资源，并且想要测试缓存组件给模型训练带来的提升效果，请参考文档：[性能测试](./ext-beachmark.md)
 
 编写 ps-demo.yaml 文件如下：
 ```yaml

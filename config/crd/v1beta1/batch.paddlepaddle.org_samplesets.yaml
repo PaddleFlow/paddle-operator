@@ -118,7 +118,53 @@ spec:
               type: boolean
             nodeAffinity:
               properties:
-                required:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  items:
+                    properties:
+                      preference:
+                        properties:
+                          matchExpressions:
+                            items:
+                              properties:
+                                key:
+                                  type: string
+                                operator:
+                                  type: string
+                                values:
+                                  items:
+                                    type: string
+                                  type: array
+                              required:
+                              - key
+                              - operator
+                              type: object
+                            type: array
+                          matchFields:
+                            items:
+                              properties:
+                                key:
+                                  type: string
+                                operator:
+                                  type: string
+                                values:
+                                  items:
+                                    type: string
+                                  type: array
+                              required:
+                              - key
+                              - operator
+                              type: object
+                            type: array
+                        type: object
+                      weight:
+                        format: int32
+                        type: integer
+                    required:
+                    - preference
+                    - weight
+                    type: object
+                  type: array
+                requiredDuringSchedulingIgnoredDuringExecution:
                   properties:
                     nodeSelectorTerms:
                       items:

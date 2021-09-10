@@ -105,7 +105,7 @@ containers:
 
     缓存组件通过 SampleJob 自定义资源，为用户提供了多种数据集管理命令，包括将远程样本数据同步到缓存引擎的 sync 作业，用于数据预热的 warmup 作业，清理缓存数据的 clear 作业 和 淘汰历史数据的 rmr 作业。
 
-更多关于样本缓存组件的信息请参考[扩展功能](./docs/zh_CN/ext-toc.md)
+更多关于样本缓存组件的信息请参考[扩展功能](./docs/zh_CN/ext-overview.md)
 
 ### 卸载
 

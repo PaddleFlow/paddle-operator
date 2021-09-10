@@ -463,7 +463,7 @@ func (in *SampleSetSpec) DeepCopyInto(out *SampleSetSpec) {
 	in.Cache.DeepCopyInto(&out.Cache)
 	if in.NodeAffinity != nil {
 		in, out := &in.NodeAffinity, &out.NodeAffinity
-		*out = new(v1.VolumeNodeAffinity)
+		*out = new(v1.NodeAffinity)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.Tolerations != nil {
