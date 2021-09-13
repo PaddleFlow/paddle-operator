@@ -139,6 +139,9 @@ docker-push-samplejob:
 docker-push-manager:
 	docker push ${MANAGER_IMG}:${GIT_VERSION}
 
+update-api-doc:
+	bash docs/api-doc-gen/gen_api_doc.sh
+
 # Download controller-gen locally if necessary
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 controller-gen:

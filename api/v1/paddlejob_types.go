@@ -236,6 +236,7 @@ type ResourceStatus struct {
 //+kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.phase`
 //+kubebuilder:printcolumn:name="Mode",type=string,JSONPath=`.status.mode`
 //+kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
+//+genclient
 
 // PaddleJob is the Schema for the paddlejobs API
 type PaddleJob struct {

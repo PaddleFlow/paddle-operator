@@ -265,6 +265,7 @@ type SampleJobStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:printcolumn:name="PHASE",type="string",JSONPath=`.status.phase`
+//+genclient
 
 // SampleJob is the Schema for the samplejobs API
 type SampleJob struct {

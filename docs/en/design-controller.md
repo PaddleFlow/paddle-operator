@@ -23,7 +23,7 @@ The PaddleJob required kubernetes resources are quite simple,
 
 Briefly, the workflow are show as follows.
 
-![Workflow](pd-op-reconcile.svg)
+![Workflow](../images/pd-op-reconcile.svg)
 
 It shows that pods are created one by one in the order of PS first, Worker follows,
 services are created alongside the pods if intranet network set to service mode.

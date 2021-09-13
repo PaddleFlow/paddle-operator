@@ -180,6 +180,7 @@ type SampleSetStatus struct {
 //+kubebuilder:printcolumn:name="Runtime",type="string",JSONPath=`.status.runtimeStatus.runtimeReady`
 //+kubebuilder:printcolumn:name="PHASE",type="string",JSONPath=`.status.phase`
 //+kubebuilder:printcolumn:name="AGE",type="date",JSONPath=`.metadata.creationTimestamp`
+//+genclient
 
 // SampleSet is the Schema for the SampleSets API
 type SampleSet struct {

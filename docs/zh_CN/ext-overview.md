@@ -1,6 +1,6 @@
 # Paddle Operator 样本缓存组件概览
 
-由于云计算平台的易扩展性等特点，越来越多的机器学习任务跑在 Kubernetes 集群里。然而在 Kubernetes 的架构体系中，计算和存储是分离的，模型训练作业需要访问远程存储来获取训练样本，这就给数据密集型的机器学习作业带来较高的网络 IO 开销。受到 [Fluid](https://github.com/fluid-cloudnative/fluid) 项目的启发， 我们在 Paddle Operator 项目中添加了样本缓存组件，旨在通过将样本数据缓存在 Kubernetes 集群本地来加速云上飞浆分布式训练作业。
+由于云计算平台的易扩展性等特点，越来越多的机器学习任务跑在 Kubernetes 集群里。然而在 Kubernetes 的架构体系中，计算和存储是分离的，模型训练作业需要访问远程存储来获取训练样本，这就给数据密集型的机器学习作业带来较高的网络 IO 开销。受 [Fluid](https://github.com/fluid-cloudnative/fluid) 项目的启发，我们在 Paddle Operator 项目中添加了样本缓存组件，旨在通过将样本数据缓存在 Kubernetes 集群本地来加速云上飞桨分布式训练作业。
 
 ## 功能要点
 
@@ -34,12 +34,8 @@
 - **JuiceFS CSI Driver：**负责样本数据的存储与缓存工作，将样本数据缓存到集群本地并将数据挂载进 PaddleJob 的训练节点。
 
 ## 快速开始
-查看文档 [ Paddle Operator 样本缓存组件快速上手](./ext-get-start.md) 来体验下吧。
+查看文档 [Paddle Operator 样本缓存组件快速上手](./ext-get-start.md) 来体验下吧。
 
 ## 性能测试
 关于性能测试相关的文档请参考：[性能测试](./ext-beachmark.md)
-
-## 进阶主题
-
-- 从多个不同的数据源导入
 
