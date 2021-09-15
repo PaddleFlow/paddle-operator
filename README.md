@@ -96,17 +96,17 @@ Features：
 
 - __Accelerate PaddleJobs to Acquire Sample Data__
 
-  Paddle Operator provides data acceleration for cloud applications by using [JuiceFS](https://github.com/juicedata/juicefs) as the cache engine, especially in the scene of massive and small files, which can be significantly improved.
+  Paddle Operator provides data acceleration for PaddleJob by using [JuiceFS](https://github.com/juicedata/juicefs) as the cache engine, especially in the scene of massive and small files, which can be significantly improved.
 
 - __Co-Orchestration for Sample Data and PaddleJobs__
 
-  After the SampleSet is created, the cache component will automatically warm up the sample data to the Kubernetes cluster. When this sample set is needed for subsequent training jobs, the cache component can schedule the training jobs to nodes with cache, greatly shortening the PaddleJob Execution time, and sometimes it can also improve GPU resource utilization.
+  After the SampleSet is created, the cache component will automatically warm up the sample data to the Kubernetes cluster. When this SampleSet is needed for subsequent training jobs, the cache component can schedule the training jobs to nodes with cache, greatly shortening the PaddleJob Execution time, and sometimes it can also improve GPU resource utilization.
 
 - __Support Multiple Data Management Operations__
   
-  The cache component provides support multiple data management operations through the SampleJob custom resources, including a sync job that synchronizes remote sample data to the cache engine, a warmup job for data prefetch, a clear job for clearing cached data, and remove history data by rmr job.
-
-For more information about the cache component, please refer to [extensions](./docs/zh_CN/ext-overview.md)
+  The cache component provides multiple data management operations through the SampleJob custom resources, including a sync job that synchronizes remote sample data to the cache engine, a warmup job for data prefetch, a clear job for clearing cached data, and a rmr job for removing unused data in cache engine.
+ 
+More information about the cache component, please refer to [extensions](./docs/zh_CN/ext-overview.md)
 
 ### Uninstall
 Simply
