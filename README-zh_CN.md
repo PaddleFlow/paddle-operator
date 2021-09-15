@@ -121,4 +121,4 @@ kubectl delete -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/m
 
 ## 更多资料
 
-关于在 Kubernetes 集群使用 Paddle Operator 做分布式训练的更多示例可以参考 [FleetX](https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/paddle_on_k8s.html)
+关于在 Kubernetes 集群使用 Paddle Operator 做分布式训练的更多示例可以参考 [FleetX](https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/paddle_on_k8s.html)，自定义 API 资源文档请查看[API docs](./docs/en/api_doc.md)。

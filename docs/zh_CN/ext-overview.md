@@ -11,7 +11,7 @@
 ## 整体架构
 
 <div align="center">
-  <img src="http://paddleflow-public.hkg.bcebos.com/Static/ext-arch.jpeg" title="architecture" width="60%" height="60%" alt="">
+  <img src="http://paddleflow-public.hkg.bcebos.com/Static/ext-arch.png" title="architecture" width="60%" height="60%" alt="">
 </div>
 
 上图是 Paddle Operator 的整体架构，其构建在 Kubernetes 上，包含如下三个主要部分：
@@ -37,5 +37,7 @@
 查看文档 [Paddle Operator 样本缓存组件快速上手](./ext-get-start.md) 来体验下吧。
 
 ## 性能测试
-关于性能测试相关的文档请参考：[性能测试](./ext-beachmark.md)
+关于性能测试相关的文档请参考：[性能测试](./ext-benchmark.md)
 
+## 更多资料
+想了解更多关于自定义资源的详细，请查看文档[API docs](./docs/en/api_doc.md)。

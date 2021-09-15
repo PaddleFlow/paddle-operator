@@ -122,4 +122,4 @@ If you have any questions or concerns about the usage, please do not hesitate to
 
 Please refer to the
 [Fleex](https://fleet-x.readthedocs.io/en/latest/paddle_fleet_rst/paddle_on_k8s.html) 
-for more information about paddle configuration.
+for more information about paddle configuration, and refer to the [API docs](./docs/en/api_doc.md) for more information custom resource definition.

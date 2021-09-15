@@ -314,7 +314,7 @@ imagenet   4.2 GiB      4.2 GiB       7.3 GiB       1/1       Ready   90m
 
 ### 5. 创建 PaddleJob 
 
-以下示例使用 nginx 镜像来简单示范下如何在 PaddleJob 中声明使用 SampleSet 样本数据集。 如果您的集群中有 GPU 硬件资源，并且想要测试缓存组件给模型训练带来的提升效果，请参考文档：[性能测试](./ext-beachmark.md)
+以下示例使用 nginx 镜像来简单示范下如何在 PaddleJob 中声明使用 SampleSet 样本数据集。 如果您的集群中有 GPU 硬件资源，并且想要测试缓存组件给模型训练带来的提升效果，请参考文档：[性能测试](./ext-benchmark.md)
 
 编写 ps-demo.yaml 文件如下：
 ```yaml

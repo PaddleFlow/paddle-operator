@@ -2771,5 +2771,5 @@ JuiceFSWarmupOptions
 <hr/>
 <p><em>
 Generated with <code>gen-crd-api-reference-docs</code>
-on git commit <code>71a697e</code>.
+on git commit <code>289224d</code>.
 </em></p>
