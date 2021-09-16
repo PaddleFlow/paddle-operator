@@ -347,7 +347,7 @@ func (j *JuiceFS) CreateRuntime(ds *appv1.StatefulSet, ctx *common.RequestContex
 			Volumes: volumes,
 			Affinity: &v1.Affinity{
 				PodAntiAffinity: &podAntiAffinity,
-				NodeAffinity: ctx.SampleSet.Spec.NodeAffinity.DeepCopy(),
+				NodeAffinity:    ctx.SampleSet.Spec.NodeAffinity.DeepCopy(),
 			},
 			Tolerations: ctx.SampleSet.Spec.Tolerations,
 		},

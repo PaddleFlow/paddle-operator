@@ -92,7 +92,7 @@ then, job as in *deploy/elastic/resnet.yaml* can be handled correctly.
 
 Inspired by the [Fluid](https://github.com/fluid-cloudnative/fluid), we have implemented data cache component in this project, aims to cache sample data locally in the Kubernetes cluster and accelerate the execution efficiency of PaddleJob.
 
-Features：
+**Features**：
 
 - __Accelerate PaddleJobs to Acquire Sample Data__
 
