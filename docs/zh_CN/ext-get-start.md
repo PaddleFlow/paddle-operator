@@ -94,7 +94,7 @@ juicefs-csi-node-8h2z5                        3/3     Running   0          13d
 ps -ef | grep kubelet | grep root-dir
 ```
 
-在上诉命令打印的内容中，找到 `--root-dir` 参数后面的值，这既是 kubelet 的根目录。然后将以下命令中的 `{{KUBELET_DIR}}` 替换为 kubelet 的根目录并执行该命令。
+在上述命令打印的内容中，找到 `--root-dir` 参数后面的值，这既是 kubelet 的根目录。然后将以下命令中的 `{{KUBELET_DIR}}` 替换为 kubelet 的根目录并执行该命令。
 ```shell
 curl -sSL https://raw.githubusercontent.com/juicedata/juicefs-csi-driver/master/deploy/k8s.yaml | sed 's@/var/lib/kubelet@{{KUBELET_DIR}}@g' | kubectl apply -f -
 ```
