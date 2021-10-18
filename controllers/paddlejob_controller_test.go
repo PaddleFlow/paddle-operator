@@ -64,13 +64,17 @@ var _ = Describe("PaddleJob controller", func() {
 		Spec: paddlev1.PaddleJobSpec{
 			CleanPodPolicy: paddlev1.CleanNever,
 			Intranet:       paddlev1.Service,
-			PS: &paddlev1.ResourceSpec{
-				Replicas: 3,
-				Template: podSpec,
-			},
-			Worker: &paddlev1.ResourceSpec{
-				Replicas: 2,
-				Template: podSpec,
+			Tasks: []*paddlev1.ResourceSpec{
+				&paddlev1.ResourceSpec{
+					Name:     "ps",
+					Replicas: 3,
+					Template: podSpec,
+				},
+				&paddlev1.ResourceSpec{
+					Name:     "trainer",
+					Replicas: 2,
+					Template: podSpec,
+				},
 			},
 		},
 	}
@@ -90,8 +94,8 @@ var _ = Describe("PaddleJob controller", func() {
 					return false
 				}
 				// Ensure pod number
-				if len(createdPaddleJob.Status.PS.Refs) != PsReplica ||
-					len(createdPaddleJob.Status.Worker.Refs) != WorkerReplica {
+				if len(createdPaddleJob.Status.Tasks["ps"].Refs) != PsReplica ||
+					len(createdPaddleJob.Status.Tasks["trainer"].Refs) != WorkerReplica {
 					return false
 				}
 				// TODO: add more test here
@@ -103,8 +107,8 @@ var _ = Describe("PaddleJob controller", func() {
 		Eventually(makeStateTest(3, 2), timeout, interval).Should(BeTrue())
 		Expect(createdPaddleJob.Status.Mode).Should(Equal(paddlev1.PaddleJobModePS))
 
-		createdPaddleJob.Spec.PS.Replicas = 1
-		createdPaddleJob.Spec.Worker.Replicas = 4
+		createdPaddleJob.Spec.Tasks[0].Replicas = 1
+		createdPaddleJob.Spec.Tasks[1].Replicas = 4
 		Expect(k8sClient.Update(ctx, createdPaddleJob)).Should(Succeed())
 		Eventually(makeStateTest(1, 4), timeout, interval).Should(BeTrue())
 	}

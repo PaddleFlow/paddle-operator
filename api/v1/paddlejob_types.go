@@ -34,19 +34,6 @@ const (
 	ResourceAnnotation = "paddle-resource"
 )
 
-const (
-	ResourcePS     = "ps"
-	ResourceWorker = "worker"
-	ResourceHeter  = "heter"
-)
-
-// TrainingRole defines the role of node which will be set in environ
-var TrainingRole = map[string]string{
-	ResourcePS:     "PSERVER",
-	ResourceWorker: "TRAINER",
-	ResourceHeter:  "HETER",
-}
-
 // PaddleJobMode defines the avaiable mode of a job
 type PaddleJobMode string
 
@@ -56,6 +43,8 @@ const (
 	PaddleJobModeCollective PaddleJobMode = "Collective"
 
 	PaddleJobModeSingle PaddleJobMode = "Single"
+
+	PaddleJobModeHeter PaddleJobMode = "Heter"
 )
 
 // PaddleJobPhase defines the phase of the job.
@@ -137,17 +126,11 @@ type PaddleJobSpec struct {
 	// WithGloo indicate whether enable gloo, 0/1/2 for disable/enable for worker/enable for server
 	WithGloo *int `json:"withGloo,omitempty"`
 
-	// PS[erver] describes the spec of server base on pod template
-	PS *ResourceSpec `json:"ps,omitempty"`
-
-	// Worker describes the spec of worker base on pod template
-	Worker *ResourceSpec `json:"worker,omitempty"`
-
-	// Heter describes the spec of heter worker base on pod temlate
-	Heter *ResourceSpec `json:"heter,omitempty"`
-
 	// Elastic indicate the elastic level
 	Elastic *int `json:"elastic,omitempty"`
+
+	// Tasks defines the resources in list, the order determinate the running order
+	Tasks []*ResourceSpec `json:"tasks,omitempty"`
 }
 
 type ResourceSpec struct {
@@ -162,6 +145,9 @@ type ResourceSpec struct {
 
 	// Template specifies the podspec of a server
 	Template corev1.PodTemplateSpec `json:"template,omitempty"`
+
+	// Name name the resource, validated by IsDNS1123Subdomain
+	Name string `json:"name,omitempty"`
 }
 
 // PaddleJobStatus defines the observed state of PaddleJob
@@ -177,14 +163,8 @@ type PaddleJobStatus struct {
 	// Single/Collective is enabled if ps is missing
 	Mode PaddleJobMode `json:"mode,omitempty"`
 
-	// ResourceStatues of ps
-	PS *ResourceStatus `json:"ps,omitempty"`
-
-	// ResourceStatues of worker
-	Worker *ResourceStatus `json:"worker,omitempty"`
-
-	// ResourceStatues of worker
-	Heter *ResourceStatus `json:"heter,omitempty"`
+	// ResourceStatues of tasks
+	Tasks map[string]*ResourceStatus `json:"tasks,omitempty"`
 
 	// Elastic
 	Elastic *ElasticStatus `json:"elastic,omitempty"`
@@ -229,42 +209,6 @@ type PaddleJob struct {
 
 	Spec   PaddleJobSpec   `json:"spec,omitempty"`
 	Status PaddleJobStatus `json:"status,omitempty"`
-}
-
-func (pdj *PaddleJob) GetSpecs() map[string]*ResourceSpec {
-	return map[string]*ResourceSpec{
-		ResourcePS:     pdj.Spec.PS,
-		ResourceWorker: pdj.Spec.Worker,
-		ResourceHeter:  pdj.Spec.Heter,
-	}
-}
-
-func (pdj *PaddleJob) GetStatuses() map[string]*ResourceStatus {
-	return map[string]*ResourceStatus{
-		ResourcePS:     pdj.Status.PS,
-		ResourceWorker: pdj.Status.Worker,
-		ResourceHeter:  pdj.Status.Heter,
-	}
-}
-
-func (pdj *PaddleJob) GetResourceOrder() []string {
-	return []string{
-		ResourcePS,
-		ResourceWorker,
-		ResourceHeter,
-	}
-}
-
-func (pdj *PaddleJob) SetStatus(resType string, status *ResourceStatus) {
-	switch resType {
-	case ResourcePS:
-		pdj.Status.PS = status
-	case ResourceWorker:
-		pdj.Status.Worker = status
-	case ResourceHeter:
-		pdj.Status.Heter = status
-	}
-
 }
 
 //+kubebuilder:object:root=true

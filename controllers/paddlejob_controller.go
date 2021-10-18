@@ -150,12 +150,11 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	specs := pdj.GetSpecs()
-
 	// clean pod unnecessary
 	for i, pod := range childPods.Items {
 		resType, idx := extractNameIndex(pod.Name)
-		if specs[resType] != nil && idx >= specs[resType].Replicas {
+		spec := getRes(&pdj, resType)
+		if spec != nil && idx >= spec.Replicas {
 			r.deleteResource(ctx, &pdj, &childPods.Items[i])
 			return ctrl.Result{}, nil
 		}
@@ -264,11 +263,10 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// the order of create pod never guarantee the ready order of pods, coordinator does
-	statuses := pdj.GetStatuses()
-	for res := range statuses {
-		if !isPodCreated(specs[res], statuses[res]) {
-			for i := 0; i < specs[res].Replicas; i++ {
-				if createPod(res, i) {
+	for _, res := range pdj.Spec.Tasks {
+		if !isPodCreated(res, pdj.Status.Tasks[res.Name]) {
+			for i := 0; i < res.Replicas; i++ {
+				if createPod(res.Name, i) {
 					return ctrl.Result{}, nil
 				}
 			}
@@ -306,13 +304,12 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	// coordinate ensure pod run in the defined order
 	if pdj.Status.Phase == pdv1.Starting {
-		ress := pdj.GetResourceOrder()
-		for i := 0; i < len(ress); i++ {
-			if statuses[ress[i]].Running < specs[ress[i]].Replicas {
-				if i == 0 && statuses[ress[i]].Running == 0 && !isAllCoordContainerRunning(childPods, "*") {
+		for i, res := range pdj.Spec.Tasks {
+			if pdj.Status.Tasks[res.Name].Running < res.Replicas {
+				if i == 0 && pdj.Status.Tasks[res.Name].Running == 0 && !isAllCoordContainerRunning(childPods, "*") {
 					return ctrl.Result{}, nil
 				}
-				runResource(ress[i])
+				runResource(res.Name)
 				return ctrl.Result{}, nil
 			}
 		}
@@ -367,9 +364,8 @@ func (r *PaddleJobReconciler) syncCurrentStatus(ctx context.Context, pdj *pdv1.P
 		}
 		syncStatusByPod(statuses[resType], &childPods.Items[i])
 	}
-	for resType, status := range statuses {
-		pdj.SetStatus(resType, status)
-	}
+
+	pdj.Status.Tasks = statuses
 }
 
 func (r *PaddleJobReconciler) deleteResource(ctx context.Context, pdj *pdv1.PaddleJob, obj client.Object) error {

@@ -21,7 +21,6 @@ import (
 
 	pdv1 "github.com/paddleflow/paddle-operator/api/v1"
 
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
@@ -53,8 +52,6 @@ func main() {
 	pdj := &pdv1.PaddleJob{}
 	pdj.Namespace = ns
 	pdj.Name = name
-	pdj.Spec.PS.Template.Spec.Containers = []corev1.Container{}
-	pdj.Spec.Worker.Template.Spec.Containers = []corev1.Container{}
 
 	err = c.Create(context.Background(), pdj)
 	if err != nil {

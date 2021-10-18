@@ -44,7 +44,7 @@ func syncNP(etcdCli *clientv3.Client, pdj *pdv1.PaddleJob) (*string, error) {
 
 	if pdj.Status.Mode == pdv1.PaddleJobModeCollective {
 		path := fmt.Sprintf("/paddle/%s-%s/np", pdj.Namespace, pdj.Name)
-		np := fmt.Sprintf("%d", pdj.Spec.Worker.Replicas)
+		np := fmt.Sprintf("%d", pdj.Spec.Tasks[0].Replicas)
 		if err, updated := syncEtcd(ctx, etcdCli, path, np); updated {
 			return &np, err
 		} else {
