@@ -26,7 +26,7 @@ spec:
   - JSONPath: .status.phase
     name: Status
     type: string
-  - JSONPath: .status.mode
+  - JSONPath: .spec.mode
     name: Mode
     type: string
   - JSONPath: .metadata.creationTimestamp
@@ -61,6 +61,9 @@ spec:
               type: integer
             intranet:
               type: string
+            mode:
+              pattern: (PS|Collective|Single|Custom)
+              type: string
             schedulingPolicy:
               properties:
                 minAvailable:
@@ -85,6 +88,7 @@ spec:
                   limits:
                     type: integer
                   name:
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                     type: string
                   replicas:
                     type: integer
@@ -2893,11 +2897,14 @@ spec:
                         type: object
                     type: object
                 required:
+                - name
                 - replicas
                 type: object
               type: array
             withGloo:
               type: integer
+          required:
+          - mode
           type: object
         status:
           properties:
@@ -2905,8 +2912,6 @@ spec:
               format: date-time
               type: string
             elastic:
-              type: string
-            mode:
               type: string
             observedGeneration:
               type: integer

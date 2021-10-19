@@ -27,24 +27,13 @@ const (
 )
 
 const (
-	// LABEL KEYS
-	ResourceName = "paddle-res-name"
-	ResourceType = "paddle-res-type"
-	// Annotation KEY
-	ResourceAnnotation = "paddle-resource"
-)
+	PaddleJobModePS string = "PS"
 
-// PaddleJobMode defines the avaiable mode of a job
-type PaddleJobMode string
+	PaddleJobModeCollective string = "Collective"
 
-const (
-	PaddleJobModePS PaddleJobMode = "PS"
+	PaddleJobModeSingle string = "Single"
 
-	PaddleJobModeCollective PaddleJobMode = "Collective"
-
-	PaddleJobModeSingle PaddleJobMode = "Single"
-
-	PaddleJobModeHeter PaddleJobMode = "Heter"
+	PaddleJobModeCustom string = "Custom"
 )
 
 // PaddleJobPhase defines the phase of the job.
@@ -104,7 +93,6 @@ type SchedulingPolicy struct {
 	Queue         string `json:"queue,omitempty"`
 	PriorityClass string `json:"priorityClass,omitempty"`
 	// pointer may cause deepcopy error
-	// api/v1/zz_generated.deepcopy.go:230:8: cannot use new(map["k8s.io/api/core/v1".ResourceName]resource.Quantity) (type *map["k8s.io/api/core/v1".ResourceName]resource.Quantity) as type *"k8s.io/api/core/v1".ResourceList in assignment
 	MinResources corev1.ResourceList `json:"minResources,omitempty"`
 }
 
@@ -130,10 +118,14 @@ type PaddleJobSpec struct {
 	Elastic *int `json:"elastic,omitempty"`
 
 	// Tasks defines the resources in list, the order determinate the running order
-	Tasks []*ResourceSpec `json:"tasks,omitempty"`
+	Tasks []*TaskSpec `json:"tasks,omitempty"`
+
+	// Mode indicates in the PaddleJob run with : PS/Collective/Single etc.
+	// +kubebuilder:validation:Pattern:=(PS|Collective|Single|Custom)
+	Mode string `json:"mode"`
 }
 
-type ResourceSpec struct {
+type TaskSpec struct {
 	// Replicas replica
 	Replicas int `json:"replicas"`
 
@@ -146,8 +138,9 @@ type ResourceSpec struct {
 	// Template specifies the podspec of a server
 	Template corev1.PodTemplateSpec `json:"template,omitempty"`
 
-	// Name name the resource, validated by IsDNS1123Subdomain
-	Name string `json:"name,omitempty"`
+	// Name name the resource, validated by
+	// +kubebuilder:validation:Pattern:=^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+	Name string `json:"name"`
 }
 
 // PaddleJobStatus defines the observed state of PaddleJob
@@ -157,11 +150,6 @@ type PaddleJobStatus struct {
 
 	// The phase of PaddleJob.
 	Phase PaddleJobPhase `json:"phase,omitempty"`
-
-	// Mode indicates in which the PaddleJob run with : PS/Collective/Single
-	// PS mode is enabled when ps is set
-	// Single/Collective is enabled if ps is missing
-	Mode PaddleJobMode `json:"mode,omitempty"`
 
 	// ResourceStatues of tasks
 	Tasks map[string]*ResourceStatus `json:"tasks,omitempty"`
@@ -199,7 +187,7 @@ type ResourceStatus struct {
 //+kubebuilder:resource:shortName=pdj
 //+kubebuilder:subresource:status
 //+kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.phase`
-//+kubebuilder:printcolumn:name="Mode",type=string,JSONPath=`.status.mode`
+//+kubebuilder:printcolumn:name="Mode",type=string,JSONPath=`.spec.mode`
 //+kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // PaddleJob is the Schema for the paddlejobs API

@@ -5,7 +5,20 @@ metadata:
 spec:
   cleanPodPolicy: OnFailed
   withGloo: 1
+  mode: PS
   tasks:
+  - name: driver
+    replicas: 1
+    template:
+      spec:
+        containers:
+          - name: paddle
+            image: registry.baidubce.com/paddle-operator/demo-deepfm:v1
+            imagePullPolicy: Always
+            command:
+            - python3
+            args:
+            - train.py
   - name: ps
     replicas: 2
     template:

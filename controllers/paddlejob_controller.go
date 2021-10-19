@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -152,23 +153,17 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	// clean pod unnecessary
 	for i, pod := range childPods.Items {
-		resType, idx := extractNameIndex(pod.Name)
-		spec := getRes(&pdj, resType)
+		taskName := pod.ObjectMeta.Annotations[TaskNameKey]
+		idx, _ := strconv.Atoi(pod.ObjectMeta.Annotations[PodRankKey])
+		spec := getRes(&pdj, taskName)
 		if spec != nil && idx >= spec.Replicas {
 			r.deleteResource(ctx, &pdj, &childPods.Items[i])
 			return ctrl.Result{}, nil
 		}
 	}
 
-	// List all associated svc
-	var svcs corev1.ServiceList
-
+	// create service for running pod
 	if pdj.Spec.Intranet == pdv1.Service {
-		if err := r.List(ctx, &svcs, client.InNamespace(req.Namespace), client.MatchingFields{ctrlRefKey: req.Name}); err != nil {
-			return ctrl.Result{}, err
-		}
-
-		// Ensure service for running pod
 		for _, pod := range childPods.Items {
 			svc := constructService4Pod(pod)
 			if err := r.Get(ctx, client.ObjectKeyFromObject(svc), &corev1.Service{}); err == nil {
@@ -188,17 +183,6 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	cleanOne := func() {
-		for i := range childPods.Items {
-			r.deleteResource(ctx, &pdj, &childPods.Items[i])
-			return
-		}
-		for i := range svcs.Items {
-			r.deleteResource(ctx, &pdj, &svcs.Items[i])
-			return
-		}
-	}
-
 	// sync elastic np to ectd
 	if pdj.Spec.Elastic != nil && r.EtcdCli != nil {
 		if np, err := syncNP(r.EtcdCli, &pdj); err != nil {
@@ -211,6 +195,12 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
+	cleanOne := func() {
+		for i := range childPods.Items {
+			r.deleteResource(ctx, &pdj, &childPods.Items[i])
+			return
+		}
+	}
 	if pdj.Status.Phase == pdv1.Failed {
 		if pdj.Spec.CleanPodPolicy == pdv1.CleanAlways || pdj.Spec.CleanPodPolicy == pdv1.CleanOnFailure {
 			cleanOne()
@@ -224,17 +214,16 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	createPod := func(resType string, idx int) bool {
-		name := genPaddleResName(pdj.Name, resType, idx)
-		if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: pdj.Namespace}, &corev1.Pod{}); err == nil {
+	createPod := func(taskN int, idx int) bool {
+		pod := constructPod(&pdj, taskN, idx)
+		if err := r.Get(ctx, types.NamespacedName{Name: pod.Name, Namespace: pdj.Namespace}, &corev1.Pod{}); !apierrors.IsNotFound(err) {
 			return false
 		}
-		pod := constructPod(&pdj, resType, idx)
 
 		if r.Scheduling == schedulerNameVolcano && !withoutVolcano(&pdj) {
 			pod.Spec.SchedulerName = schedulerNameVolcano
 			pod.ObjectMeta.Annotations[schedulingPodGroupAnnotation] = pdj.Name
-			pod.ObjectMeta.Annotations[volcanoBatch.TaskSpecKey] = resType
+			pod.ObjectMeta.Annotations[volcanoBatch.TaskSpecKey] = pod.ObjectMeta.Annotations[TaskTypeKey]
 			pod.ObjectMeta.Annotations[volcanoBatch.JobNameKey] = pdj.Name
 			pod.ObjectMeta.Annotations[volcanoBatch.JobVersion] = fmt.Sprintf("%d", pdj.Status.ObservedGeneration)
 			if pdj.Spec.SchedulingPolicy != nil {
@@ -263,10 +252,10 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// the order of create pod never guarantee the ready order of pods, coordinator does
-	for _, res := range pdj.Spec.Tasks {
-		if !isPodCreated(res, pdj.Status.Tasks[res.Name]) {
-			for i := 0; i < res.Replicas; i++ {
-				if createPod(res.Name, i) {
+	for i, task := range pdj.Spec.Tasks {
+		if !isPodCreated(task, pdj.Status.Tasks[task.Name]) {
+			for j := 0; j < task.Replicas; j++ {
+				if createPod(i, j) {
 					return ctrl.Result{}, nil
 				}
 			}
@@ -292,9 +281,9 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	runResource := func(resType string) {
+	runResource := func(taskName string) {
 		for i, pod := range childPods.Items {
-			if resType == "*" || resType == pod.Annotations[pdv1.ResourceAnnotation] {
+			if taskName == pod.Annotations[TaskNameKey] {
 				if isCoordContainerRunning(&childPods.Items[i]) {
 					r.execInPod(pdj.Namespace, pod.Name, coordContainerName, []string{"touch", "goon"})
 				}
@@ -304,12 +293,12 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	// coordinate ensure pod run in the defined order
 	if pdj.Status.Phase == pdv1.Starting {
-		for i, res := range pdj.Spec.Tasks {
-			if pdj.Status.Tasks[res.Name].Running < res.Replicas {
-				if i == 0 && pdj.Status.Tasks[res.Name].Running == 0 && !isAllCoordContainerRunning(childPods, "*") {
+		for i, task := range pdj.Spec.Tasks {
+			if pdj.Status.Tasks[task.Name].Running < task.Replicas {
+				if i == 0 && pdj.Status.Tasks[task.Name].Running == 0 && !isAllCoordContainerRunning(childPods) {
 					return ctrl.Result{}, nil
 				}
-				runResource(res.Name)
+				runResource(task.Name)
 				return ctrl.Result{}, nil
 			}
 		}
@@ -351,21 +340,18 @@ func (r *PaddleJobReconciler) syncCurrentStatus(ctx context.Context, pdj *pdv1.P
 
 	pdj.Status = pdv1.PaddleJobStatus{
 		Phase:          getPaddleJobPhase(pdj),
-		Mode:           getPaddleJobMode(pdj),
 		StartTime:      getPaddleJobStartTime(pdj),
 		CompletionTime: getPaddleJobCompleteTime(pdj),
+		Tasks:          map[string]*pdv1.ResourceStatus{},
 	}
 
-	statuses := map[string]*pdv1.ResourceStatus{}
 	for i, pod := range childPods.Items {
-		resType := pod.Annotations[pdv1.ResourceAnnotation]
-		if statuses[resType] == nil {
-			statuses[resType] = &pdv1.ResourceStatus{}
+		taskName := pod.ObjectMeta.Annotations[TaskNameKey]
+		if pdj.Status.Tasks[taskName] == nil {
+			pdj.Status.Tasks[taskName] = &pdv1.ResourceStatus{}
 		}
-		syncStatusByPod(statuses[resType], &childPods.Items[i])
+		syncStatusByPod(pdj.Status.Tasks[taskName], &childPods.Items[i])
 	}
-
-	pdj.Status.Tasks = statuses
 }
 
 func (r *PaddleJobReconciler) deleteResource(ctx context.Context, pdj *pdv1.PaddleJob, obj client.Object) error {

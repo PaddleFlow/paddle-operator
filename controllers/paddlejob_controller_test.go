@@ -64,13 +64,13 @@ var _ = Describe("PaddleJob controller", func() {
 		Spec: paddlev1.PaddleJobSpec{
 			CleanPodPolicy: paddlev1.CleanNever,
 			Intranet:       paddlev1.Service,
-			Tasks: []*paddlev1.ResourceSpec{
-				&paddlev1.ResourceSpec{
+			Tasks: []*paddlev1.TaskSpec{
+				&paddlev1.TaskSpec{
 					Name:     "ps",
 					Replicas: 3,
 					Template: podSpec,
 				},
-				&paddlev1.ResourceSpec{
+				&paddlev1.TaskSpec{
 					Name:     "trainer",
 					Replicas: 2,
 					Template: podSpec,
@@ -105,7 +105,7 @@ var _ = Describe("PaddleJob controller", func() {
 
 		Expect(k8sClient.Create(ctx, paddleJob)).Should(Succeed())
 		Eventually(makeStateTest(3, 2), timeout, interval).Should(BeTrue())
-		Expect(createdPaddleJob.Status.Mode).Should(Equal(paddlev1.PaddleJobModePS))
+		Expect(createdPaddleJob.Spec.Mode).Should(Equal(paddlev1.PaddleJobModePS))
 
 		createdPaddleJob.Spec.Tasks[0].Replicas = 1
 		createdPaddleJob.Spec.Tasks[1].Replicas = 4

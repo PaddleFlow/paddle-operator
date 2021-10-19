@@ -16,11 +16,9 @@ package controllers
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	pdv1 "github.com/paddleflow/paddle-operator/api/v1"
@@ -41,14 +39,16 @@ var (
 	coordContainerCmd = []string{"sh", "-c", "while true; do if [ -f goon ]; then exit 0; else sleep 0.1; fi; done"}
 )
 
-func getRes(pdj *pdv1.PaddleJob, resType string) (res *pdv1.ResourceSpec) {
+func getRes(pdj *pdv1.PaddleJob, taskName string) (res *pdv1.TaskSpec) {
 	for i, r := range pdj.Spec.Tasks {
-		if r.Name == resType {
+		if r.Name == taskName {
 			return pdj.Spec.Tasks[i]
 		}
 	}
 	return nil
 }
+
+// status related
 
 func isAllPodsReady(pdj *pdv1.PaddleJob, childPods corev1.PodList) bool {
 	if !isAllPodsCreated(pdj) {
@@ -71,7 +71,7 @@ func isAllPodsCreated(pdj *pdv1.PaddleJob) bool {
 	return true
 }
 
-func isPodCreated(spec *pdv1.ResourceSpec, status *pdv1.ResourceStatus) bool {
+func isPodCreated(spec *pdv1.TaskSpec, status *pdv1.ResourceStatus) bool {
 	if spec == nil {
 		return true
 	}
@@ -90,10 +90,10 @@ func isPending(status *pdv1.ResourceStatus) bool {
 func isStarting(status *pdv1.ResourceStatus) bool {
 	return status != nil && status.Starting > 0
 }
-func isRunning(spec *pdv1.ResourceSpec, status *pdv1.ResourceStatus) bool {
+func isRunning(spec *pdv1.TaskSpec, status *pdv1.ResourceStatus) bool {
 	return spec == nil || (status != nil && spec.Replicas == status.Running)
 }
-func isCompleted(spec *pdv1.ResourceSpec, status *pdv1.ResourceStatus) bool {
+func isCompleted(spec *pdv1.TaskSpec, status *pdv1.ResourceStatus) bool {
 	return spec == nil || (status != nil && spec.Replicas == status.Succeeded)
 }
 
@@ -115,7 +115,7 @@ func getPaddleJobPhase(pdj *pdv1.PaddleJob) pdv1.PaddleJobPhase {
 			return pdv1.Pending
 		}
 	}
-	checkAll := func(check func(spec *pdv1.ResourceSpec, status *pdv1.ResourceStatus) bool) bool {
+	checkAll := func(check func(spec *pdv1.TaskSpec, status *pdv1.ResourceStatus) bool) bool {
 		for _, t := range pdj.Spec.Tasks {
 			if !check(t, pdj.Status.Tasks[t.Name]) {
 				return false
@@ -156,12 +156,10 @@ func isPodRealRuning(pod *corev1.Pod) bool {
 	return true
 }
 
-func isAllCoordContainerRunning(childPods corev1.PodList, resType string) bool {
-	for i, pod := range childPods.Items {
-		if resType == "*" || resType == pod.Annotations[pdv1.ResourceAnnotation] {
-			if !isCoordContainerRunning(&childPods.Items[i]) {
-				return false
-			}
+func isAllCoordContainerRunning(childPods corev1.PodList) bool {
+	for i, _ := range childPods.Items {
+		if !isCoordContainerRunning(&childPods.Items[i]) {
+			return false
 		}
 	}
 	return true
@@ -194,229 +192,6 @@ func getPaddleJobCompleteTime(pdj *pdv1.PaddleJob) *metav1.Time {
 		return &tmp
 	}
 	return pdj.Status.CompletionTime
-}
-
-func getPaddleJobMode(pdj *pdv1.PaddleJob) pdv1.PaddleJobMode {
-	if len(pdj.Spec.Tasks) == 1 {
-		if pdj.Spec.Tasks[0].Replicas == 1 {
-			return pdv1.PaddleJobModeSingle
-		}
-		return pdv1.PaddleJobModeCollective
-	}
-	for _, t := range pdj.Spec.Tasks {
-		if t.Name == strings.ToLower(string(pdv1.PaddleJobModePS)) {
-			return pdv1.PaddleJobModePS
-		}
-	}
-	return pdv1.PaddleJobModeHeter
-}
-
-// genPaddleResName generate the identifier for pod and service
-func genPaddleResName(name string, resType string, idx int) string {
-	return fmt.Sprintf("%s-%s-%d", name, resType, idx)
-}
-
-func extractNameIndex(name string) (string, int) {
-	s := strings.Split(name, "-")
-	if i, err := strconv.Atoi(s[len(s)-1]); err != nil {
-		return "", 0
-	} else {
-		return s[len(s)-2], i
-	}
-}
-
-func constructConfigMap(pdj *pdv1.PaddleJob, childPods corev1.PodList) (cm *corev1.ConfigMap) {
-	resources := map[string][]string{}
-
-	for _, spec := range pdj.Spec.Tasks {
-		resources[spec.Name] = make([]string, spec.Replicas)
-	}
-
-	for _, pod := range childPods.Items {
-		if len(strings.Split(pod.Status.PodIP, ".")) != 4 {
-			return nil
-		}
-		resType, idx := extractNameIndex(pod.Name)
-		if pdj.Spec.Intranet == pdv1.Service {
-			resources[resType][idx] = fmt.Sprintf("%s:%d", pod.Name, PADDLE_PORT)
-		} else {
-			resources[resType][idx] = fmt.Sprintf("%s:%d", pod.Status.PodIP, PADDLE_PORT)
-		}
-	}
-
-	var paddle_port string
-	if pdj.Spec.Intranet == pdv1.HostNetwork {
-		paddle_port = pdj.ObjectMeta.Annotations[hostPort]
-	} else {
-		paddle_port = fmt.Sprintf("%d", PADDLE_PORT)
-	}
-	cm = &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{
-				pdv1.ResourceName: pdj.Name,
-			},
-			Annotations: map[string]string{},
-			Name:        pdj.Name,
-			Namespace:   pdj.Namespace,
-		},
-		Data: map[string]string{
-			"TRAINER_PORTS_NUM": fmt.Sprintf("%d", HOST_PORT_NUM),
-			"PADDLE_PORT":       paddle_port,
-		},
-	}
-
-	/*
-		if pdj.Spec.PS != nil {
-			cm.Data["PADDLE_PSERVERS_IP_PORT_LIST"] = strings.Join(resources[pdv1.ResourcePS], ",")
-		}
-		if pdj.Spec.Worker != nil {
-			cm.Data["PADDLE_TRAINER_ENDPOINTS"] = strings.Join(resources[pdv1.ResourceWorker], ",")
-			cm.Data["PADDLE_TRAINERS"] = endpoints2hosts(resources[pdv1.ResourceWorker])
-			cm.Data["PADDLE_TRAINERS_NUM"] = fmt.Sprintf("%d", pdj.Spec.Worker.Replicas)
-		}
-		if pdj.Spec.Heter != nil {
-			cm.Data["PADDLE_HETER_ENDPOINTS"] = strings.Join(resources[pdv1.ResourceHeter], ",")
-		}
-
-		if pdj.Spec.WithGloo != nil && *pdj.Spec.WithGloo > 0 && len(resources[pdv1.ResourcePS]) > 0 {
-			cm.Data["PADDLE_WITH_GLOO"] = fmt.Sprintf("%d", *pdj.Spec.WithGloo)
-			cm.Data["PADDLE_GLOO_RENDEZVOUS"] = "3"
-			cm.Data["PADDLE_GLOO_HTTP_ENDPOINT"] = strings.Replace(resources[pdv1.ResourcePS][0],
-				fmt.Sprintf(":%d", PADDLE_PORT),
-				fmt.Sprintf(":%d", PADDLE_PORT+HOST_PORT_NUM-2),
-				1)
-		}
-	*/
-	return cm
-}
-
-func constructPod(pdj *pdv1.PaddleJob, resType string, idx int) (pod *corev1.Pod) {
-	name := genPaddleResName(pdj.Name, resType, idx)
-
-	pod = &corev1.Pod{}
-
-	pod.ObjectMeta = *(getRes(pdj, resType)).Template.ObjectMeta.DeepCopy()
-	pod.Spec = *(getRes(pdj, resType)).Template.Spec.DeepCopy()
-
-	if pod.ObjectMeta.Labels == nil {
-		pod.ObjectMeta.Labels = map[string]string{}
-	}
-	pod.ObjectMeta.Labels[pdv1.ResourceName] = name
-	pod.ObjectMeta.Labels[pdv1.ResourceType] = resType
-
-	if pod.ObjectMeta.Annotations == nil {
-		pod.ObjectMeta.Annotations = map[string]string{}
-	}
-	pod.ObjectMeta.Annotations[pdv1.ResourceAnnotation] = resType
-
-	pod.ObjectMeta.Name = name
-	pod.ObjectMeta.Namespace = pdj.Namespace
-
-	pod.Spec.Hostname = name
-	pod.Spec.Subdomain = name
-
-	envIP := corev1.EnvVar{
-		Name: "POD_IP",
-	}
-	if pdj.Spec.Intranet == pdv1.Service {
-		envIP.Value = name
-	} else {
-		envIP.ValueFrom = &corev1.EnvVarSource{
-			FieldRef: &corev1.ObjectFieldSelector{
-				FieldPath: "status.podIP",
-			},
-		}
-	}
-	envRank := corev1.EnvVar{
-		Name:  "PADDLE_TRAINER_ID",
-		Value: fmt.Sprintf("%d", idx),
-	}
-	envRole := corev1.EnvVar{
-		Name:  "TRAINING_ROLE",
-		Value: strings.ToUpper(resType),
-	}
-	envRole2 := corev1.EnvVar{
-		Name:  "PADDLE_TRAINING_ROLE",
-		Value: strings.ToUpper(resType),
-	}
-	pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, envIP, envRank, envRole, envRole2)
-
-	if pdj.Spec.Elastic != nil {
-		envJobID := corev1.EnvVar{
-			Name:  "PADDLE_ELASTIC_JOB_ID",
-			Value: fmt.Sprintf("%s-%s", pdj.Namespace, pdj.Name),
-		}
-		envNP := corev1.EnvVar{
-			Name:  "PADDLE_ELASTIC_NP",
-			Value: fmt.Sprintf("%d", pdj.Spec.Tasks[0].Replicas),
-		}
-		envTimeout := corev1.EnvVar{
-			Name:  "PADDLE_ELASTIC_TIMEOUT",
-			Value: "60",
-		}
-
-		pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, envJobID, envNP, envTimeout)
-	} else {
-		envF := corev1.EnvFromSource{
-			ConfigMapRef: &corev1.ConfigMapEnvSource{
-				LocalObjectReference: corev1.LocalObjectReference{
-					Name: pdj.Name,
-				},
-			},
-		}
-
-		pod.Spec.Containers[0].EnvFrom = append(pod.Spec.Containers[0].EnvFrom, envF)
-	}
-
-	if pdj.Spec.Intranet == pdv1.Service {
-		pod.Spec.Containers[0].Ports = append(pod.Spec.Containers[0].Ports, corev1.ContainerPort{ContainerPort: PADDLE_PORT})
-	} else if pdj.Spec.Intranet == pdv1.HostNetwork {
-		pod.Spec.HostNetwork = true
-	}
-
-	if pdj.Spec.Elastic != nil {
-		pod.Spec.RestartPolicy = "OnFailure"
-	}
-
-	coInit := genCoordinateInitContainer()
-	pod.Spec.InitContainers = append(pod.Spec.InitContainers, coInit)
-
-	return pod
-}
-
-func genCoordinateInitContainer() corev1.Container {
-	c := corev1.Container{
-		Name:            coordContainerName,
-		Image:           coordContainerImage,
-		ImagePullPolicy: corev1.PullIfNotPresent,
-		Command:         coordContainerCmd,
-		Resources: corev1.ResourceRequirements{
-			Requests: corev1.ResourceList{
-				corev1.ResourceCPU:    resource.MustParse(coordContainerCpu),
-				corev1.ResourceMemory: resource.MustParse(coordContainerMem),
-				//corev1.ResourceEphemeralStorage: resource.MustParse(),
-			},
-		},
-	}
-	return c
-}
-
-func endpoints2hosts(eps []string) string {
-	hosts := make([]string, len(eps))
-	for i, ep := range eps {
-		p := strings.Split(ep, ":")
-		hosts[i] = p[0]
-	}
-	return strings.Join(hosts, ",")
-}
-
-func genEndpoints(name string, resType string, num int, port int) string {
-	ret := []string{}
-	for i := 0; i < num; i++ {
-		name := genPaddleResName(name, resType, i)
-		ret = append(ret, fmt.Sprintf("%s:%d", name, port))
-	}
-	return strings.Join(ret, ",")
 }
 
 func containsString(slice []string, s string) bool {
@@ -454,7 +229,7 @@ func constructService4Pod(pod corev1.Pod) *corev1.Service {
 		Spec: corev1.ServiceSpec{
 			Ports: ports,
 			Selector: map[string]string{
-				pdv1.ResourceName: pod.Name,
+				PodNameKey: pod.Name,
 			},
 			ClusterIP: "None",
 		},
@@ -465,7 +240,7 @@ func constructService4Pod(pod corev1.Pod) *corev1.Service {
 // for volcano
 
 func withoutVolcano(pdj *pdv1.PaddleJob) bool {
-	check := func(rs *pdv1.ResourceSpec) bool {
+	check := func(rs *pdv1.TaskSpec) bool {
 		if rs != nil &&
 			rs.Template.Spec.SchedulerName != "" &&
 			rs.Template.Spec.SchedulerName != schedulerNameVolcano {
