@@ -16,7 +16,6 @@ package controllers
 
 import (
 	"fmt"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,11 +27,6 @@ import (
 const (
 	schedulerNameVolcano         = "volcano"
 	schedulingPodGroupAnnotation = "scheduling.k8s.io/group-name"
-
-	coordContainerName  = "coord-paddle"
-	coordContainerImage = "busybox:1"
-	coordContainerCpu   = "10m"
-	coordContainerMem   = "10m"
 )
 
 var (

@@ -25,22 +25,18 @@ import (
 )
 
 const (
-	PodNameKey  = "paddle-pod-key"
-	TaskNameKey = "paddle-task-name"
-	TaskTypeKey = "paddle-task-type"
-	TaskRankKey = "paddle-task-rank"
-	PodRankKey  = "paddle-pod-rank"
-)
+	PodNameKey    = "paddle-pod-key"
+	TaskNameKey   = "paddle-task-name"
+	TaskTypeKey   = "paddle-task-type"
+	TaskRankKey   = "paddle-task-rank"
+	PodRankKey    = "paddle-pod-rank"
+	GlobalRankKey = "paddle-global-rank"
 
-func getTrainingRole(taskName string) string {
-	if strings.HasPrefix(taskName, "ps") {
-		return "PSERVER"
-	} else if strings.HasPrefix(taskName, "worker") {
-		return "TRAINER"
-	}
-	seq := strings.Split(taskName, "-")
-	return strings.ToUpper(seq[0])
-}
+	coordContainerName  = "coord-paddle"
+	coordContainerImage = "busybox:1"
+	coordContainerCpu   = "10m"
+	coordContainerMem   = "10m"
+)
 
 func genTaskType(taskName string) string {
 	seq := strings.Split(taskName, "-")
@@ -49,76 +45,6 @@ func genTaskType(taskName string) string {
 
 func genTaskChildName(name string, taskName string, idx int) string {
 	return fmt.Sprintf("%s-%s-%d", name, taskName, idx)
-}
-
-// build element
-
-func constructConfigMap(pdj *pdv1.PaddleJob, childPods corev1.PodList) (cm *corev1.ConfigMap) {
-	cm = &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Labels:      map[string]string{},
-			Annotations: map[string]string{},
-			Name:        pdj.Name,
-			Namespace:   pdj.Namespace,
-		},
-	}
-
-	var paddle_port string
-	if pdj.Spec.Intranet == pdv1.HostNetwork {
-		paddle_port = pdj.ObjectMeta.Annotations[hostPort]
-	} else {
-		paddle_port = fmt.Sprintf("%d", PADDLE_PORT)
-	}
-	cm.Data = map[string]string{
-		"TRAINER_PORTS_NUM": fmt.Sprintf("%d", HOST_PORT_NUM),
-		"PADDLE_PORT":       paddle_port,
-	}
-
-	genEndpoint := func(pod *corev1.Pod) string {
-		if pdj.Spec.Intranet == pdv1.Service {
-			return fmt.Sprintf("%s", pod.Name)
-		} else {
-			return fmt.Sprintf("%s", pod.Status.PodIP)
-		}
-	}
-
-	if pdj.Spec.Mode == pdv1.PaddleJobModeCollective {
-		ends := make([]string, len(childPods.Items))
-		types := make([]string, len(childPods.Items))
-		for _, pod := range childPods.Items {
-			i, _ := strconv.Atoi(pod.ObjectMeta.Annotations[TaskRankKey])
-			j, _ := strconv.Atoi(pod.ObjectMeta.Annotations[PodRankKey])
-			idx := (i+1)*(j+1) - 1
-			ends[idx] = genEndpoint(&pod)
-			types[idx] = strings.ToUpper(pod.ObjectMeta.Annotations[TaskTypeKey])
-		}
-		cm.Data["PADDLE_TRAINERS"] = strings.Join(ends, ",")
-		cm.Data["PADDLE_TRAINERS_TYPES"] = strings.Join(types, ",")
-		cm.Data["PADDLE_TRAINERS_NUM"] = fmt.Sprintf("%d", len(childPods.Items))
-
-	} else if pdj.Spec.Mode == pdv1.PaddleJobModePS {
-		/*
-			        for _, pod := range childPods.Items {
-			            idx, _ := strconv.Atoi(pod.ObjectMeta.Annotations[TaskRankKey])
-			            ends[idx] = genEndpoint(&pod)
-			            types[idx] = strings.ToUpper(pod.ObjectMeta.Annotations[TaskTypeKey])
-			        }
-					cm.Data["PADDLE_PSERVERS_IP_PORT_LIST"] = strings.Join(resources[pdv1.ResourcePS], ",")
-					cm.Data["PADDLE_TRAINER_ENDPOINTS"] = strings.Join(resources[pdv1.ResourceWorker], ",")
-					cm.Data["PADDLE_TRAINERS_NUM"] = fmt.Sprintf("%d", pdj.Spec.Worker.Replicas)
-					cm.Data["PADDLE_HETER_ENDPOINTS"] = strings.Join(resources[pdv1.ResourceHeter], ",")
-
-				if pdj.Spec.WithGloo != nil && *pdj.Spec.WithGloo > 0 && len(resources[pdv1.ResourcePS]) > 0 {
-					cm.Data["PADDLE_WITH_GLOO"] = fmt.Sprintf("%d", *pdj.Spec.WithGloo)
-					cm.Data["PADDLE_GLOO_RENDEZVOUS"] = "3"
-					cm.Data["PADDLE_GLOO_HTTP_ENDPOINT"] = strings.Replace(resources[pdv1.ResourcePS][0],
-						fmt.Sprintf(":%d", PADDLE_PORT),
-						fmt.Sprintf(":%d", PADDLE_PORT+HOST_PORT_NUM-2),
-						1)
-				}
-		*/
-	}
-	return cm
 }
 
 func constructPod(pdj *pdv1.PaddleJob, taskN int, idx int) (pod *corev1.Pod) {
@@ -141,11 +67,21 @@ func constructPod(pdj *pdv1.PaddleJob, taskN int, idx int) (pod *corev1.Pod) {
 	if pod.ObjectMeta.Annotations == nil {
 		pod.ObjectMeta.Annotations = map[string]string{}
 	}
+
+	calIndice := func(taskRank, podRank int) (idx int) {
+		for i := 0; i < taskRank; i++ {
+			idx += pdj.Spec.Tasks[i].Replicas
+		}
+		return idx + podRank
+	}
+
 	taskType := genTaskType(task.Name)
+	globalRank := calIndice(taskN, idx)
 	pod.ObjectMeta.Annotations[PodRankKey] = fmt.Sprintf("%d", idx)
 	pod.ObjectMeta.Annotations[TaskTypeKey] = taskType
 	pod.ObjectMeta.Annotations[TaskRankKey] = fmt.Sprintf("%d", taskN)
 	pod.ObjectMeta.Annotations[TaskNameKey] = task.Name
+	pod.ObjectMeta.Annotations[GlobalRankKey] = fmt.Sprintf("%d", globalRank)
 
 	pod.Spec.Hostname = name
 	pod.Spec.Subdomain = name
@@ -162,17 +98,36 @@ func constructPod(pdj *pdv1.PaddleJob, taskN int, idx int) (pod *corev1.Pod) {
 			},
 		}
 	}
+
+	seq := strings.Split(task.Name, "-")
+	var trainingRole string
+	var trainerId string
+	if pdj.Spec.Mode == pdv1.PaddleJobModeCollective {
+		trainingRole = "TRAINER"
+		trainerId = fmt.Sprintf("%d", globalRank)
+	} else if pdj.Spec.Mode == pdv1.PaddleJobModePS {
+		if seq[0] == "ps" {
+			trainingRole = "PSERVER"
+		} else {
+			trainingRole = "TRAINER"
+		}
+		trainerId = fmt.Sprintf("%d", idx)
+	} else {
+		trainingRole = strings.ToUpper(seq[0])
+		trainerId = fmt.Sprintf("%d", idx)
+	}
+
 	envRank := corev1.EnvVar{
 		Name:  "PADDLE_TRAINER_ID",
-		Value: fmt.Sprintf("%d", idx),
+		Value: trainerId,
 	}
 	envRole := corev1.EnvVar{
 		Name:  "TRAINING_ROLE",
-		Value: getTrainingRole(task.Name),
+		Value: trainingRole,
 	}
 	envRole2 := corev1.EnvVar{
 		Name:  "PADDLE_TRAINING_ROLE",
-		Value: getTrainingRole(task.Name),
+		Value: trainingRole,
 	}
 	pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, envIP, envRank, envRole, envRole2)
 
@@ -212,11 +167,113 @@ func constructPod(pdj *pdv1.PaddleJob, taskN int, idx int) (pod *corev1.Pod) {
 	if pdj.Spec.Elastic != nil {
 		pod.Spec.RestartPolicy = "OnFailure"
 	}
+	if pod.Spec.RestartPolicy == "" {
+		pod.Spec.RestartPolicy = "OnFailure"
+	}
 
 	coInit := genCoordinateInitContainer()
 	pod.Spec.InitContainers = append(pod.Spec.InitContainers, coInit)
 
 	return pod
+}
+
+func constructConfigMap(pdj *pdv1.PaddleJob, childPods corev1.PodList) (cm *corev1.ConfigMap) {
+	cm = &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels:      map[string]string{},
+			Annotations: map[string]string{},
+			Name:        pdj.Name,
+			Namespace:   pdj.Namespace,
+		},
+	}
+
+	var paddle_port string
+	if pdj.Spec.Intranet == pdv1.HostNetwork {
+		paddle_port = pdj.ObjectMeta.Annotations[hostPort]
+	} else {
+		paddle_port = fmt.Sprintf("%d", PADDLE_PORT)
+	}
+	cm.Data = map[string]string{
+		"TRAINER_PORTS_NUM": fmt.Sprintf("%d", HOST_PORT_NUM),
+		"PADDLE_PORT":       paddle_port,
+	}
+
+	genEndpoint := func(pod *corev1.Pod) string {
+		if pdj.Spec.Intranet == pdv1.Service {
+			return fmt.Sprintf("%s", pod.Name)
+		} else {
+			return fmt.Sprintf("%s", pod.Status.PodIP)
+		}
+	}
+	genIPPort := func(pod *corev1.Pod) string {
+		if pdj.Spec.Intranet == pdv1.Service {
+			return fmt.Sprintf("%s:%s", pod.Name, paddle_port)
+		} else {
+			return fmt.Sprintf("%s:%s", pod.Status.PodIP, paddle_port)
+		}
+	}
+
+	if pdj.Spec.Mode == pdv1.PaddleJobModeCollective {
+		ends := make([]string, len(childPods.Items))
+		types := make([]string, len(childPods.Items))
+		for _, pod := range childPods.Items {
+			idx, _ := strconv.Atoi(pod.ObjectMeta.Annotations[GlobalRankKey])
+			ends[idx] = genEndpoint(&pod)
+			types[idx] = pod.ObjectMeta.Annotations[TaskTypeKey]
+		}
+		cm.Data["PADDLE_TRAINERS"] = strings.Join(ends, ",")
+		cm.Data["PADDLE_TRAINERS_TYPES"] = strings.Join(types, ",")
+		cm.Data["PADDLE_TRAINERS_NUM"] = fmt.Sprintf("%d", len(childPods.Items))
+
+	} else if pdj.Spec.Mode == pdv1.PaddleJobModePS {
+		ipps := map[string][]string{}
+		for _, pod := range childPods.Items {
+			pid, _ := strconv.Atoi(pod.ObjectMeta.Annotations[PodRankKey])
+			taskType := pod.ObjectMeta.Annotations[TaskTypeKey]
+			if _, ok := ipps[taskType]; !ok {
+				tid, _ := strconv.Atoi(pod.ObjectMeta.Annotations[TaskRankKey])
+				ipps[taskType] = make([]string, pdj.Spec.Tasks[tid].Replicas)
+			}
+			ipps[taskType][pid] = genIPPort(&pod)
+		}
+		if ps, ok := ipps["PS"]; ok {
+			cm.Data["PADDLE_PSERVERS_IP_PORT_LIST"] = strings.Join(ps, ",")
+		}
+		if trainer, ok := ipps["TRAINER"]; ok {
+			cm.Data["PADDLE_TRAINER_ENDPOINTS"] = strings.Join(trainer, ",")
+			cm.Data["PADDLE_TRAINERS_NUM"] = fmt.Sprintf("%d", len(trainer))
+		}
+		if driver, ok := ipps["DRIVER"]; ok {
+			cm.Data["PADDLE_DRIVER_ENDPOINTS"] = strings.Join(driver, ",")
+		}
+		if heter, ok := ipps["HETER"]; ok {
+			cm.Data["PADDLE_HETER_TRAINER_IP_PORT_LIST"] = strings.Join(heter, ",")
+		}
+
+		if pdj.Spec.WithGloo != nil && *pdj.Spec.WithGloo > 0 && len(ipps["PS"]) > 0 {
+			cm.Data["PADDLE_WITH_GLOO"] = fmt.Sprintf("%d", *pdj.Spec.WithGloo)
+			cm.Data["PADDLE_GLOO_RENDEZVOUS"] = "3"
+			cm.Data["PADDLE_GLOO_HTTP_ENDPOINT"] = strings.Replace(ipps["PS"][0],
+				fmt.Sprintf(":%d", PADDLE_PORT),
+				fmt.Sprintf(":%d", PADDLE_PORT+HOST_PORT_NUM-2),
+				1)
+		}
+	} else if pdj.Spec.Mode == pdv1.PaddleJobModeCustom {
+		ipps := map[string][]string{}
+		for _, pod := range childPods.Items {
+			pid, _ := strconv.Atoi(pod.ObjectMeta.Annotations[PodRankKey])
+			taskType := pod.ObjectMeta.Annotations[TaskTypeKey]
+			if _, ok := ipps[taskType]; !ok {
+				tid, _ := strconv.Atoi(pod.ObjectMeta.Annotations[TaskRankKey])
+				ipps[taskType] = make([]string, pdj.Spec.Tasks[tid].Replicas)
+			}
+			ipps[taskType][pid] = genEndpoint(&pod)
+		}
+		for tp, ips := range ipps {
+			cm.Data[fmt.Sprintf("PADDLE_%s_HOST", tp)] = strings.Join(ips, ",")
+		}
+	}
+	return cm
 }
 
 func genCoordinateInitContainer() corev1.Container {

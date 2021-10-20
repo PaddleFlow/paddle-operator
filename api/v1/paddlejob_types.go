@@ -139,7 +139,6 @@ type TaskSpec struct {
 	Template corev1.PodTemplateSpec `json:"template,omitempty"`
 
 	// Name name the resource, validated by
-	// +kubebuilder:validation:Pattern:=^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
 	Name string `json:"name"`
 }
 

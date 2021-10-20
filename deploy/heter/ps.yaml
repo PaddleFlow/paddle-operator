@@ -1,7 +1,7 @@
 apiVersion: batch.paddlepaddle.org/v1
 kind: PaddleJob
 metadata:
-  name: deepfm
+  name: ps-deepfm
 spec:
   cleanPodPolicy: OnFailed
   withGloo: 1
@@ -16,9 +16,9 @@ spec:
             image: registry.baidubce.com/paddle-operator/demo-deepfm:v1
             imagePullPolicy: Always
             command:
-            - python3
+            - sleep
             args:
-            - train.py
+            - "3600"
   - name: ps
     replicas: 2
     template:
@@ -31,7 +31,7 @@ spec:
             - python3
             args:
             - train.py
-  - name: worker
+  - name: trainer
     replicas: 2
     template:
       spec:
