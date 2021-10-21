@@ -256,18 +256,16 @@ func constructConfigMap(pdj *pdv1.PaddleJob, childPods corev1.PodList) (cm *core
 			ipps[taskType][localRank] = genIPPort(&pod)
 		}
 
-		if ps, ok := ipps["PS"]; ok {
-			cm.Data["PADDLE_PSERVERS_IP_PORT_LIST"] = strings.Join(ps, ",")
-		}
-		if trainer, ok := ipps["TRAINER"]; ok {
-			cm.Data["PADDLE_TRAINER_ENDPOINTS"] = strings.Join(trainer, ",")
-			cm.Data["PADDLE_TRAINERS_NUM"] = fmt.Sprintf("%d", len(trainer))
-		}
-		if driver, ok := ipps["DRIVER"]; ok {
-			cm.Data["PADDLE_DRIVER_ENDPOINTS"] = strings.Join(driver, ",")
-		}
-		if heter, ok := ipps["HETER"]; ok {
-			cm.Data["PADDLE_HETER_TRAINER_IP_PORT_LIST"] = strings.Join(heter, ",")
+		cm.Data["PADDLE_TRAINERS_NUM"] = fmt.Sprintf("%d", len(ipps["TRAINER"]))
+		for k, v := range ipps {
+			switch k {
+			case "PS":
+				cm.Data["PADDLE_PSERVERS_IP_PORT_LIST"] = strings.Join(v, ",")
+			case "HETER":
+				cm.Data["PADDLE_HETER_TRAINER_IP_PORT_LIST"] = strings.Join(v, ",")
+			default:
+				cm.Data[fmt.Sprintf("PADDLE_%s_ENDPOINTS", strings.ToUpper(k))] = strings.Join(v, ",")
+			}
 		}
 
 		if pdj.Spec.WithGloo != nil && *pdj.Spec.WithGloo > 0 && len(ipps["PS"]) > 0 {
@@ -291,8 +289,8 @@ func constructConfigMap(pdj *pdv1.PaddleJob, childPods corev1.PodList) (cm *core
 			ipps[taskType][localRank] = genEndpoint(&pod)
 		}
 
-		for tp, ips := range ipps {
-			cm.Data[fmt.Sprintf("PADDLE_%s_HOST", tp)] = strings.Join(ips, ",")
+		for k, v := range ipps {
+			cm.Data[fmt.Sprintf("PADDLE_%s_HOST", strings.ToUpper(k))] = strings.Join(v, ",")
 		}
 	}
 	return cm
