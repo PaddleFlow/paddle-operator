@@ -31,6 +31,7 @@ const (
 	TaskRankKey   = "paddle-task-rank"
 	PodRankKey    = "paddle-pod-rank"
 	GlobalRankKey = "paddle-global-rank"
+	LocalRankKey  = "paddle-local-rank"
 
 	coordContainerName  = "coord-paddle"
 	coordContainerImage = "busybox:1"
@@ -68,20 +69,32 @@ func constructPod(pdj *pdv1.PaddleJob, taskN int, idx int) (pod *corev1.Pod) {
 		pod.ObjectMeta.Annotations = map[string]string{}
 	}
 
-	calIndice := func(taskRank, podRank int) (idx int) {
+	taskType := genTaskType(task.Name)
+
+	calGlobalIndice := func(taskRank, podRank int) (idx int) {
 		for i := 0; i < taskRank; i++ {
 			idx += pdj.Spec.Tasks[i].Replicas
 		}
 		return idx + podRank
 	}
+	globalRank := calGlobalIndice(taskN, idx)
 
-	taskType := genTaskType(task.Name)
-	globalRank := calIndice(taskN, idx)
+	calLocalIndice := func(taskRank, podRank int) (idx int) {
+		for i := 0; i < taskRank; i++ {
+			if genTaskType(pdj.Spec.Tasks[i].Name) == taskType {
+				idx += pdj.Spec.Tasks[i].Replicas
+			}
+		}
+		return idx + podRank
+	}
+	localRank := calLocalIndice(taskN, idx)
+
 	pod.ObjectMeta.Annotations[PodRankKey] = fmt.Sprintf("%d", idx)
 	pod.ObjectMeta.Annotations[TaskTypeKey] = taskType
 	pod.ObjectMeta.Annotations[TaskRankKey] = fmt.Sprintf("%d", taskN)
 	pod.ObjectMeta.Annotations[TaskNameKey] = task.Name
 	pod.ObjectMeta.Annotations[GlobalRankKey] = fmt.Sprintf("%d", globalRank)
+	pod.ObjectMeta.Annotations[LocalRankKey] = fmt.Sprintf("%d", localRank)
 
 	pod.Spec.Hostname = name
 	pod.Spec.Subdomain = name
@@ -106,12 +119,17 @@ func constructPod(pdj *pdv1.PaddleJob, taskN int, idx int) (pod *corev1.Pod) {
 		trainingRole = "TRAINER"
 		trainerId = fmt.Sprintf("%d", globalRank)
 	} else if pdj.Spec.Mode == pdv1.PaddleJobModePS {
-		if seq[0] == "ps" {
+		switch seq[0] {
+		case "ps":
 			trainingRole = "PSERVER"
-		} else {
+		case "heter":
+			trainingRole = "HETER"
+		case "driver":
+			trainingRole = "DRIVER"
+		default:
 			trainingRole = "TRAINER"
 		}
-		trainerId = fmt.Sprintf("%d", idx)
+		trainerId = fmt.Sprintf("%d", localRank)
 	} else {
 		trainingRole = strings.ToUpper(seq[0])
 		trainerId = fmt.Sprintf("%d", idx)
@@ -227,15 +245,17 @@ func constructConfigMap(pdj *pdv1.PaddleJob, childPods corev1.PodList) (cm *core
 
 	} else if pdj.Spec.Mode == pdv1.PaddleJobModePS {
 		ipps := map[string][]string{}
-		for _, pod := range childPods.Items {
-			pid, _ := strconv.Atoi(pod.ObjectMeta.Annotations[PodRankKey])
-			taskType := pod.ObjectMeta.Annotations[TaskTypeKey]
-			if _, ok := ipps[taskType]; !ok {
-				tid, _ := strconv.Atoi(pod.ObjectMeta.Annotations[TaskRankKey])
-				ipps[taskType] = make([]string, pdj.Spec.Tasks[tid].Replicas)
-			}
-			ipps[taskType][pid] = genIPPort(&pod)
+		for _, task := range pdj.Spec.Tasks {
+			taskType := genTaskType(task.Name)
+			ips := ipps[taskType]
+			ipps[taskType] = make([]string, len(ips)+task.Replicas)
 		}
+		for _, pod := range childPods.Items {
+			taskType := pod.ObjectMeta.Annotations[TaskTypeKey]
+			localRank, _ := strconv.Atoi(pod.ObjectMeta.Annotations[LocalRankKey])
+			ipps[taskType][localRank] = genIPPort(&pod)
+		}
+
 		if ps, ok := ipps["PS"]; ok {
 			cm.Data["PADDLE_PSERVERS_IP_PORT_LIST"] = strings.Join(ps, ",")
 		}
@@ -260,15 +280,17 @@ func constructConfigMap(pdj *pdv1.PaddleJob, childPods corev1.PodList) (cm *core
 		}
 	} else if pdj.Spec.Mode == pdv1.PaddleJobModeCustom {
 		ipps := map[string][]string{}
-		for _, pod := range childPods.Items {
-			pid, _ := strconv.Atoi(pod.ObjectMeta.Annotations[PodRankKey])
-			taskType := pod.ObjectMeta.Annotations[TaskTypeKey]
-			if _, ok := ipps[taskType]; !ok {
-				tid, _ := strconv.Atoi(pod.ObjectMeta.Annotations[TaskRankKey])
-				ipps[taskType] = make([]string, pdj.Spec.Tasks[tid].Replicas)
-			}
-			ipps[taskType][pid] = genEndpoint(&pod)
+		for _, task := range pdj.Spec.Tasks {
+			taskType := genTaskType(task.Name)
+			ips := ipps[taskType]
+			ipps[taskType] = make([]string, len(ips)+task.Replicas)
 		}
+		for _, pod := range childPods.Items {
+			taskType := pod.ObjectMeta.Annotations[TaskTypeKey]
+			localRank, _ := strconv.Atoi(pod.ObjectMeta.Annotations[LocalRankKey])
+			ipps[taskType][localRank] = genEndpoint(&pod)
+		}
+
 		for tp, ips := range ipps {
 			cm.Data[fmt.Sprintf("PADDLE_%s_HOST", tp)] = strings.Join(ips, ",")
 		}

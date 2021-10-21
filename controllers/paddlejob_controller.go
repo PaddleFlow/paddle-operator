@@ -74,7 +74,6 @@ type PaddleJobReconciler struct {
 	Scheduling  string
 	HostPortMap map[string]int
 	EtcdCli     *clientv3.Client
-	Cache       *Cache
 }
 
 //+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=paddlejobs,verbs=get;list;watch;create;update;patch;delete
@@ -256,11 +255,8 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	for i, task := range pdj.Spec.Tasks {
 		if !isPodCreated(task, pdj.Status.Tasks[task.Name]) {
 			for j := 0; j < task.Replicas; j++ {
-				if actionKey := fmt.Sprintf("pod-%d-%d", i, j); !r.Cache.Get(actionKey) {
-					if createPod(i, j) {
-						r.Cache.Add(actionKey, 3)
-						return ctrl.Result{}, nil
-					}
+				if createPod(i, j) {
+					return ctrl.Result{}, nil
 				}
 			}
 		}
@@ -302,10 +298,7 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				if i == 0 && pdj.Status.Tasks[task.Name].Running == 0 && !isAllCoordContainerRunning(childPods) {
 					return ctrl.Result{}, nil
 				}
-				if actionKey := fmt.Sprintf("exec-%s", task.Name); !r.Cache.Get(actionKey) {
-					runResource(task.Name)
-					r.Cache.Add(actionKey, 3)
-				}
+				runResource(task.Name)
 				return ctrl.Result{}, nil
 			}
 		}

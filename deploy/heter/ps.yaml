@@ -7,7 +7,19 @@ spec:
   withGloo: 1
   mode: PS
   tasks:
-  - name: driver
+  #- name: driver
+  #  replicas: 1
+  #  template:
+  #    spec:
+  #      containers:
+  #        - name: paddle
+  #          image: registry.baidubce.com/paddle-operator/demo-deepfm:v1
+  #          imagePullPolicy: Always
+  #          command:
+  #          - sleep
+  #          args:
+  #          - "3600"
+  - name: ps-1
     replicas: 1
     template:
       spec:
@@ -16,11 +28,11 @@ spec:
             image: registry.baidubce.com/paddle-operator/demo-deepfm:v1
             imagePullPolicy: Always
             command:
-            - sleep
+            - python3
             args:
-            - "3600"
-  - name: ps
-    replicas: 2
+            - train.py
+  - name: ps-2
+    replicas: 1
     template:
       spec:
         containers:

@@ -147,7 +147,6 @@ func main() {
 			controllers.HOST_PORT_END:   portEnd,
 		},
 		EtcdCli: etcdCli,
-		Cache:   controllers.NewCache(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "PaddleJob")
 		os.Exit(1)
