@@ -174,7 +174,7 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				continue
 			}
 			err := r.createResource(ctx, &pdj, svc)
-			return ctrl.Result{}, err
+			return ctrl.Result{Requeue: true}, err
 		}
 	}
 	if pdj.Spec.Intranet == pdv1.HostNetwork {
@@ -256,7 +256,7 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		if !isPodCreated(task, pdj.Status.Tasks[task.Name]) {
 			for j := 0; j < task.Replicas; j++ {
 				if createPod(i, j) {
-					return ctrl.Result{}, nil
+					return ctrl.Result{Requeue: true}, nil
 				}
 			}
 		}
@@ -277,7 +277,7 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			if apierrors.IsConflict(err) {
 				return ctrl.Result{}, nil
 			}
-			return ctrl.Result{}, err
+			return ctrl.Result{Requeue: true}, nil
 		}
 	}
 
@@ -299,7 +299,9 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 					return ctrl.Result{}, nil
 				}
 				runResource(task.Name)
-				return ctrl.Result{}, nil
+				if pdj.Spec.StartInOrder != nil && *pdj.Spec.StartInOrder == 1 {
+					return ctrl.Result{}, nil
+				}
 			}
 		}
 	}

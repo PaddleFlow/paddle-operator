@@ -67,6 +67,8 @@ spec:
                   queue:
                     type: string
                 type: object
+              startInOrder:
+                type: integer
               tasks:
                 items:
                   properties:

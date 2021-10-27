@@ -123,6 +123,9 @@ type PaddleJobSpec struct {
 	// Mode indicates in the PaddleJob run with : PS/Collective/Single etc.
 	// +kubebuilder:validation:Pattern:=(PS|Collective|Single|Custom)
 	Mode string `json:"mode"`
+
+	// StartInOrder indicate wether to start in tasks in order
+	StartInOrder *int `json:"startInOrder,omitempty"`
 }
 
 type TaskSpec struct {
