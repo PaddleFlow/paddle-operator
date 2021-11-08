@@ -1,0 +1,10 @@
+apiVersion: batch.paddlepaddle.org/v1alpha1
+kind: SampleJob
+metadata:
+  name: imagenet-sync
+  namespace: paddle-system
+spec:
+  type: sync
+  sampleset:
+    name: imagenet
+    namespace: paddle-system

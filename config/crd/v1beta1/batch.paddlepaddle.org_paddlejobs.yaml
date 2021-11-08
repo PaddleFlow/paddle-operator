@@ -5673,6 +5673,17 @@ spec:
               required:
               - replicas
               type: object
+            sampleSetRef:
+              properties:
+                mountPath:
+                  type: string
+                name:
+                  type: string
+                namespace:
+                  type: string
+              required:
+              - mountPath
+              type: object
             schedulingPolicy:
               properties:
                 minAvailable:

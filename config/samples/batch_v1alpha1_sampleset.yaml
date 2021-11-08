@@ -1,0 +1,12 @@
+apiVersion: batch.paddlepaddle.org/v1alpha1
+kind: SampleSet
+metadata:
+  name: imagenet
+  namespace: paddle-system
+spec:
+  partitions: 2
+  source:
+    uri: bos://imagenet.gz.bcebos.com/imagenet
+  secretRef:
+    name: imagenet
+    namespace: paddle-system
