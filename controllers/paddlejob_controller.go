@@ -329,9 +329,6 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 func (r *PaddleJobReconciler) syncCurrentStatus(ctx context.Context, pdj *pdv1.PaddleJob, childPods corev1.PodList) {
 	syncStatusByPod := func(ss *pdv1.ResourceStatus, pod *corev1.Pod) {
-		if pod.CreationTimestamp.Before(&pdj.CreationTimestamp) {
-			return
-		}
 
 		switch pod.Status.Phase {
 		case corev1.PodPending:
