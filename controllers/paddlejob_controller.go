@@ -134,7 +134,13 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// scheduling with volcano
 	if r.Scheduling == schedulerNameVolcano && !withoutVolcano(&pdj) {
 		pg := &volcano.PodGroup{}
-		if err := r.Get(ctx, client.ObjectKeyFromObject(&pdj), pg); err != nil {
+		err := r.Get(ctx, client.ObjectKeyFromObject(&pdj), pg)
+		if pdj.Status.Phase == pdv1.Failed || pdj.Status.Phase == pdv1.Completed {
+			if err == nil {
+				r.deleteResource(ctx, &pdj, pg)
+				return ctrl.Result{Requeue: true}, nil
+			}
+		} else if err != nil {
 			if apierrors.IsNotFound(err) {
 				pg = constructPodGroup(&pdj)
 				if err = ctrl.SetControllerReference(&pdj, pg, r.Scheme); err != nil {
