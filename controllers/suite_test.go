@@ -73,7 +73,6 @@ var _ = BeforeSuite(func() {
 	err = (&PaddleJobReconciler{
 		Client:   k8sManager.GetClient(),
 		Scheme:   k8sManager.GetScheme(),
-		Log:      ctrl.Log.WithName("controllers").WithName("PaddleJob"),
 		Recorder: k8sManager.GetEventRecorderFor("paddlejob-controller"),
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())

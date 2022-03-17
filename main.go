@@ -137,7 +137,6 @@ func main() {
 
 	if err = (&controllers.PaddleJobReconciler{
 		Client:     mgr.GetClient(),
-		Log:        ctrl.Log.WithName("controllers").WithName("PaddleJob"),
 		Scheme:     mgr.GetScheme(),
 		Recorder:   mgr.GetEventRecorderFor("paddlejob-controller"),
 		RESTClient: restClient,
