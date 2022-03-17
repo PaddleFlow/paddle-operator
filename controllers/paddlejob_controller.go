@@ -23,7 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -31,6 +30,7 @@ import (
 	ref "k8s.io/client-go/tools/reference"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
@@ -64,7 +64,6 @@ var (
 // PaddleJobReconciler reconciles a PaddleJob object
 type PaddleJobReconciler struct {
 	client.Client
-	Log        logr.Logger
 	Scheme     *runtime.Scheme
 	Recorder   record.EventRecorder
 	RESTClient rest.Interface
@@ -100,7 +99,7 @@ type PaddleJobReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.7.0/pkg/reconcile
 func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues("paddlejob", req.NamespacedName)
+	logr := log.FromContext(ctx)
 
 	// Obtain the PaddleJob instance we are working on
 	var pdj pdv1.PaddleJob
@@ -108,7 +107,7 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	log.Info("Reconcile", "version", pdj.ResourceVersion, "phase", pdj.Status.Phase, "delete", pdj.ObjectMeta.DeletionTimestamp)
+	logr.Info("Reconcile", "version", pdj.ResourceVersion, "phase", pdj.Status.Phase, "delete", pdj.ObjectMeta.DeletionTimestamp)
 
 	if r.finalize(ctx, &pdj) {
 		return ctrl.Result{RequeueAfter: time.Second}, nil
@@ -138,11 +137,11 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			if apierrors.IsNotFound(err) {
 				pg = constructPodGroup(&pdj)
 				if err = ctrl.SetControllerReference(&pdj, pg, r.Scheme); err != nil {
-					log.Error(err, "make reference failed")
+					logr.Error(err, "make reference failed")
 					return ctrl.Result{}, err
 				}
 				if err = r.createResource(ctx, &pdj, pg); err != nil {
-					log.Error(err, "create podgroup failed")
+					logr.Error(err, "create podgroup failed")
 				}
 			}
 			return ctrl.Result{Requeue: true}, nil
@@ -177,7 +176,7 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				continue
 			}
 			if err := ctrl.SetControllerReference(&pdj, svc, r.Scheme); err != nil {
-				log.Error(err, "make reference failed")
+				logr.Error(err, "make reference failed")
 				continue
 			}
 			err := r.createResource(ctx, &pdj, svc)
@@ -204,11 +203,11 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// sync elastic np to ectd
 	if pdj.Spec.Elastic != nil && r.EtcdCli != nil {
 		if np, err := syncNP(r.EtcdCli, &pdj); err != nil {
-			log.Error(err, "sync np failed")
+			logr.Error(err, "sync np failed")
 			return ctrl.Result{Requeue: true}, err
 		} else if np != nil {
 			r.Recorder.Event(&pdj, corev1.EventTypeNormal, "Scaled", fmt.Sprintf("scaled replicas to %s", *np))
-			log.Info("Scaled", "new replicas", *np)
+			logr.Info("Scaled", "new replicas", *np)
 			return ctrl.Result{Requeue: true}, nil
 		}
 	}
@@ -260,11 +259,11 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 
 		if err := ctrl.SetControllerReference(&pdj, pod, r.Scheme); err != nil {
-			log.Error(err, "make reference failed")
+			logr.Error(err, "make reference failed")
 			return false
 		}
 		if err := r.createResource(ctx, &pdj, pod); err != nil {
-			log.Error(err, "create pod failed")
+			logr.Error(err, "create pod failed")
 		}
 		return true
 	}
@@ -289,7 +288,7 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				return ctrl.Result{Requeue: true}, nil
 			}
 			if err := ctrl.SetControllerReference(&pdj, cm, r.Scheme); err != nil {
-				log.Error(err, "make reference failed")
+				logr.Error(err, "make reference failed")
 				return ctrl.Result{Requeue: true}, err
 			}
 			err := r.createResource(ctx, &pdj, cm)
@@ -432,7 +431,6 @@ func (r *PaddleJobReconciler) allocHostPortForJob(ctx context.Context, pdj *pdv1
 // allocNewPort globally
 func (r *PaddleJobReconciler) allocNewPort() int {
 	if len(r.HostPortMap)*HOST_PORT_NUM > r.HostPortMap[HOST_PORT_END]-r.HostPortMap[HOST_PORT_START] {
-		r.Log.Error(nil, "no available port")
 		return 40000
 	}
 	if port, ok := r.HostPortMap[HOST_PORT_CUR]; ok {
@@ -447,11 +445,9 @@ func (r *PaddleJobReconciler) allocNewPort() int {
 			return r.allocNewPort()
 		} else {
 			r.HostPortMap[fmt.Sprintf("%d", iport)] = 1
-			r.Log.V(4).Info("new port allocated", "port", iport)
 			return iport
 		}
 	}
-	r.Log.Error(nil, "something wrong with hostport allocator")
 	return 40000
 }
 
