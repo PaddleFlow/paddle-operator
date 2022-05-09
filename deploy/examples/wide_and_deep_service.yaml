@@ -4,7 +4,7 @@ metadata:
   name: wide-ande-deep-service
 spec:
   intranet: Service # default: PodIP
-  cleanPodPolicy: Nerver
+  cleanPodPolicy: Never
   withGloo: 1
   worker:
     replicas: 2
