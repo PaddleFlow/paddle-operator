@@ -500,7 +500,7 @@ func (r *PaddleJobReconciler) execInPod(namespace string, podName string, contai
 			Command:   cmd,
 			Stdout:    true,
 			Stderr:    true,
-		}, runtime.NewParameterCodec(r.Scheme))
+		}, runtime.NewParameterCodec(r.Scheme)).Timeout(3 * time.Second)
 
 	exec, err := remotecommand.NewSPDYExecutor(r.RESTConfig, http.MethodPost, execReq.URL())
 	if err != nil {
