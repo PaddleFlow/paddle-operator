@@ -16,6 +16,7 @@ package controllers
 
 import (
 	"fmt"
+	"math/rand"
 	"strconv"
 	"strings"
 
@@ -90,6 +91,10 @@ func isCompleted(spec *pdv1.ResourceSpec, status *pdv1.ResourceStatus) bool {
 }
 
 func getPaddleJobPhase(pdj *pdv1.PaddleJob) pdv1.PaddleJobPhase {
+
+	if !pdj.ObjectMeta.DeletionTimestamp.IsZero() {
+		return pdv1.Terminating
+	}
 
 	// final phase won't change any more
 	if pdj.Status.Phase == pdv1.Completed {
@@ -227,19 +232,15 @@ func constructConfigMap(pdj *pdv1.PaddleJob, childPods corev1.PodList) (cm *core
 			return nil
 		}
 		resType, idx := extractNameIndex(pod.Name)
+
+		paddle_port := PADDLE_PORT + rand.Intn(20000)
 		if pdj.Spec.Intranet == pdv1.Service {
 			resources[resType][idx] = fmt.Sprintf("%s:%d", pod.Name, PADDLE_PORT)
 		} else {
-			resources[resType][idx] = fmt.Sprintf("%s:%d", pod.Status.PodIP, PADDLE_PORT)
+			resources[resType][idx] = fmt.Sprintf("%s:%d", pod.Status.PodIP, paddle_port)
 		}
 	}
 
-	var paddle_port string
-	if pdj.Spec.Intranet == pdv1.HostNetwork {
-		paddle_port = pdj.ObjectMeta.Annotations[hostPort]
-	} else {
-		paddle_port = fmt.Sprintf("%d", PADDLE_PORT)
-	}
 	cm = &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
@@ -251,7 +252,6 @@ func constructConfigMap(pdj *pdv1.PaddleJob, childPods corev1.PodList) (cm *core
 		},
 		Data: map[string]string{
 			"TRAINER_PORTS_NUM": fmt.Sprintf("%d", HOST_PORT_NUM),
-			"PADDLE_PORT":       paddle_port,
 		},
 	}
 
@@ -456,7 +456,7 @@ func constructService4Pod(pod corev1.Pod) *corev1.Service {
 
 // for volcano
 
-func withoutVolcano(pdj *pdv1.PaddleJob) bool {
+func withVolcano(pdj *pdv1.PaddleJob) bool {
 	check := func(rs *pdv1.ResourceSpec) bool {
 		if rs != nil &&
 			rs.Template.Spec.SchedulerName != "" &&
@@ -469,10 +469,10 @@ func withoutVolcano(pdj *pdv1.PaddleJob) bool {
 	specs := pdj.GetSpecs()
 	for _, spec := range specs {
 		if check(spec) {
-			return true
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 func constructPodGroup(pdj *pdv1.PaddleJob) *volcano.PodGroup {
