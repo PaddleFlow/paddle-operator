@@ -77,15 +77,6 @@ containers:
 
 then, job as in *deploy/examples/wide_and_deep_volcano.yaml* can be handled correctly.
 
-### Elastic Trainning
-
-Elastic feature depend on etcd present, which should be set for controller as args,
-```
-  --etcd-server=paddle-elastic-etcd.paddle-system.svc.cluster.local:2379      # enable elastic
-```
-
-then, job as in *deploy/elastic/resnet.yaml* can be handled correctly.
-
 ### Deploy args
 Change the following args in *deploy/v1/operator.yaml* before deployment,
 ```
@@ -93,7 +84,7 @@ Change the following args in *deploy/v1/operator.yaml* before deployment,
   - --leader-elect             # enable leader election
   - --namespace=paddle-system  # watch this ns only, set to "" for all namespace
   - --scheduling=volcano       # enable volcano
-  - --initImage=""             # init container image, default to busybox, "" to disable
+  - --initImage=               # init container image, default to busybox, empty to disable
   command:
   - /manager
 ```

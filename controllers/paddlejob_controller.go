@@ -20,12 +20,10 @@ import (
 	"net/http"
 	"os"
 	"reflect"
-	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/record"
 	ref "k8s.io/client-go/tools/reference"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -39,7 +37,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	clientv3 "go.etcd.io/etcd/client/v3"
 	volcanoBatch "volcano.sh/apis/pkg/apis/batch/v1alpha1"
 	volcano "volcano.sh/apis/pkg/apis/scheduling/v1beta1"
 
@@ -47,18 +44,14 @@ import (
 )
 
 const (
-	HOST_PORT_START = "port.start"
-	HOST_PORT_END   = "port.end"
-	HOST_PORT_CUR   = "port.cur"
-	HOST_PORT_NUM   = 20
-	PADDLE_PORT     = 2379
+	HOST_PORT_NUM = 20
+	PADDLE_PORT   = 36000
 )
 
 var (
 	ctrlRefKey    = ".metadata.controller"
 	apiGVStr      = pdv1.GroupVersion.String()
 	finalizerName = "finalizers.paddlepaddle.org"
-	hostPort      = "host-port"
 )
 
 // PaddleJobReconciler reconciles a PaddleJob object
@@ -69,10 +62,8 @@ type PaddleJobReconciler struct {
 	RESTClient rest.Interface
 	RESTConfig *rest.Config
 
-	Scheduling  string
-	InitImage   string
-	HostPortMap map[string]int
-	EtcdCli     *clientv3.Client
+	Scheduling string
+	InitImage  string
 }
 
 //+kubebuilder:rbac:groups=batch.paddlepaddle.org,resources=paddlejobs,verbs=get;list;watch;create;update;patch;delete
@@ -109,10 +100,6 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	logr.Info("Reconcile", "version", pdj.ResourceVersion, "phase", pdj.Status.Phase, "delete", pdj.ObjectMeta.DeletionTimestamp)
 
-	if r.finalize(ctx, &pdj) {
-		return ctrl.Result{RequeueAfter: time.Second}, nil
-	}
-
 	// List all associated pods
 	var childPods corev1.PodList
 	if err := r.List(ctx, &childPods, client.InNamespace(req.Namespace), client.MatchingFields{ctrlRefKey: req.Name}); err != nil {
@@ -130,8 +117,12 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
+	if r.finalize(ctx, &pdj) {
+		return ctrl.Result{RequeueAfter: time.Second}, nil
+	}
+
 	// scheduling with volcano
-	if r.Scheduling == schedulerNameVolcano && !withoutVolcano(&pdj) {
+	if r.Scheduling == schedulerNameVolcano && !withVolcano(&pdj) {
 		pg := &volcano.PodGroup{}
 		err := r.Get(ctx, client.ObjectKeyFromObject(&pdj), pg)
 		if pdj.Status.Phase == pdv1.Failed || pdj.Status.Phase == pdv1.Completed {
@@ -189,11 +180,6 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return ctrl.Result{}, err
 		}
 	}
-	if pdj.Spec.Intranet == pdv1.HostNetwork {
-		if r.allocHostPortForJob(ctx, &pdj) {
-			return ctrl.Result{RequeueAfter: time.Second}, nil
-		}
-	}
 
 	cleanOne := func() {
 		for i := range childPods.Items {
@@ -203,18 +189,6 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		for i := range svcs.Items {
 			r.deleteResource(ctx, &pdj, &svcs.Items[i])
 			return
-		}
-	}
-
-	// sync elastic np to ectd
-	if pdj.Spec.Elastic != nil && r.EtcdCli != nil {
-		if np, err := syncNP(r.EtcdCli, &pdj); err != nil {
-			logr.Error(err, "sync np failed")
-			return ctrl.Result{Requeue: true}, err
-		} else if np != nil {
-			r.Recorder.Event(&pdj, corev1.EventTypeNormal, "Scaled", fmt.Sprintf("scaled replicas to %s", *np))
-			logr.Info("Scaled", "new replicas", *np)
-			return ctrl.Result{Requeue: true}, nil
 		}
 	}
 
@@ -243,7 +217,7 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			pod.Spec.InitContainers = append(pod.Spec.InitContainers, coInit)
 		}
 
-		if r.Scheduling == schedulerNameVolcano && !withoutVolcano(&pdj) {
+		if r.Scheduling == schedulerNameVolcano && !withVolcano(&pdj) {
 			pod.Spec.SchedulerName = schedulerNameVolcano
 			pod.ObjectMeta.Annotations[schedulingPodGroupAnnotation] = pdj.Name
 			pod.ObjectMeta.Annotations[volcanoBatch.TaskSpecKey] = resType
@@ -254,14 +228,6 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			} else {
 				pod.ObjectMeta.Annotations[volcanoBatch.QueueNameKey] = ""
 			}
-		}
-
-		if pdj.Spec.Elastic != nil && r.EtcdCli != nil {
-			envEtcd := corev1.EnvVar{
-				Name:  "PADDLE_ELASTIC_SERVER",
-				Value: strings.Join(r.EtcdCli.Endpoints(), ","),
-			}
-			pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, envEtcd)
 		}
 
 		if err := ctrl.SetControllerReference(&pdj, pod, r.Scheme); err != nil {
@@ -287,7 +253,7 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// Create configmap of global env for all pods after all pods are running
-	if pdj.Spec.Elastic == nil && isAllPodsReady(&pdj, childPods) {
+	if isAllPodsReady(&pdj, childPods) {
 		if err := r.Get(ctx, types.NamespacedName{Name: pdj.Name, Namespace: pdj.Namespace}, &corev1.ConfigMap{}); err != nil && apierrors.IsNotFound(err) {
 			cm := constructConfigMap(&pdj, childPods)
 			if cm == nil {
@@ -404,59 +370,6 @@ func (r *PaddleJobReconciler) createResource(ctx context.Context, pdj *pdv1.Padd
 
 }
 
-func (r *PaddleJobReconciler) allocHostPortForJob(ctx context.Context, pdj *pdv1.PaddleJob) bool {
-	if pdj.Spec.Intranet != pdv1.HostNetwork {
-		return false
-	}
-	if port, ok := pdj.ObjectMeta.Annotations[hostPort]; ok {
-		// this will happen after the controler restart
-		if _, okk := r.HostPortMap[port]; okk {
-			return false
-		} else if pdj.ObjectMeta.DeletionTimestamp.IsZero() {
-			r.HostPortMap[port] = 1
-			return true
-		}
-	} else {
-		pdj.ObjectMeta.Annotations[hostPort] = fmt.Sprintf("%d", r.allocNewPort())
-		r.Update(ctx, pdj)
-		// ensure annotation updated
-		wait.Poll(100*time.Millisecond, 2*time.Second, func() (bool, error) {
-			var tmp pdv1.PaddleJob
-			if errr := r.Get(ctx, types.NamespacedName{Name: pdj.Name, Namespace: pdj.Namespace}, &tmp); errr != nil {
-				if _, okkk := tmp.ObjectMeta.Annotations[hostPort]; okkk {
-					return true, nil
-				}
-			}
-			return false, nil
-		})
-		return true
-	}
-	return false
-}
-
-// allocNewPort globally
-func (r *PaddleJobReconciler) allocNewPort() int {
-	if len(r.HostPortMap)*HOST_PORT_NUM > r.HostPortMap[HOST_PORT_END]-r.HostPortMap[HOST_PORT_START] {
-		return 40000
-	}
-	if port, ok := r.HostPortMap[HOST_PORT_CUR]; ok {
-		// new port prepare to allocate
-		var iport = port + HOST_PORT_NUM
-		if iport > r.HostPortMap[HOST_PORT_END] {
-			iport = r.HostPortMap[HOST_PORT_START]
-		}
-		r.HostPortMap[HOST_PORT_CUR] = iport
-		if _, okk := r.HostPortMap[fmt.Sprintf("%d", iport)]; okk {
-			// reallocate if exists
-			return r.allocNewPort()
-		} else {
-			r.HostPortMap[fmt.Sprintf("%d", iport)] = 1
-			return iport
-		}
-	}
-	return 40000
-}
-
 func (r *PaddleJobReconciler) finalize(ctx context.Context, pdj *pdv1.PaddleJob) bool {
 	if pdj.ObjectMeta.DeletionTimestamp.IsZero() {
 		if !containsString(pdj.ObjectMeta.Finalizers, finalizerName) {
@@ -467,16 +380,6 @@ func (r *PaddleJobReconciler) finalize(ctx context.Context, pdj *pdv1.PaddleJob)
 		}
 	} else {
 		if containsString(pdj.ObjectMeta.Finalizers, finalizerName) {
-
-			// do before delete
-			if pdj.Spec.Intranet == pdv1.HostNetwork {
-				if port, ok := pdj.ObjectMeta.Annotations[hostPort]; ok {
-					if _, exist := r.HostPortMap[port]; exist {
-						delete(r.HostPortMap, port)
-						return true
-					}
-				}
-			}
 
 			pdj.ObjectMeta.Finalizers = removeString(pdj.ObjectMeta.Finalizers, finalizerName)
 			if err := r.Update(ctx, pdj); err != nil {
