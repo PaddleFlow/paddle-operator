@@ -122,7 +122,7 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// scheduling with volcano
-	if r.Scheduling == schedulerNameVolcano && !withVolcano(&pdj) {
+	if r.Scheduling == schedulerNameVolcano && withVolcano(&pdj) {
 		pg := &volcano.PodGroup{}
 		err := r.Get(ctx, client.ObjectKeyFromObject(&pdj), pg)
 		if pdj.Status.Phase == pdv1.Failed || pdj.Status.Phase == pdv1.Completed {
@@ -217,7 +217,7 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			pod.Spec.InitContainers = append(pod.Spec.InitContainers, coInit)
 		}
 
-		if r.Scheduling == schedulerNameVolcano && !withVolcano(&pdj) {
+		if r.Scheduling == schedulerNameVolcano && withVolcano(&pdj) {
 			pod.Spec.SchedulerName = schedulerNameVolcano
 			pod.ObjectMeta.Annotations[schedulingPodGroupAnnotation] = pdj.Name
 			pod.ObjectMeta.Annotations[volcanoBatch.TaskSpecKey] = resType

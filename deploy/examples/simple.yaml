@@ -1,0 +1,19 @@
+apiVersion: batch.paddlepaddle.org/v1
+kind: PaddleJob
+metadata:
+  name: simple
+spec:
+  cleanPodPolicy: Never
+  worker:
+    replicas: 2
+    template:
+      spec:
+        containers:
+          - name: simple
+            image: registry.baidubce.com/paddlepaddle/paddle:2.4.0rc0-cpu
+            command:
+            - python
+            args:
+            - "-m"
+            - "paddle.distributed.launch"
+            - "run_check"
