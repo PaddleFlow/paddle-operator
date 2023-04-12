@@ -29,10 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
-	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
-
 	volcano "volcano.sh/apis/pkg/apis/scheduling/v1beta1"
 
 	batchv1 "github.com/paddleflow/paddle-operator/api/v1"
@@ -69,7 +65,7 @@ func main() {
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.StringVar(&scheduling, "scheduling", "", "The scheduler to take, e.g. volcano")
-	flag.StringVar(&initImage, "initImage", "docker.io/library/busybox:1", "The image used for init container, default to busybox")
+	flag.StringVar(&initImage, "initImage", "docker.io/library/alpine:3", "The image used for init container, default to alpine")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -92,23 +88,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	// restClient for exec
-	gvk := schema.GroupVersionKind{
-		Group:   "",
-		Version: "v1",
-		Kind:    "Pod",
-	}
-	restClient, err := apiutil.RESTClientForGVK(gvk, false, mgr.GetConfig(), serializer.NewCodecFactory(mgr.GetScheme()))
-	if err != nil {
-		setupLog.Error(err, "unable to create REST client")
-	}
-
 	if err = (&controllers.PaddleJobReconciler{
 		Client:     mgr.GetClient(),
 		Scheme:     mgr.GetScheme(),
 		Recorder:   mgr.GetEventRecorderFor("paddlejob-controller"),
-		RESTClient: restClient,
-		RESTConfig: mgr.GetConfig(),
 		Scheduling: scheduling,
 		InitImage:  initImage,
 	}).SetupWithManager(mgr); err != nil {
