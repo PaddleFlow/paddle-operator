@@ -17,8 +17,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"os"
 	"reflect"
 	"time"
 
@@ -29,9 +27,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/remotecommand"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -57,10 +52,8 @@ var (
 // PaddleJobReconciler reconciles a PaddleJob object
 type PaddleJobReconciler struct {
 	client.Client
-	Scheme     *runtime.Scheme
-	Recorder   record.EventRecorder
-	RESTClient rest.Interface
-	RESTConfig *rest.Config
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
 
 	Scheduling string
 	InitImage  string
@@ -161,25 +154,25 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// List all associated svc
 	var svcs corev1.ServiceList
 
-	if pdj.Spec.Intranet == pdv1.Service {
-		if err := r.List(ctx, &svcs, client.InNamespace(req.Namespace), client.MatchingFields{ctrlRefKey: req.Name}); err != nil {
-			return ctrl.Result{}, err
-		}
-
-		// Ensure service for running pod
-		for _, pod := range childPods.Items {
-			svc := constructService4Pod(pod)
-			if err := r.Get(ctx, client.ObjectKeyFromObject(svc), &corev1.Service{}); err == nil {
-				continue
-			}
-			if err := ctrl.SetControllerReference(&pdj, svc, r.Scheme); err != nil {
-				logr.Error(err, "make reference failed")
-				continue
-			}
-			err := r.createResource(ctx, &pdj, svc)
-			return ctrl.Result{}, err
-		}
+	//if pdj.Spec.Intranet == pdv1.Service {
+	if err := r.List(ctx, &svcs, client.InNamespace(req.Namespace), client.MatchingFields{ctrlRefKey: req.Name}); err != nil {
+		return ctrl.Result{}, err
 	}
+
+	// Ensure service for running pod
+	for _, pod := range childPods.Items {
+		svc := constructService4Pod(pod)
+		if err := r.Get(ctx, client.ObjectKeyFromObject(svc), &corev1.Service{}); err == nil {
+			continue
+		}
+		if err := ctrl.SetControllerReference(&pdj, svc, r.Scheme); err != nil {
+			logr.Error(err, "make reference failed")
+			continue
+		}
+		err := r.createResource(ctx, &pdj, svc)
+		return ctrl.Result{}, err
+	}
+	//}
 
 	cleanOne := func() {
 		for i := range childPods.Items {
@@ -213,7 +206,8 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		pod := constructPod(&pdj, resType, idx)
 
 		if r.InitImage != "" {
-			coInit := genCoordinateInitContainer(r.InitImage)
+			initCmd := genCoordContainerCmd(&pdj, resType)
+			coInit := genCoordinateInitContainer(r.InitImage, initCmd)
 			pod.Spec.InitContainers = append(pod.Spec.InitContainers, coInit)
 		}
 
@@ -268,30 +262,6 @@ func (r *PaddleJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				return ctrl.Result{Requeue: true}, nil
 			}
 			return ctrl.Result{}, err
-		}
-	}
-
-	runResource := func(resType string) {
-		for i, pod := range childPods.Items {
-			if resType == pod.Annotations[pdv1.ResourceAnnotation] {
-				if isCoordContainerRunning(&childPods.Items[i]) {
-					r.execInPod(pdj.Namespace, pod.Name, coordContainerName, []string{"touch", "goon"})
-				}
-			}
-		}
-	}
-
-	// coordinate ensure pod run in the defined order
-	if pdj.Status.Phase == pdv1.Starting && r.InitImage != "" {
-		ress := pdj.GetResourceOrder()
-		for i := 0; i < len(ress); i++ {
-			if statuses[ress[i]] != nil && statuses[ress[i]].Running < specs[ress[i]].Replicas {
-				if i == 0 && statuses[ress[i]].Running == 0 && !isAllCoordContainerRunning(childPods) {
-					return ctrl.Result{RequeueAfter: time.Second}, nil
-				}
-				runResource(ress[i])
-				return ctrl.Result{RequeueAfter: time.Second}, nil
-			}
 		}
 	}
 
@@ -389,35 +359,6 @@ func (r *PaddleJobReconciler) finalize(ctx context.Context, pdj *pdv1.PaddleJob)
 		return false
 	}
 	return false
-}
-
-func (r *PaddleJobReconciler) execInPod(namespace string, podName string, containerName string, cmd []string) error {
-	execReq := r.RESTClient.
-		Post().
-		Namespace(namespace).
-		Resource("pods").
-		Name(podName).
-		SubResource("exec").
-		VersionedParams(&corev1.PodExecOptions{
-			Container: containerName,
-			Command:   cmd,
-			Stdout:    true,
-			Stderr:    true,
-		}, runtime.NewParameterCodec(r.Scheme)).Timeout(3 * time.Second)
-
-	exec, err := remotecommand.NewSPDYExecutor(r.RESTConfig, http.MethodPost, execReq.URL())
-	if err != nil {
-		return err
-	}
-
-	err = exec.Stream(remotecommand.StreamOptions{
-		Stdin:  nil,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
-		Tty:    false,
-	})
-
-	return err
 }
 
 func indexerFunc(rawObj client.Object) []string {

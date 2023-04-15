@@ -35,10 +35,7 @@ const (
 	coordContainerName = "coord-paddle"
 	coordContainerCpu  = "10m"
 	coordContainerMem  = "10m"
-)
-
-var (
-	coordContainerCmd = []string{"sh", "-c", "while true; do if [ -f goon ]; then exit 0; else sleep 0.1; fi; done"}
+	coordContainerSh   = "for h in %s; do for i in $(seq 1000); do echo check $i; if nslookup $h; then break; fi; if [ $i -eq 1000 ]; then exit 1; fi; sleep 1; done; done; sleep 2"
 )
 
 func isAllPodsReady(pdj *pdv1.PaddleJob, childPods corev1.PodList) bool {
@@ -376,7 +373,7 @@ func constructPod(pdj *pdv1.PaddleJob, resType string, idx int) (pod *corev1.Pod
 	return pod
 }
 
-func genCoordinateInitContainer(coordContainerImage string) corev1.Container {
+func genCoordinateInitContainer(coordContainerImage string, coordContainerCmd []string) corev1.Container {
 	c := corev1.Container{
 		Name:            coordContainerName,
 		Image:           coordContainerImage,
@@ -391,6 +388,18 @@ func genCoordinateInitContainer(coordContainerImage string) corev1.Container {
 		},
 	}
 	return c
+}
+
+func genCoordContainerCmd(pdj *pdv1.PaddleJob, resType string) []string {
+	specs := pdj.GetSpecs()
+	names := []string{}
+	for idx := 0; idx < specs[resType].Replicas; idx++ {
+		names = append(names, fmt.Sprintf("\"%s-%s-%d\"", pdj.Name, resType, idx))
+	}
+	hosts := strings.Join(names, " ")
+	sc := fmt.Sprintf(coordContainerSh, hosts)
+	ret := []string{"sh", "-c", sc}
+	return ret
 }
 
 func endpoints2hosts(eps []string) string {
@@ -448,7 +457,8 @@ func constructService4Pod(pod corev1.Pod) *corev1.Service {
 			Selector: map[string]string{
 				pdv1.ResourceName: pod.Name,
 			},
-			ClusterIP: "None",
+			PublishNotReadyAddresses: true,
+			ClusterIP:                "None",
 		},
 	}
 	return svc
