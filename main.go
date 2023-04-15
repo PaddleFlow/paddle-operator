@@ -65,7 +65,7 @@ func main() {
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.StringVar(&scheduling, "scheduling", "", "The scheduler to take, e.g. volcano")
-	flag.StringVar(&initImage, "initImage", "docker.io/library/alpine:3", "The image used for init container, default to alpine")
+	flag.StringVar(&initImage, "initImage", "docker.io/library/alpine:3.10", "The image used for init container, default to alpine")
 	opts := zap.Options{
 		Development: true,
 	}

@@ -457,7 +457,8 @@ func constructService4Pod(pod corev1.Pod) *corev1.Service {
 			Selector: map[string]string{
 				pdv1.ResourceName: pod.Name,
 			},
-			ClusterIP: "None",
+			PublishNotReadyAddresses: true,
+			ClusterIP:                "None",
 		},
 	}
 	return svc
