@@ -242,7 +242,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: registry.baidubce.com/paddlecloud/controller:v0.3.3
+        image: registry.baidubce.com/paddlecloud/controller:v0.3.4
         imagePullPolicy: Always
         livenessProbe:
           httpGet:
