@@ -84,7 +84,7 @@ Change the following args in *deploy/v1/operator.yaml* before deployment,
   - --leader-elect             # enable leader election
   - --namespace=paddle-system  # watch this ns only, set to "" for all namespace
   - --scheduling=volcano       # enable volcano
-  - --initImage=               # init container image, default to busybox, empty to disable
+  - --initImage=               # init container image, default to alpine:3.10, empty to disable
   command:
   - /manager
 ```
