@@ -249,6 +249,7 @@ func constructConfigMap(pdj *pdv1.PaddleJob, childPods corev1.PodList) (cm *core
 		},
 		Data: map[string]string{
 			"TRAINER_PORTS_NUM": fmt.Sprintf("%d", HOST_PORT_NUM),
+			"PADDLE_PORT":       fmt.Sprintf("%d", PADDLE_PORT+rand.Intn(20000)),
 		},
 	}
 
