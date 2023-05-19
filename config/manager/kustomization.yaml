@@ -15,4 +15,4 @@ configMapGenerator:
 images:
 - name: controller
   newName: registry.baidubce.com/paddlecloud/controller
-  newTag: v0.3.4
+  newTag: v0.3.5

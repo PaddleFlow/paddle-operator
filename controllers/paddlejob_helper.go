@@ -224,13 +224,13 @@ func constructConfigMap(pdj *pdv1.PaddleJob, childPods corev1.PodList) (cm *core
 		}
 	}
 
+	paddle_port := PADDLE_PORT + rand.Intn(20000)
 	for _, pod := range childPods.Items {
 		if len(strings.Split(pod.Status.PodIP, ".")) != 4 {
 			return nil
 		}
 		resType, idx := extractNameIndex(pod.Name)
 
-		paddle_port := PADDLE_PORT + rand.Intn(20000)
 		if pdj.Spec.Intranet == pdv1.Service {
 			resources[resType][idx] = fmt.Sprintf("%s:%d", pod.Name, PADDLE_PORT)
 		} else {
@@ -249,6 +249,7 @@ func constructConfigMap(pdj *pdv1.PaddleJob, childPods corev1.PodList) (cm *core
 		},
 		Data: map[string]string{
 			"TRAINER_PORTS_NUM": fmt.Sprintf("%d", HOST_PORT_NUM),
+			"PADDLE_PORT":       fmt.Sprintf("%d", paddle_port),
 		},
 	}
 
