@@ -90,6 +90,7 @@ Change the following args in *deploy/v1/operator.yaml* before deployment,
 ```
 
 ### Uninstall
+
 Simply
 ```shell
 kubectl delete -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/main/deploy/v1/crd.yaml -f https://raw.githubusercontent.com/PaddleFlow/paddle-operator/main/deploy/v1/operator.yaml
